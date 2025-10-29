@@ -54,9 +54,18 @@
             width: 72px;
             height: 72px;
             border-radius: 999px;
-            padding: 12px;
-            background: #fff;
+            display: grid;
+            place-items: center;
+            background: linear-gradient(135deg, #fff 0%, #f2f6ff 100%);
+            text-decoration: none;
             box-shadow: 0 12px 24px rgba(3, 24, 56, 0.35);
+        }
+
+        .admin-topbar__logo-mark {
+            font-weight: 700;
+            font-size: 24px;
+            letter-spacing: 0.08em;
+            color: var(--brand-primary);
         }
 
         .admin-topbar nav {
@@ -148,8 +157,8 @@
     </style>
 
     <div class="admin-topbar__brand">
-        <a href="{{ route('admin.clients.index') }}">
-            <img src="{{ asset('images/logoLL.png') }}" alt="Grupo LL" class="admin-topbar__logo" />
+        <a href="{{ route('admin.clients.index') }}" class="admin-topbar__logo" aria-label="Início">
+            <span class="admin-topbar__logo-mark">LL</span>
         </a>
 
         <nav aria-label="Navegação principal">
