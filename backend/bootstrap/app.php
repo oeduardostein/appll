@@ -16,6 +16,10 @@ return Application::configure(basePath: dirname(__DIR__))
         $middleware->use([
             HandleCors::class,
         ]);
+
+        $middleware->alias([
+            'admin.auth' => \App\Http\Middleware\AdminAuthenticate::class,
+        ]);
     })
     ->withExceptions(function (Exceptions $exceptions): void {
         //
