@@ -11,6 +11,10 @@ class AdminAuthenticate
     public function handle(Request $request, Closure $next): Response
     {
         if (! session('admin_authenticated')) {
+            if ($request->expectsJson()) {
+                return response()->json(['message' => 'Unauthenticated.'], Response::HTTP_UNAUTHORIZED);
+            }
+
             return redirect()->route('admin.login');
         }
 

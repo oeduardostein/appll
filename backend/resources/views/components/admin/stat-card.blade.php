@@ -5,7 +5,7 @@
     'icon' => 'arrow',
 ])
 
-<article class="admin-card admin-stat-card">
+<article {{ $attributes->merge(['class' => 'admin-card admin-stat-card']) }}>
     <style>
         .admin-stat-card {
             display: flex;

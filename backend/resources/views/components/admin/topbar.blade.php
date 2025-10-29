@@ -1,6 +1,7 @@
 @props([
     'user' => [
         'name' => 'Administrador',
+        'email' => 'admin@example.com',
         'role' => 'Administrador',
     ],
 ])
@@ -115,7 +116,7 @@
         .admin-topbar__user-info {
             display: flex;
             flex-direction: column;
-            gap: 4px;
+            gap: 2px;
             font-size: 14px;
         }
 
@@ -148,7 +149,7 @@
 
     <div class="admin-topbar__brand">
         <a href="{{ route('admin.clients.index') }}">
-            <img src="{{ asset('images/logo-admin.svg') }}" alt="Grupo LL" class="admin-topbar__logo" />
+            <img src="{{ asset('images/logoLL.png') }}" alt="Grupo LL" class="admin-topbar__logo" />
         </a>
 
         <nav aria-label="Navegação principal">
@@ -170,6 +171,9 @@
 
         <div class="admin-topbar__user-info">
             <strong>{{ $user['name'] ?? 'Administrador' }}</strong>
+            <span style="color: rgba(255, 255, 255, 0.85); font-size: 13px;">
+                {{ $user['email'] ?? 'sem-email@dominio.com' }}
+            </span>
             <span style="color: rgba(255, 255, 255, 0.75); font-size: 13px;">
                 {{ $user['role'] ?? 'Administrador' }}
             </span>

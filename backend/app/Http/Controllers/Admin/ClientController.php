@@ -3,81 +3,78 @@
 namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
+use App\Http\Resources\Admin\UserResource;
+use App\Models\User;
+use Illuminate\Support\Collection;
 use Illuminate\View\View;
 
 class ClientController extends Controller
 {
     public function index(): View
     {
-        $stats = [
+        $perPage = 10;
+
+        $users = User::query()
+            ->latest('created_at')
+            ->paginate($perPage);
+
+        $metrics = $this->buildMetrics();
+
+        /** @var Collection<int, array<string, mixed>> $initialUsers */
+        $initialUsers = UserResource::collection($users->getCollection())->resolve();
+
+        $statCards = [
             [
+                'key' => 'active',
                 'title' => 'Usuários Ativos',
-                'value' => '320 usuários',
-                'trend' => '+12%',
+                'value' => sprintf('%d usuários', $metrics['active']),
+                'trend' => null,
             ],
             [
-                'title' => 'Novos Usuários',
-                'value' => '320 usuários',
-                'trend' => '+8%',
+                'key' => 'new_this_month',
+                'title' => 'Novos Usuários (mês)',
+                'value' => sprintf('%d usuários', $metrics['new_this_month']),
+                'trend' => null,
             ],
             [
+                'key' => 'inactive',
                 'title' => 'Usuários Inativos',
-                'value' => '320 usuários',
-                'trend' => '-5%',
+                'value' => sprintf('%d usuários', $metrics['inactive']),
+                'trend' => null,
             ],
         ];
 
-        $clients = collect([
-            [
-                'name' => 'John Doe',
-                'email' => 'john.doe@gmail.com',
-                'status' => 'Ativo',
-                'credits' => '30 créditos',
-                'last_access' => '12/08/2025',
-                'avatar' => 'https://i.pravatar.cc/150?img=1',
-            ],
-            [
-                'name' => 'Jane Smith',
-                'email' => 'jane.smith@gmail.com',
-                'status' => 'Ativo',
-                'credits' => '24 créditos',
-                'last_access' => '11/08/2025',
-                'avatar' => 'https://i.pravatar.cc/150?img=2',
-            ],
-            [
-                'name' => 'Lucas Moreira',
-                'email' => 'lucas.moreira@gmail.com',
-                'status' => 'Inativo',
-                'credits' => '0 créditos',
-                'last_access' => '01/08/2025',
-                'avatar' => 'https://i.pravatar.cc/150?img=3',
-            ],
-            [
-                'name' => 'Ana Julia',
-                'email' => 'ana.julia@gmail.com',
-                'status' => 'Ativo',
-                'credits' => '45 créditos',
-                'last_access' => '10/08/2025',
-                'avatar' => 'https://i.pravatar.cc/150?img=4',
-            ],
-            [
-                'name' => 'Carlos Lima',
-                'email' => 'carlos.lima@gmail.com',
-                'status' => 'Ativo',
-                'credits' => '30 créditos',
-                'last_access' => '09/08/2025',
-                'avatar' => 'https://i.pravatar.cc/150?img=5',
-            ],
-        ]);
-
         return view('admin.clients.index', [
-            'stats' => $stats,
-            'clients' => $clients,
-            'selectedCount' => 1,
-            'pagination' => [
-                'current_page' => 1,
-                'last_page' => 10,
+            'stats' => $statCards,
+            'selectedCount' => 0,
+            'initialUsers' => $initialUsers,
+            'initialMetrics' => $metrics,
+            'initialPagination' => [
+                'current_page' => $users->currentPage(),
+                'last_page' => $users->lastPage(),
+                'per_page' => $users->perPage(),
+                'total' => $users->total(),
             ],
         ]);
+    }
+
+    /**
+     * @return array<string, int>
+     */
+    private function buildMetrics(): array
+    {
+        $total = User::query()->count();
+        $active = User::query()->where('is_active', true)->count();
+        $inactive = User::query()->where('is_active', false)->count();
+        $newThisMonth = User::query()
+            ->where('created_at', '>=', now()->startOfMonth())
+            ->count();
+
+        return [
+            'total' => $total,
+            'active' => $active,
+            'inactive' => $inactive,
+            'new_this_month' => $newThisMonth,
+        ];
     }
 }

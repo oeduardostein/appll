@@ -36,7 +36,7 @@
                 justify-content: center;
             ">
                 <img
-                    src="{{ $client['avatar'] ?? asset('images/logo-admin.svg') }}"
+                    src="{{ $client['avatar'] ?? asset('images/logoLL.png') }}"
                     alt="{{ $client['name'] }}"
                     style="width: 100%; height: 100%; object-fit: cover;"
                 />
