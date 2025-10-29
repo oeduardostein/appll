@@ -196,7 +196,7 @@
     <body>
         <div class="login-wrapper">
             <span class="brand">
-                <img src="{{ asset('images/logoLL.png') }}" alt="Marca Grupo LL" />
+                <img src="{{ asset('/backend/public/images/logoLL.png') }}" alt="Marca Grupo LL" />
             </span>
 
             <div class="login-card">
