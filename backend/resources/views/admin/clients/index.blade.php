@@ -24,6 +24,26 @@
             color: var(--text-muted);
         }
 
+        .admin-filter-summary {
+            font-size: 13px;
+            color: var(--text-muted);
+            background: var(--surface);
+            border: 1px solid #d7deeb;
+            border-radius: 999px;
+            padding: 6px 14px;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            transition: border-color 160ms ease, color 160ms ease, background-color 160ms ease;
+        }
+
+        .admin-filter-summary.is-active {
+            background: rgba(11, 78, 162, 0.08);
+            color: var(--brand-primary);
+            border-color: rgba(11, 78, 162, 0.3);
+            font-weight: 600;
+        }
+
         .admin-button {
             display: inline-flex;
             align-items: center;
@@ -64,6 +84,20 @@
             box-shadow: none;
         }
 
+        .admin-button--link {
+            background: transparent;
+            color: var(--brand-primary);
+            border: none;
+            padding: 8px 0;
+            box-shadow: none;
+        }
+
+        .admin-button--link:hover {
+            background: transparent;
+            color: var(--brand-primary-hover);
+            transform: none;
+        }
+
         .admin-button:hover:not(:disabled) {
             transform: translateY(-1px);
         }
@@ -87,6 +121,10 @@
             background: transparent;
             width: 100%;
             color: var(--text-default);
+        }
+
+        .admin-search button {
+            display: none;
         }
 
         .admin-table {
@@ -268,6 +306,16 @@
             margin-top: 8px;
         }
 
+        .admin-modal__actions--between {
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .admin-modal__action-group {
+            display: inline-flex;
+            gap: 12px;
+        }
+
         .form-feedback {
             margin-top: -6px;
             font-size: 13px;
@@ -285,6 +333,25 @@
             opacity: 0.7;
             cursor: not-allowed;
             box-shadow: none;
+        }
+
+        .admin-modal__filters-grid {
+            display: grid;
+            gap: 18px;
+        }
+
+        .admin-field--inline {
+            gap: 12px;
+        }
+
+        .admin-field--inline > div {
+            display: flex;
+            gap: 12px;
+            flex-wrap: wrap;
+        }
+
+        .admin-field--inline input {
+            flex: 1 1 160px;
         }
     </style>
 
@@ -324,18 +391,21 @@
                 Adicionar usuário
             </button>
 
+            <span class="admin-filter-summary" data-filter-summary>Sem filtros aplicados</span>
+
             <span class="admin-toolbar__selection" data-selected-count>
                 0 usuário selecionado
             </span>
         </div>
 
-        <label class="admin-search">
+        <form class="admin-search" data-search-form>
             <svg width="17" height="17" viewBox="0 0 20 20" fill="none">
                 <path d="M18 18l-4.35-4.35m1.35-4.65a6 6 0 1 1-12 0 6 6 0 0 1 12 0Z" stroke="#8193ae"
                     stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" />
             </svg>
             <input type="search" placeholder="Pesquisar" data-search-input />
-        </label>
+            <button type="submit" aria-label="Pesquisar"></button>
+        </form>
     </section>
 
     <section class="table-wrapper">
@@ -372,6 +442,60 @@
             </div>
         </footer>
     </section>
+
+    <div class="admin-modal" data-modal="filters" aria-hidden="true">
+        <div class="admin-modal__backdrop" data-modal-close></div>
+        <div class="admin-modal__panel" role="dialog" aria-modal="true" aria-labelledby="filter-users-title">
+            <header class="admin-modal__header">
+                <h2 id="filter-users-title">Filtros avançados</h2>
+                <button type="button" class="admin-modal__close" data-modal-close aria-label="Fechar">×</button>
+            </header>
+
+            <form id="filter-users-form" class="admin-modal__form">
+                <div class="admin-modal__filters-grid">
+                    <div class="admin-field">
+                        <label for="filter-status">Status do usuário</label>
+                        <select id="filter-status" name="status">
+                            <option value="all">Todos</option>
+                            <option value="active">Ativo</option>
+                            <option value="inactive">Inativo</option>
+                        </select>
+                    </div>
+
+                    <div class="admin-field admin-field--inline">
+                        <label for="filter-created-from">Período de cadastro</label>
+                        <div>
+                            <input id="filter-created-from" name="created_from" type="date" />
+                            <input id="filter-created-to" name="created_to" type="date" />
+                        </div>
+                    </div>
+
+                    <div class="admin-field admin-field--inline">
+                        <label for="filter-credits-min">Faixa de créditos</label>
+                        <div>
+                            <input id="filter-credits-min" name="credits_min" type="number" min="0" placeholder="Mínimo" />
+                            <input id="filter-credits-max" name="credits_max" type="number" min="0" placeholder="Máximo" />
+                        </div>
+                    </div>
+                </div>
+
+                <div class="form-feedback" data-form-error="filters"></div>
+
+                <div class="admin-modal__actions admin-modal__actions--between">
+                    <button type="button" class="admin-button admin-button--link" data-action="reset-filters">
+                        Limpar filtros
+                    </button>
+
+                    <div class="admin-modal__action-group">
+                        <button type="button" class="admin-button admin-button--ghost" data-modal-close>Cancelar</button>
+                        <button type="submit" class="admin-button admin-button--primary" data-submit-label="Aplicar filtros">
+                            Aplicar filtros
+                        </button>
+                    </div>
+                </div>
+            </form>
+        </div>
+    </div>
 
     <div class="admin-modal" data-modal="create" aria-hidden="true">
         <div class="admin-modal__backdrop" data-modal-close></div>
@@ -568,6 +692,14 @@
 
     <script>
         (() => {
+            const defaultFilters = {
+                status: 'all',
+                created_from: '',
+                created_to: '',
+                credits_min: '',
+                credits_max: '',
+            };
+
             const state = {
                 users: window.adminUsersState?.data ?? [],
                 pagination: window.adminUsersState?.pagination ?? {
@@ -584,6 +716,7 @@
                 },
                 search: '',
                 perPage: window.adminUsersState?.pagination?.per_page ?? 10,
+                filters: { ...defaultFilters, ...(window.adminUsersState?.filters ?? {}) },
             };
 
             const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') ?? '';
@@ -596,12 +729,17 @@
                 nextButton: document.querySelector('[data-action="next-page"]'),
                 selectAll: document.querySelector('[data-select-all]'),
                 searchInput: document.querySelector('[data-search-input]'),
+                searchForm: document.querySelector('[data-search-form]'),
                 createModal: document.querySelector('[data-modal="create"]'),
                 editModal: document.querySelector('[data-modal="edit"]'),
                 deleteModal: document.querySelector('[data-modal="delete"]'),
+                filterModal: document.querySelector('[data-modal="filters"]'),
                 createForm: document.getElementById('create-user-form'),
                 editForm: document.getElementById('edit-user-form'),
                 deleteForm: document.getElementById('delete-user-form'),
+                filterForm: document.getElementById('filter-users-form'),
+                filterSummary: document.querySelector('[data-filter-summary]'),
+                resetFiltersButton: document.querySelector('[data-action="reset-filters"]'),
                 editLastAccess: document.querySelector('[data-edit-last-access]'),
                 deleteUserName: document.querySelector('[data-delete-user-name]'),
                 deleteUserEmail: document.querySelector('[data-delete-user-email]'),
@@ -620,6 +758,18 @@
                     if (search) {
                         url.searchParams.set('search', search);
                     }
+
+                    Object.entries(state.filters).forEach(([key, value]) => {
+                        if (value === null || value === undefined || value === '') {
+                            return;
+                        }
+
+                        if (key === 'status' && value === 'all') {
+                            return;
+                        }
+
+                        url.searchParams.set(key, value);
+                    });
 
                     return url.toString();
                 },
@@ -646,6 +796,91 @@
             function resetSelection() {
                 elements.selectAll.checked = false;
                 updateSelectedCount();
+            }
+
+            function formatDateLabel(value) {
+                if (!value) {
+                    return null;
+                }
+
+                const parts = value.split('-');
+                if (parts.length === 3) {
+                    return `${parts[2]}/${parts[1]}/${parts[0]}`;
+                }
+
+                return value;
+            }
+
+            function updateFilterSummary() {
+                if (!elements.filterSummary) {
+                    return;
+                }
+
+                const summaryParts = [];
+
+                if (state.filters.status && state.filters.status !== 'all') {
+                    summaryParts.push(`Status: ${state.filters.status === 'active' ? 'Ativo' : 'Inativo'}`);
+                }
+
+                if (state.filters.created_from || state.filters.created_to) {
+                    const fromLabel = formatDateLabel(state.filters.created_from) ?? 'início';
+                    const toLabel = formatDateLabel(state.filters.created_to) ?? 'hoje';
+                    summaryParts.push(`Período: ${fromLabel} a ${toLabel}`);
+                }
+
+                if (state.filters.credits_min !== '' || state.filters.credits_max !== '') {
+                    const min = state.filters.credits_min !== '' ? Number(state.filters.credits_min) : null;
+                    const max = state.filters.credits_max !== '' ? Number(state.filters.credits_max) : null;
+
+                    if (min !== null && max !== null) {
+                        summaryParts.push(`Créditos: ${min} a ${max}`);
+                    } else if (min !== null) {
+                        summaryParts.push(`Créditos: ≥ ${min}`);
+                    } else if (max !== null) {
+                        summaryParts.push(`Créditos: ≤ ${max}`);
+                    }
+                }
+
+                if (summaryParts.length === 0) {
+                    elements.filterSummary.textContent = 'Sem filtros aplicados';
+                    elements.filterSummary.classList.remove('is-active');
+                    return;
+                }
+
+                elements.filterSummary.textContent = summaryParts.join(' · ');
+                elements.filterSummary.classList.add('is-active');
+            }
+
+            function syncFilterForm() {
+                if (!elements.filterForm) {
+                    return;
+                }
+
+                const form = elements.filterForm;
+                const setValue = (selector, value) => {
+                    const field = form.querySelector(selector);
+                    if (field) {
+                        field.value = value ?? '';
+                    }
+                };
+
+                setValue('[name="status"]', state.filters.status ?? 'all');
+                setValue('[name="created_from"]', state.filters.created_from ?? '');
+                setValue('[name="created_to"]', state.filters.created_to ?? '');
+                setValue('[name="credits_min"]', state.filters.credits_min ?? '');
+                setValue('[name="credits_max"]', state.filters.credits_max ?? '');
+            }
+
+            function resetFilters(apply = false) {
+                state.filters = { ...defaultFilters };
+                syncFilterForm();
+                updateFilterSummary();
+                setFormError('filters', '');
+
+                if (apply) {
+                    closeModal('filters');
+                    fetchUsers(1);
+                }
             }
 
             function renderStats() {
@@ -853,9 +1088,17 @@
                 state.users = payload.data ?? [];
                 state.pagination = payload.meta?.pagination ?? state.pagination;
                 state.metrics = payload.meta?.stats ?? state.metrics;
+                if (payload.meta?.filters) {
+                    state.filters = {
+                        ...defaultFilters,
+                        ...payload.meta.filters,
+                    };
+                }
 
                 renderStats();
                 renderTable();
+                syncFilterForm();
+                updateFilterSummary();
             }
 
             function resetCreateForm() {
@@ -1053,7 +1296,56 @@
             });
 
             document.querySelector('[data-action="open-filters"]')?.addEventListener('click', () => {
-                alert('Funcionalidade de filtros em desenvolvimento.');
+                syncFilterForm();
+                setFormError('filters', '');
+                openModal('filters');
+            });
+
+            elements.filterForm?.addEventListener('submit', (event) => {
+                event.preventDefault();
+                setFormError('filters', '');
+
+                const formData = new FormData(elements.filterForm);
+                const statusRaw = String(formData.get('status') ?? 'all').toLowerCase();
+                const createdFrom = String(formData.get('created_from') ?? '').trim();
+                const createdTo = String(formData.get('created_to') ?? '').trim();
+                const creditsMinRaw = String(formData.get('credits_min') ?? '').trim();
+                const creditsMaxRaw = String(formData.get('credits_max') ?? '').trim();
+
+                if (createdFrom && createdTo && createdFrom > createdTo) {
+                    setFormError('filters', 'A data inicial não pode ser maior que a final.');
+                    return;
+                }
+
+                const minValue = creditsMinRaw === '' ? null : Number(creditsMinRaw);
+                const maxValue = creditsMaxRaw === '' ? null : Number(creditsMaxRaw);
+
+                if ((creditsMinRaw !== '' && Number.isNaN(minValue)) || (creditsMaxRaw !== '' && Number.isNaN(maxValue))) {
+                    setFormError('filters', 'Informe valores numéricos válidos para créditos.');
+                    return;
+                }
+
+                if (minValue !== null && maxValue !== null && minValue > maxValue) {
+                    setFormError('filters', 'O mínimo de créditos não pode ser maior que o máximo.');
+                    return;
+                }
+
+                const nextFilters = {
+                    status: ['active', 'inactive'].includes(statusRaw) ? statusRaw : 'all',
+                    created_from: createdFrom,
+                    created_to: createdTo,
+                    credits_min: minValue !== null ? String(minValue) : '',
+                    credits_max: maxValue !== null ? String(maxValue) : '',
+                };
+
+                state.filters = nextFilters;
+                closeModal('filters');
+                updateFilterSummary();
+                fetchUsers(1);
+            });
+
+            elements.resetFiltersButton?.addEventListener('click', () => {
+                resetFilters(true);
             });
 
             elements.searchInput?.addEventListener('input', (event) => {
@@ -1065,9 +1357,17 @@
                 }, 400);
             });
 
+            elements.searchForm?.addEventListener('submit', (event) => {
+                event.preventDefault();
+                state.search = elements.searchInput?.value?.trim() ?? '';
+                fetchUsers(1);
+            });
+
             attachModalCloseHandlers();
             renderStats();
             renderTable();
+            syncFilterForm();
+            updateFilterSummary();
         })();
     </script>
 @endsection

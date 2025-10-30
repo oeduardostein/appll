@@ -6,7 +6,7 @@ use App\Http\Controllers\Admin\UserController;
 use Illuminate\Support\Facades\Route;
 
 Route::get('/', function () {
-    return view('welcome');
+    return redirect()->route('admin.login');
 });
 
 Route::prefix('admin')->name('admin.')->group(function () {

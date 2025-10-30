@@ -5,9 +5,11 @@ namespace App\Http\Controllers\Admin;
 use App\Http\Controllers\Controller;
 use App\Http\Resources\Admin\UserResource;
 use App\Models\User;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Arr;
+use Illuminate\Support\Carbon;
 use Illuminate\Validation\Rule;
 use Symfony\Component\HttpFoundation\Response;
 
@@ -21,6 +23,27 @@ class UserController extends Controller
         $search = trim((string) $request->query('search'));
 
         $usersQuery = User::query();
+        $appliedFilters = $this->resolveFilters($request);
+
+        if ($appliedFilters['status'] !== 'all') {
+            $usersQuery->where('is_active', $appliedFilters['status'] === 'active');
+        }
+
+        if ($appliedFilters['credits_min'] !== '') {
+            $usersQuery->where('credits', '>=', (int) $appliedFilters['credits_min']);
+        }
+
+        if ($appliedFilters['credits_max'] !== '') {
+            $usersQuery->where('credits', '<=', (int) $appliedFilters['credits_max']);
+        }
+
+        if ($appliedFilters['created_from'] !== '') {
+            $usersQuery->whereDate('created_at', '>=', Carbon::parse($appliedFilters['created_from'])->startOfDay());
+        }
+
+        if ($appliedFilters['created_to'] !== '') {
+            $usersQuery->whereDate('created_at', '<=', Carbon::parse($appliedFilters['created_to'])->endOfDay());
+        }
 
         if ($search !== '') {
             $usersQuery->where(function ($query) use ($search) {
@@ -29,6 +52,8 @@ class UserController extends Controller
                     ->orWhere('email', 'like', '%' . $search . '%');
             });
         }
+
+        $stats = $this->buildStats(clone $usersQuery);
 
         $users = $usersQuery
             ->latest('created_at')
@@ -43,7 +68,8 @@ class UserController extends Controller
                     'per_page' => $users->perPage(),
                     'total' => $users->total(),
                 ],
-                'stats' => $this->buildStats(),
+                'stats' => $stats,
+                'filters' => $appliedFilters,
             ],
         ]);
 
@@ -107,12 +133,14 @@ class UserController extends Controller
     /**
      * @return array<string, int>
      */
-    private function buildStats(): array
+    private function buildStats(?Builder $baseQuery = null): array
     {
-        $total = User::query()->count();
-        $active = User::query()->where('is_active', true)->count();
-        $inactive = User::query()->where('is_active', false)->count();
-        $newThisMonth = User::query()
+        $query = $baseQuery ? (clone $baseQuery) : User::query();
+
+        $total = (clone $query)->count();
+        $active = (clone $query)->where('is_active', true)->count();
+        $inactive = (clone $query)->where('is_active', false)->count();
+        $newThisMonth = (clone $query)
             ->where('created_at', '>=', now()->startOfMonth())
             ->count();
 
@@ -122,5 +150,60 @@ class UserController extends Controller
             'inactive' => $inactive,
             'new_this_month' => $newThisMonth,
         ];
+    }
+
+    /**
+     * @return array{
+     *     status: string,
+     *     created_from: string,
+     *     created_to: string,
+     *     credits_min: string,
+     *     credits_max: string
+     * }
+     */
+    private function resolveFilters(Request $request): array
+    {
+        $status = strtolower((string) $request->query('status', ''));
+        $status = in_array($status, ['active', 'inactive'], true) ? $status : 'all';
+
+        return [
+            'status' => $status,
+            'created_from' => $this->normalizeDate($request->query('created_from')),
+            'created_to' => $this->normalizeDate($request->query('created_to')),
+            'credits_min' => $this->normalizeInteger($request->query('credits_min')),
+            'credits_max' => $this->normalizeInteger($request->query('credits_max')),
+        ];
+    }
+
+    private function normalizeDate(mixed $value): string
+    {
+        if (! is_string($value) || trim($value) === '') {
+            return '';
+        }
+
+        try {
+            return Carbon::parse($value)->toDateString();
+        } catch (\Throwable $e) {
+            return '';
+        }
+    }
+
+    private function normalizeInteger(mixed $value): string
+    {
+        if ($value === null || $value === '') {
+            return '';
+        }
+
+        if (is_string($value)) {
+            $value = trim($value);
+        }
+
+        $int = filter_var($value, FILTER_VALIDATE_INT);
+
+        if ($int === false) {
+            return '';
+        }
+
+        return (string) $int;
     }
 }
