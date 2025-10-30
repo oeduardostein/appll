@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
 use App\Models\Admin;
+use App\Models\AdminSetting;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
@@ -15,8 +16,11 @@ class SettingsController extends Controller
     {
         $admin = $this->resolveAuthenticatedAdmin($request);
 
+        $apiKeySetting = $this->getSetting($admin->id, 'api_key');
+
         return view('admin.settings.index', [
             'admin' => $admin,
+            'apiKey' => $apiKeySetting?->value ?? '',
         ]);
     }
 
@@ -38,6 +42,8 @@ class SettingsController extends Controller
         $admin->password = Hash::make($validated['password']);
         $admin->save();
 
+        $request->session()->put('admin_user.password_changed_at', now()->toIso8601String());
+
         return back()->with('status', 'Senha atualizada com sucesso.');
     }
 
@@ -49,10 +55,20 @@ class SettingsController extends Controller
             'api_key' => ['required', 'string', 'max:255'],
         ]);
 
-        $admin->api_key = $validated['api_key'];
-        $admin->save();
+        $setting = $this->getSetting($admin->id, 'api_key');
 
-        $request->session()->put('admin_user.api_key', $admin->api_key);
+        if ($setting) {
+            $setting->value = $validated['api_key'];
+            $setting->save();
+        } else {
+            $setting = AdminSetting::query()->create([
+                'admin_id' => $admin->id,
+                'key' => 'api_key',
+                'value' => $validated['api_key'],
+            ]);
+        }
+
+        $request->session()->put('admin_user.api_key', $setting->value);
 
         return back()->with('status', 'Chave de API salva com sucesso.');
     }
@@ -67,5 +83,13 @@ class SettingsController extends Controller
         abort_if(! $admin, 403);
 
         return $admin;
+    }
+
+    private function getSetting(int $adminId, string $key): ?AdminSetting
+    {
+        return AdminSetting::query()
+            ->where('admin_id', $adminId)
+            ->where('key', $key)
+            ->first();
     }
 }

@@ -212,7 +212,7 @@
                     id="api_key"
                     type="text"
                     name="api_key"
-                    value="{{ old('api_key', $admin->api_key) }}"
+                    value="{{ old('api_key', $apiKey) }}"
                     placeholder="Informe sua chave ou gere uma nova"
                     autocomplete="off"
                     required
