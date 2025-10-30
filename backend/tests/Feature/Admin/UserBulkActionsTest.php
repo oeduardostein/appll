@@ -24,11 +24,12 @@ class UserBulkActionsTest extends TestCase
         $inactiveUser = User::factory()->create(['is_active' => false]);
 
         $response = $this->actingAsAdmin()->postJson(route('admin.users.bulk-status'), [
-            'user_ids' => $activeUsers->pluck('id')->all(),
+            'user_ids' => array_merge($activeUsers->pluck('id')->all(), [9999]),
             'is_active' => false,
         ]);
 
         $response->assertOk();
+        $response->assertJsonPath('processed_ids.0', $activeUsers->first()->id);
         $this->assertDatabaseHas('users', [
             'id' => $activeUsers->first()->id,
             'is_active' => false,
@@ -44,10 +45,11 @@ class UserBulkActionsTest extends TestCase
         $users = User::factory()->count(3)->create();
 
         $response = $this->actingAsAdmin()->deleteJson(route('admin.users.bulk-destroy'), [
-            'user_ids' => $users->take(2)->pluck('id')->all(),
+            'user_ids' => array_merge($users->take(2)->pluck('id')->all(), [12345]),
         ]);
 
         $response->assertOk();
+        $response->assertJsonCount(2, 'processed_ids');
         $this->assertDatabaseMissing('users', ['id' => $users[0]->id]);
         $this->assertDatabaseMissing('users', ['id' => $users[1]->id]);
         $this->assertDatabaseHas('users', ['id' => $users[2]->id]);

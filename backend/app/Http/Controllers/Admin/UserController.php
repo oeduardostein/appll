@@ -134,17 +134,29 @@ class UserController extends Controller
     {
         $validated = $request->validate([
             'user_ids' => ['required', 'array', 'min:1'],
-            'user_ids.*' => ['integer', 'distinct', 'exists:users,id'],
+            'user_ids.*' => ['integer', 'distinct'],
             'is_active' => ['required', 'boolean'],
         ]);
 
+        $ids = collect($validated['user_ids'])
+            ->map(static fn ($id) => (int) $id)
+            ->filter(static fn ($id) => $id > 0)
+            ->values();
+
+        if ($ids->isEmpty()) {
+            return response()->json([
+                'message' => 'Nenhum usuário válido informado.',
+            ], Response::HTTP_UNPROCESSABLE_ENTITY);
+        }
+
         $updated = User::query()
-            ->whereIn('id', $validated['user_ids'])
+            ->whereIn('id', $ids)
             ->update(['is_active' => $validated['is_active']]);
 
         return response()->json([
             'message' => 'Status atualizado para os usuários selecionados.',
             'updated' => $updated,
+            'processed_ids' => $ids,
         ]);
     }
 
@@ -152,16 +164,28 @@ class UserController extends Controller
     {
         $validated = $request->validate([
             'user_ids' => ['required', 'array', 'min:1'],
-            'user_ids.*' => ['integer', 'distinct', 'exists:users,id'],
+            'user_ids.*' => ['integer', 'distinct'],
         ]);
 
+        $ids = collect($validated['user_ids'])
+            ->map(static fn ($id) => (int) $id)
+            ->filter(static fn ($id) => $id > 0)
+            ->values();
+
+        if ($ids->isEmpty()) {
+            return response()->json([
+                'message' => 'Nenhum usuário válido informado.',
+            ], Response::HTTP_UNPROCESSABLE_ENTITY);
+        }
+
         $deleted = User::query()
-            ->whereIn('id', $validated['user_ids'])
+            ->whereIn('id', $ids)
             ->delete();
 
         return response()->json([
             'message' => 'Usuários removidos com sucesso.',
             'deleted' => $deleted,
+            'processed_ids' => $ids,
         ]);
     }
 

@@ -15,8 +15,8 @@
         ],
         [
             'label' => 'Relatórios',
-            'route' => '#',
-            'active' => false,
+            'route' => route('admin.reports.index'),
+            'active' => request()->routeIs('admin.reports.*'),
         ],
         [
             'label' => 'Configurações',
@@ -152,7 +152,7 @@
 
     <div class="admin-topbar__brand">
         <a href="{{ route('admin.clients.index') }}" class="admin-topbar__logo" aria-label="Início">
-            <img src="{{ asset('images/logoLL.png') }}" alt="Logo LL" class="admin-topbar__logo-image">
+            <img src="{{ asset('backend/public/images/logoLL.png') }}" alt="Logo LL" class="admin-topbar__logo-image">
         </a>
 
         <nav aria-label="Navegação principal">
