@@ -2,7 +2,9 @@
 
 namespace App\Http\Requests\Auth;
 
+use Illuminate\Contracts\Validation\Validator;
 use Illuminate\Foundation\Http\FormRequest;
+use Illuminate\Http\Exceptions\HttpResponseException;
 
 class LoginRequest extends FormRequest
 {
@@ -37,5 +39,17 @@ class LoginRequest extends FormRequest
             'identifier' => ['required', 'string'],
             'password' => ['required', 'string', 'min:6'],
         ];
+    }
+
+    /**
+     * Force validation errors to return JSON responses.
+     */
+    protected function failedValidation(Validator $validator): void
+    {
+        throw new HttpResponseException(response()->json([
+            'status' => 'error',
+            'message' => 'Os dados fornecidos são inválidos.',
+            'errors' => $validator->errors(),
+        ], 422));
     }
 }

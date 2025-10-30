@@ -35,7 +35,7 @@ class AuthService {
   }
 
   Uri _buildUri(String path) {
-    return Uri.parse('$_baseUrl$path');
+    return Uri.parse('$path');
   }
 
   Future<void> register({
