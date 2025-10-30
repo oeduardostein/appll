@@ -38,6 +38,14 @@ class AuthService {
     return Uri.parse('$_baseUrl$path');
   }
 
+  Map<String, String> _jsonHeaders() {
+    return const {
+      'Content-Type': 'application/json',
+      'Accept': 'application/json',
+      'X-Requested-With': 'XMLHttpRequest',
+    };
+  }
+
   Future<void> register({
     required String username,
     required String email,
@@ -47,7 +55,7 @@ class AuthService {
     final uri = _buildUri('/api/auth/register');
     final response = await _client.post(
       uri,
-      headers: {'Content-Type': 'application/json'},
+      headers: _jsonHeaders(),
       body: jsonEncode({
         'username': username,
         'email': email,
@@ -66,7 +74,7 @@ class AuthService {
     final uri = _buildUri('/api/auth/login');
     final response = await _client.post(
       uri,
-      headers: {'Content-Type': 'application/json'},
+      headers: _jsonHeaders(),
       body: jsonEncode({
         'identifier': identifier,
         'password': password,
@@ -80,7 +88,8 @@ class AuthService {
     final uri = _buildUri('/api/auth/logout');
     final response = await _client.post(
       uri,
-      headers: {'Content-Type': 'application/json'},
+      headers: _jsonHeaders(),
+      body: jsonEncode({}),
     );
 
     _handleResponse(response);
