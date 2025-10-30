@@ -23,9 +23,16 @@ class AuthControllerTest extends TestCase
 
         $response->assertCreated();
         $response->assertJsonPath('status', 'success');
+        $response->assertJsonStructure(['token', 'user' => ['id', 'username', 'email']]);
+
+        $token = $response->json('token');
+        $this->assertIsString($token);
+        $hashedToken = hash('sha256', $token);
+
         $this->assertDatabaseHas('users', [
             'email' => 'john@example.com',
             'name' => 'john-doe',
+            'api_token' => $hashedToken,
         ]);
     }
 
@@ -43,6 +50,9 @@ class AuthControllerTest extends TestCase
         ]);
 
         $byEmail->assertOk()->assertJsonPath('status', 'success');
+        $emailToken = $byEmail->json('token');
+        $this->assertIsString($emailToken);
+        $this->assertSame(hash('sha256', $emailToken), $user->fresh()->api_token);
 
         $byUsername = $this->postJson('/api/auth/login', [
             'identifier' => $user->name,
@@ -50,11 +60,21 @@ class AuthControllerTest extends TestCase
         ]);
 
         $byUsername->assertOk()->assertJsonPath('status', 'success');
+        $usernameToken = $byUsername->json('token');
+        $this->assertIsString($usernameToken);
+        $this->assertSame(hash('sha256', $usernameToken), $user->fresh()->api_token);
     }
 
     public function test_logout_returns_success_payload(): void
     {
-        $response = $this->postJson('/api/auth/logout');
+        $token = 'logout-token';
+        $user = User::factory()->create([
+            'api_token' => hash('sha256', $token),
+        ]);
+
+        $response = $this->postJson('/api/auth/logout', [], [
+            'Authorization' => 'Bearer '.$token,
+        ]);
 
         $response->assertOk();
         $response->assertJson([
@@ -62,5 +82,38 @@ class AuthControllerTest extends TestCase
             'message' => 'Logout realizado com sucesso.',
             'redirect_to' => 'login',
         ]);
+        $this->assertNull($user->fresh()->api_token);
+    }
+
+    public function test_logout_requires_valid_token(): void
+    {
+        $response = $this->postJson('/api/auth/logout');
+
+        $response->assertStatus(401);
+        $response->assertJsonPath('status', 'error');
+    }
+
+    public function test_current_returns_authenticated_user(): void
+    {
+        $token = 'current-token';
+        $user = User::factory()->create([
+            'api_token' => hash('sha256', $token),
+        ]);
+
+        $response = $this->getJson('/api/auth/user', [
+            'Authorization' => 'Bearer '.$token,
+        ]);
+
+        $response->assertOk();
+        $response->assertJsonPath('status', 'success');
+        $response->assertJsonPath('user.id', $user->id);
+    }
+
+    public function test_current_requires_token(): void
+    {
+        $response = $this->getJson('/api/auth/user');
+
+        $response->assertStatus(401);
+        $response->assertJsonPath('status', 'error');
     }
 }

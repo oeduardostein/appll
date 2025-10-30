@@ -106,6 +106,9 @@ class _LoginPageState extends State<LoginPage> {
                               labelText: 'Usuário ou email',
                             ),
                             textInputAction: TextInputAction.next,
+                            onFieldSubmitted: (_) {
+                              FocusScope.of(context).nextFocus();
+                            },
                             validator: (value) {
                               if (value == null || value.trim().isEmpty) {
                                 return 'Informe usuário ou email';
@@ -132,6 +135,8 @@ class _LoginPageState extends State<LoginPage> {
                               ),
                             ),
                             obscureText: _obscurePassword,
+                            textInputAction: TextInputAction.done,
+                            onFieldSubmitted: (_) => _submit(),
                             validator: (value) {
                               if (value == null || value.isEmpty) {
                                 return 'Informe sua senha';

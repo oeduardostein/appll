@@ -29,7 +29,8 @@ class HomePage extends StatefulWidget {
 
 class _HomePageState extends State<HomePage> {
   final _authService = AuthService();
-  final String _userName = 'Lucas';
+  AuthUser? _currentUser;
+  bool _isFetchingUser = false;
 
   static final List<HomeAction> _actions = [
     HomeAction(
@@ -1529,6 +1530,44 @@ Future<_BinSearchRequest?> _showSimplePlateChassiDialog({
     return '$day/$month/$year';
   }
 
+  @override
+  void initState() {
+    super.initState();
+    _loadCurrentUser();
+  }
+
+  Future<void> _loadCurrentUser() async {
+    setState(() {
+      _isFetchingUser = true;
+    });
+
+    try {
+      final user = await _authService.fetchCurrentUser();
+      if (!mounted) return;
+      setState(() {
+        _currentUser = user;
+        _isFetchingUser = false;
+      });
+    } on AuthException catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _isFetchingUser = false;
+      });
+      if (e.message.contains('Não autenticado') ||
+          e.message.contains('Sessão expirada')) {
+        _handleUnauthorized();
+      } else {
+        _showErrorMessage(e.message);
+      }
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        _isFetchingUser = false;
+      });
+      _showErrorMessage('Não foi possível carregar os dados do usuário.');
+    }
+  }
+
   Future<void> _handleLogout() async {
     showDialog<void>(
       context: context,
@@ -1558,6 +1597,17 @@ Future<_BinSearchRequest?> _showSimplePlateChassiDialog({
     }
   }
 
+  void _handleUnauthorized() {
+    _authService.clearSession();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      Navigator.of(context).pushNamedAndRemoveUntil(
+        LoginPage.routeName,
+        (route) => false,
+      );
+    });
+  }
+
   void _showErrorMessage(String message) {
     ScaffoldMessenger.of(context)
       ..clearSnackBars()
@@ -1577,7 +1627,9 @@ Future<_BinSearchRequest?> _showSimplePlateChassiDialog({
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
                   HomeHeader(
-                    userName: _userName,
+                    userName: _isFetchingUser
+                        ? 'Carregando...'
+                        : _currentUser?.username ?? 'Usuário',
                     onLogout: () => _handleLogout(),
                   ),
                   Padding(

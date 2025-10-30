@@ -11,6 +11,43 @@ class AuthException implements Exception {
   String toString() => 'AuthException: $message';
 }
 
+class AuthUser {
+  const AuthUser({
+    required this.id,
+    required this.username,
+    required this.email,
+  });
+
+  final int id;
+  final String username;
+  final String email;
+
+  factory AuthUser.fromJson(Map<String, dynamic> json) {
+    return AuthUser(
+      id: json['id'] as int,
+      username: json['username'] as String,
+      email: json['email'] as String,
+    );
+  }
+}
+
+class AuthSession {
+  const AuthSession({
+    required this.token,
+    required this.user,
+  });
+
+  final String token;
+  final AuthUser user;
+
+  AuthSession copyWith({String? token, AuthUser? user}) {
+    return AuthSession(
+      token: token ?? this.token,
+      user: user ?? this.user,
+    );
+  }
+}
+
 class AuthService {
   AuthService({
     http.Client? httpClient,
@@ -26,6 +63,9 @@ class AuthService {
 
   final http.Client _client;
   final String _baseUrl;
+  AuthSession? _session;
+
+  AuthSession? get session => _session;
 
   static String _sanitizeBaseUrl(String baseUrl) {
     if (baseUrl.endsWith('/')) {
@@ -46,7 +86,14 @@ class AuthService {
     };
   }
 
-  Future<void> register({
+  Map<String, String> _authorizedHeaders(String token) {
+    return {
+      ..._jsonHeaders(),
+      'Authorization': 'Bearer $token',
+    };
+  }
+
+  Future<AuthSession> register({
     required String username,
     required String email,
     required String password,
@@ -64,10 +111,11 @@ class AuthService {
       }),
     );
 
-    _handleResponse(response);
+    final payload = _handleResponse(response);
+    return _createSessionFromPayload(payload);
   }
 
-  Future<void> login({
+  Future<AuthSession> login({
     required String identifier,
     required String password,
   }) async {
@@ -81,21 +129,64 @@ class AuthService {
       }),
     );
 
-    _handleResponse(response);
+    final payload = _handleResponse(response);
+    return _createSessionFromPayload(payload);
   }
 
   Future<void> logout() async {
+    final token = _ensureToken();
     final uri = _buildUri('/api/auth/logout');
     final response = await _client.post(
       uri,
-      headers: _jsonHeaders(),
+      headers: _authorizedHeaders(token),
       body: jsonEncode({}),
     );
 
     _handleResponse(response);
+    _session = null;
   }
 
-  void _handleResponse(http.Response response) {
+  Future<AuthUser> fetchCurrentUser() async {
+    final token = _ensureToken();
+    final uri = _buildUri('/api/auth/user');
+    final response = await _client.get(
+      uri,
+      headers: _authorizedHeaders(token),
+    );
+
+    final payload = _handleResponse(response);
+    final userJson = payload['user'];
+    if (userJson is! Map<String, dynamic>) {
+      throw AuthException('Dados do usuário inválidos.');
+    }
+
+    final user = AuthUser.fromJson(userJson);
+    _session = _session?.copyWith(user: user) ?? AuthSession(token: token, user: user);
+    return user;
+  }
+
+  AuthSession _createSessionFromPayload(Map<String, dynamic> payload) {
+    final token = payload['token'];
+    final userJson = payload['user'];
+
+    if (token is! String || token.isEmpty) {
+      throw AuthException('Token de autenticação ausente.');
+    }
+    if (userJson is! Map<String, dynamic>) {
+      throw AuthException('Dados do usuário inválidos.');
+    }
+
+    final user = AuthUser.fromJson(userJson);
+    final session = AuthSession(token: token, user: user);
+    _session = session;
+    return session;
+  }
+
+  void clearSession() {
+    _session = null;
+  }
+
+  Map<String, dynamic> _handleResponse(http.Response response) {
     final isSuccessStatus =
         response.statusCode == 200 || response.statusCode == 201;
 
@@ -106,7 +197,7 @@ class AuthService {
     if (isSuccessStatus && decoded is Map<String, dynamic>) {
       final status = decoded['status'];
       if (status == 'success') {
-        return;
+        return decoded;
       }
       throw AuthException(
         decoded['message']?.toString() ?? 'Não foi possível completar a ação.',
@@ -122,6 +213,14 @@ class AuthService {
           ? decoded['message'].toString()
           : 'Erro inesperado (${response.statusCode}). Tente novamente.',
     );
+  }
+
+  String _ensureToken() {
+    final token = _session?.token;
+    if (token == null || token.isEmpty) {
+      throw AuthException('Sessão expirada. Faça login novamente.');
+    }
+    return token;
   }
 
   String _extractValidationErrors(dynamic decoded) {
