@@ -40,6 +40,7 @@
             display: inline-flex;
             align-items: center;
             gap: 10px;
+            flex-wrap: wrap;
         }
 
         .admin-action-button {
@@ -164,97 +165,34 @@
                 0 24px 48px rgba(15, 23, 42, 0.08),
                 0 1px 0 rgba(255, 255, 255, 0.6);
             padding: 24px 28px;
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
         }
 
         .admin-chart-card h3 {
-            margin: 0 0 12px;
+            margin: 0;
             font-size: 18px;
             color: var(--text-strong);
         }
 
         .admin-chart-card p {
-            margin: 0 0 20px;
+            margin: 0;
             font-size: 14px;
             color: var(--text-muted);
         }
 
-        .admin-bar-chart {
-            display: grid;
-            gap: 10px;
+        .admin-chart-card canvas {
+            width: 100% !important;
+            height: 280px !important;
         }
 
-        .admin-bar-chart__item {
-            display: grid;
-            grid-template-columns: 80px 1fr auto;
-            align-items: center;
-            gap: 12px;
-            font-size: 14px;
+        .admin-highlights {
+            margin: 0;
+            padding-left: 20px;
             color: var(--text-default);
-        }
-
-        .admin-bar-chart__bar {
-            position: relative;
-            height: 10px;
-            border-radius: 999px;
-            overflow: hidden;
-            background: #ecf1f8;
-        }
-
-        .admin-bar-chart__fill {
-            position: absolute;
-            inset: 0;
-            border-radius: inherit;
-            background: linear-gradient(135deg, #0b4ea2, #2f6bc5);
-            transform-origin: left;
-            transform: scaleX(0.1);
-        }
-
-        .admin-donut-chart {
-            display: flex;
-            align-items: center;
-            gap: 24px;
-        }
-
-        .admin-donut-chart__meter {
-            width: 140px;
-            height: 140px;
-            position: relative;
-        }
-
-        .admin-donut-chart__meter svg {
-            width: 100%;
-            height: 100%;
-            transform: rotate(-90deg);
-        }
-
-        .admin-donut-chart__legend {
-            display: grid;
-            gap: 10px;
             font-size: 14px;
-            color: var(--text-default);
-        }
-
-        .admin-donut-chart__legend-item {
-            display: inline-flex;
-            align-items: center;
-            gap: 12px;
-        }
-
-        .admin-legend-dot {
-            width: 12px;
-            height: 12px;
-            border-radius: 999px;
-        }
-
-        .admin-inline-grid {
-            display: grid;
-            gap: 20px;
-        }
-
-        @media (min-width: 1024px) {
-            .admin-inline-grid {
-                grid-template-columns: 1.2fr 0.8fr;
-            }
+            line-height: 1.6;
         }
     </style>
 
@@ -345,39 +283,54 @@
     </section>
 
     <section class="admin-reports__section" data-tab-section="charts" role="tabpanel" aria-hidden="true">
-        <div class="admin-inline-grid">
+        <div class="admin-chart-grid">
             <div class="admin-chart-card">
-                <h3>Novos cadastros na semana</h3>
-                <p>Evolução diária de inscrições na plataforma.</p>
-                <div class="admin-bar-chart" data-bar-chart></div>
+                <div>
+                    <h3>Consultas por Dia (últimos 30 dias)</h3>
+                    <p>Evolução das consultas realizadas diariamente.</p>
+                </div>
+                <canvas id="chart-daily-consults"></canvas>
             </div>
 
             <div class="admin-chart-card">
-                <h3>Distribuição de planos</h3>
-                <p>Participação percentual dos planos ativos.</p>
-                <div class="admin-donut-chart" data-donut-chart="plans"></div>
-            </div>
-        </div>
-
-        <div class="admin-chart-grid" style="margin-top: 20px;">
-            <div class="admin-chart-card">
-                <h3>Uso de créditos por status de campanha</h3>
-                <p>Comparativo geral de utilização dos créditos.</p>
-                <div class="admin-donut-chart" data-donut-chart="credits"></div>
+                <div>
+                    <h3>Top 5 usuários mais ativos</h3>
+                    <p>Ranking de usuários com maior volume de consultas.</p>
+                </div>
+                <canvas id="chart-top-users"></canvas>
             </div>
 
             <div class="admin-chart-card">
-                <h3>Destaques da semana</h3>
-                <p>Principais observações automáticas com base nos dados mockados.</p>
-                <ul style="margin: 0; padding-left: 20px; color: var(--text-default); font-size: 14px; line-height: 1.6;">
-                    <li>Plano Premium registrou crescimento de 12% nas conversões.</li>
-                    <li>Campanhas ativas consomem 62% dos créditos disponíveis.</li>
-                    <li>Quinta-feira concentrou a maior quantidade de cadastros.</li>
+                <div>
+                    <h3>Receita por semana</h3>
+                    <p>Distribuição de receita nas últimas quatro semanas.</p>
+                </div>
+                <canvas id="chart-weekly-revenue"></canvas>
+            </div>
+
+            <div class="admin-chart-card">
+                <div>
+                    <h3>Distribuição de créditos</h3>
+                    <p>Percentual de alocação de créditos por categoria.</p>
+                </div>
+                <canvas id="chart-credit-distribution"></canvas>
+            </div>
+
+            <div class="admin-chart-card" style="grid-column: span 2;">
+                <div>
+                    <h3>Destaques da semana</h3>
+                    <p>Principais observações automáticas com base nos dados mockados.</p>
+                </div>
+                <ul class="admin-highlights">
+                    <li>Dia 15 concentrou o pico de consultas, com aumento de 68% sobre a média.</li>
+                    <li>Usuários Ana e João responderam por 45% das consultas ativas.</li>
+                    <li>A receita da semana 4 superou a média das demais em 12%.</li>
                 </ul>
             </div>
         </div>
     </section>
 
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
     <script>
         const reportsState = {
             chartData: @json($chartData),
@@ -386,6 +339,7 @@
         (function () {
             const tabButtons = document.querySelectorAll('.admin-tab[data-tab-target]');
             const sections = document.querySelectorAll('[data-tab-section]');
+            const chartRefs = {};
 
             tabButtons.forEach((button) => {
                 button.addEventListener('click', () => {
@@ -402,133 +356,180 @@
                         section.classList.toggle('is-visible', matches);
                         section.setAttribute('aria-hidden', matches ? 'false' : 'true');
                     });
+
+                    if (target === 'charts') {
+                        initCharts();
+                    }
                 });
             });
 
-            function renderBarChart(container, labels, values) {
-                if (!container) {
+            function initCharts() {
+                if (chartRefs.initialized || typeof Chart === 'undefined') {
                     return;
                 }
 
-                const maxValue = Math.max(...values, 1);
-                container.innerHTML = '';
+                const { dailyConsults, topUsers, weeklyRevenue, creditDistribution } = reportsState.chartData;
 
-                labels.forEach((label, index) => {
-                    const item = document.createElement('div');
-                    item.className = 'admin-bar-chart__item';
-
-                    const labelElement = document.createElement('span');
-                    labelElement.textContent = label;
-
-                    const barWrapper = document.createElement('div');
-                    barWrapper.className = 'admin-bar-chart__bar';
-
-                    const fill = document.createElement('span');
-                    fill.className = 'admin-bar-chart__fill';
-                    const ratio = values[index] / maxValue;
-                    fill.style.transform = `scaleX(${ratio})`;
-
-                    barWrapper.appendChild(fill);
-
-                    const valueElement = document.createElement('strong');
-                    valueElement.style.fontSize = '14px';
-                    valueElement.style.color = 'var(--text-strong)';
-                    valueElement.textContent = `${values[index]} cad.`;
-
-                    item.appendChild(labelElement);
-                    item.appendChild(barWrapper);
-                    item.appendChild(valueElement);
-
-                    container.appendChild(item);
+                chartRefs.daily = new Chart(document.getElementById('chart-daily-consults'), {
+                    type: 'line',
+                    data: {
+                        labels: dailyConsults.labels,
+                        datasets: [
+                            {
+                                data: dailyConsults.values,
+                                borderColor: '#0b4ea2',
+                                backgroundColor: 'rgba(11, 78, 162, 0.15)',
+                                pointBackgroundColor: '#0b4ea2',
+                                pointRadius: 4,
+                                tension: 0.35,
+                                fill: true,
+                            },
+                        ],
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        plugins: {
+                            legend: { display: false },
+                            tooltip: {
+                                callbacks: {
+                                    label: (context) => `${context.formattedValue} consultas`,
+                                },
+                            },
+                        },
+                        scales: {
+                            x: {
+                                grid: { color: 'rgba(148, 163, 184, 0.2)' },
+                                ticks: { color: '#64748b' },
+                            },
+                            y: {
+                                beginAtZero: true,
+                                grid: { color: 'rgba(148, 163, 184, 0.18)' },
+                                ticks: { color: '#64748b' },
+                            },
+                        },
+                    },
                 });
+
+                chartRefs.topUsers = new Chart(document.getElementById('chart-top-users'), {
+                    type: 'bar',
+                    data: {
+                        labels: topUsers.map((entry) => entry.label),
+                        datasets: [
+                            {
+                                data: topUsers.map((entry) => entry.value),
+                                backgroundColor: '#3b82f6',
+                                borderRadius: 10,
+                                maxBarThickness: 34,
+                            },
+                        ],
+                    },
+                    options: {
+                        indexAxis: 'y',
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        plugins: {
+                            legend: { display: false },
+                            tooltip: {
+                                callbacks: {
+                                    label: (context) => `${context.formattedValue} consultas`,
+                                },
+                            },
+                        },
+                        scales: {
+                            x: {
+                                beginAtZero: true,
+                                grid: { color: 'rgba(148, 163, 184, 0.18)' },
+                                ticks: { color: '#64748b' },
+                            },
+                            y: {
+                                grid: { display: false },
+                                ticks: { color: '#0f172a', font: { weight: '600' } },
+                            },
+                        },
+                    },
+                });
+
+                chartRefs.weeklyRevenue = new Chart(document.getElementById('chart-weekly-revenue'), {
+                    type: 'bar',
+                    data: {
+                        labels: weeklyRevenue.labels,
+                        datasets: [
+                            {
+                                data: weeklyRevenue.values,
+                                backgroundColor: '#60a5fa',
+                                borderRadius: 12,
+                                maxBarThickness: 44,
+                            },
+                        ],
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        plugins: {
+                            legend: { display: false },
+                            tooltip: {
+                                callbacks: {
+                                    label: (context) => `R$ ${context.formattedValue.replace('.', ',')}`,
+                                },
+                            },
+                        },
+                        scales: {
+                            x: {
+                                grid: { display: false },
+                                ticks: { color: '#64748b' },
+                            },
+                            y: {
+                                beginAtZero: true,
+                                grid: { color: 'rgba(148, 163, 184, 0.18)', drawBorder: false },
+                                ticks: {
+                                    color: '#64748b',
+                                    callback: (value) => `R$${Number(value).toLocaleString('pt-BR')}`,
+                                },
+                            },
+                        },
+                    },
+                });
+
+                chartRefs.creditDistribution = new Chart(document.getElementById('chart-credit-distribution'), {
+                    type: 'doughnut',
+                    data: {
+                        labels: creditDistribution.map((entry) => entry.label),
+                        datasets: [
+                            {
+                                data: creditDistribution.map((entry) => entry.value),
+                                backgroundColor: ['#2563eb', '#f97316', '#0ea5e9', '#10b981'],
+                                borderWidth: 0,
+                            },
+                        ],
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        cutout: '62%',
+                        plugins: {
+                            legend: {
+                                position: 'right',
+                                labels: {
+                                    usePointStyle: true,
+                                    pointStyle: 'circle',
+                                    color: '#0f172a',
+                                },
+                            },
+                            tooltip: {
+                                callbacks: {
+                                    label: (context) => `${context.label}: ${context.formattedValue}%`,
+                                },
+                            },
+                        },
+                    },
+                });
+
+                chartRefs.initialized = true;
             }
 
-            function renderDonutChart(container, dataset, palette) {
-                if (!container) {
-                    return;
-                }
-
-                const total = dataset.reduce((sum, entry) => sum + entry.value, 0) || 1;
-                const svgNamespace = 'http://www.w3.org/2000/svg';
-
-                const meter = document.createElement('div');
-                meter.className = 'admin-donut-chart__meter';
-
-                const svg = document.createElementNS(svgNamespace, 'svg');
-                const radius = 60;
-                const strokeWidth = 18;
-                const circumference = 2 * Math.PI * radius;
-                let offset = circumference;
-
-                const backdrop = document.createElementNS(svgNamespace, 'circle');
-                backdrop.setAttribute('cx', '70');
-                backdrop.setAttribute('cy', '70');
-                backdrop.setAttribute('r', String(radius));
-                backdrop.setAttribute('fill', 'transparent');
-                backdrop.setAttribute('stroke', '#ecf1f8');
-                backdrop.setAttribute('stroke-width', String(strokeWidth));
-                svg.appendChild(backdrop);
-
-                dataset.forEach((entry, index) => {
-                    const circle = document.createElementNS(svgNamespace, 'circle');
-                    circle.setAttribute('cx', '70');
-                    circle.setAttribute('cy', '70');
-                    circle.setAttribute('r', String(radius));
-                    circle.setAttribute('fill', 'transparent');
-                    circle.setAttribute('stroke', palette[index % palette.length]);
-                    circle.setAttribute('stroke-width', String(strokeWidth));
-                    const ratio = entry.value / total;
-                    circle.setAttribute('stroke-dasharray', `${circumference * ratio} ${circumference}`);
-                    circle.setAttribute('stroke-dashoffset', String(offset));
-                    circle.setAttribute('stroke-linecap', 'round');
-                    offset -= circumference * ratio;
-                    svg.appendChild(circle);
-                });
-
-                meter.appendChild(svg);
-
-                const legend = document.createElement('div');
-                legend.className = 'admin-donut-chart__legend';
-
-                dataset.forEach((entry, index) => {
-                    const item = document.createElement('div');
-                    item.className = 'admin-donut-chart__legend-item';
-
-                    const dot = document.createElement('span');
-                    dot.className = 'admin-legend-dot';
-                    dot.style.background = palette[index % palette.length];
-
-                    const label = document.createElement('span');
-                    label.innerHTML = `<strong style="color: var(--text-strong);">${entry.label}</strong> — ${entry.value}%`;
-
-                    item.appendChild(dot);
-                    item.appendChild(label);
-                    legend.appendChild(item);
-                });
-
-                container.innerHTML = '';
-                container.appendChild(meter);
-                container.appendChild(legend);
-            }
-
-            renderBarChart(
-                document.querySelector('[data-bar-chart]'),
-                reportsState.chartData.weeklyLabels,
-                reportsState.chartData.weeklySignups
-            );
-
-            const palette = ['#0b4ea2', '#2f6bc5', '#587ed0'];
-            renderDonutChart(
-                document.querySelector('[data-donut-chart="plans"]'),
-                reportsState.chartData.planDistribution,
-                palette
-            );
-
-            renderDonutChart(
-                document.querySelector('[data-donut-chart="credits"]'),
-                reportsState.chartData.creditUsage,
-                ['#0b4ea2', '#93c5fd', '#c7d2fe']
-            );
+            // Initialize charts immediately in case aba de gráficos já esteja visível em carregamentos futuros.
+            initCharts();
         })();
     </script>
 @endsection

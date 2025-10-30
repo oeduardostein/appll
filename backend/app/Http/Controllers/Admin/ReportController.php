@@ -22,17 +22,26 @@ class ReportController extends Controller
         });
 
         $chartData = [
-            'weeklySignups' => [12, 18, 14, 23, 19, 27, 21],
-            'weeklyLabels' => ['Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb', 'Dom'],
-            'planDistribution' => [
-                ['label' => 'Plano Básico', 'value' => 48],
-                ['label' => 'Plano Premium', 'value' => 32],
-                ['label' => 'Plano Empresarial', 'value' => 20],
+            'dailyConsults' => [
+                'labels' => range(1, 30),
+                'values' => [12, 18, 24, 37, 41, 58, 69, 72, 80, 65, 78, 85, 90, 320, 280, 210, 260, 195, 180, 140, 120, 160, 130, 110, 95, 88, 76, 68, 54, 100],
             ],
-            'creditUsage' => [
-                ['label' => 'Campanhas Ativas', 'value' => 62],
-                ['label' => 'Campanhas Pausadas', 'value' => 18],
-                ['label' => 'Campanhas Concluídas', 'value' => 20],
+            'topUsers' => [
+                ['label' => 'Ana', 'value' => 38],
+                ['label' => 'João', 'value' => 31],
+                ['label' => 'Pedro', 'value' => 24],
+                ['label' => 'Roberta', 'value' => 18],
+                ['label' => 'Paulo', 'value' => 14],
+            ],
+            'weeklyRevenue' => [
+                'labels' => ['Semana 1', 'Semana 2', 'Semana 3', 'Semana 4'],
+                'values' => [4200, 3670, 4450, 4680],
+            ],
+            'creditDistribution' => [
+                ['label' => 'Base estadual', 'value' => 40],
+                ['label' => 'Emissão da ATPV-e', 'value' => 20],
+                ['label' => 'CRLV-e', 'value' => 20],
+                ['label' => 'Base outros estados', 'value' => 25],
             ],
         ];
 

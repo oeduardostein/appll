@@ -20,8 +20,8 @@
         ],
         [
             'label' => 'Configurações',
-            'route' => '#',
-            'active' => false,
+            'route' => route('admin.settings.index'),
+            'active' => request()->routeIs('admin.settings.*'),
         ],
     ];
 

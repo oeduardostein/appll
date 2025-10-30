@@ -3,6 +3,7 @@
 use App\Http\Controllers\Admin\AuthController;
 use App\Http\Controllers\Admin\ClientController;
 use App\Http\Controllers\Admin\ReportController;
+use App\Http\Controllers\Admin\SettingsController;
 use App\Http\Controllers\Admin\UserController;
 use Illuminate\Support\Facades\Route;
 
@@ -18,6 +19,9 @@ Route::prefix('admin')->name('admin.')->group(function () {
     Route::middleware('admin.auth')->group(function () {
         Route::get('/clientes', [ClientController::class, 'index'])->name('clients.index');
         Route::get('/relatorios', [ReportController::class, 'index'])->name('reports.index');
+        Route::get('/configuracoes', [SettingsController::class, 'show'])->name('settings.index');
+        Route::post('/configuracoes/password', [SettingsController::class, 'updatePassword'])->name('settings.password');
+        Route::post('/configuracoes/api-key', [SettingsController::class, 'updateApiKey'])->name('settings.api-key');
         Route::get('/users', [UserController::class, 'index'])->name('users.index');
         Route::post('/users', [UserController::class, 'store'])->name('users.store');
         Route::post('/users/bulk/status', [UserController::class, 'bulkUpdateStatus'])->name('users.bulk-status');
