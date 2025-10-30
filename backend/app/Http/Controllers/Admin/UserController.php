@@ -130,6 +130,41 @@ class UserController extends Controller
         ], Response::HTTP_OK);
     }
 
+    public function bulkUpdateStatus(Request $request): JsonResponse
+    {
+        $validated = $request->validate([
+            'user_ids' => ['required', 'array', 'min:1'],
+            'user_ids.*' => ['integer', 'distinct', 'exists:users,id'],
+            'is_active' => ['required', 'boolean'],
+        ]);
+
+        $updated = User::query()
+            ->whereIn('id', $validated['user_ids'])
+            ->update(['is_active' => $validated['is_active']]);
+
+        return response()->json([
+            'message' => 'Status atualizado para os usuários selecionados.',
+            'updated' => $updated,
+        ]);
+    }
+
+    public function bulkDestroy(Request $request): JsonResponse
+    {
+        $validated = $request->validate([
+            'user_ids' => ['required', 'array', 'min:1'],
+            'user_ids.*' => ['integer', 'distinct', 'exists:users,id'],
+        ]);
+
+        $deleted = User::query()
+            ->whereIn('id', $validated['user_ids'])
+            ->delete();
+
+        return response()->json([
+            'message' => 'Usuários removidos com sucesso.',
+            'deleted' => $deleted,
+        ]);
+    }
+
     /**
      * @return array<string, int>
      */

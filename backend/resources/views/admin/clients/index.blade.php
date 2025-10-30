@@ -24,6 +24,17 @@
             color: var(--text-muted);
         }
 
+        .admin-selection-actions {
+            display: none;
+            align-items: center;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+
+        .admin-selection-actions.is-visible {
+            display: inline-flex;
+        }
+
         .admin-filter-summary {
             font-size: 13px;
             color: var(--text-muted);
@@ -396,6 +407,15 @@
             <span class="admin-toolbar__selection" data-selected-count>
                 0 usuário selecionado
             </span>
+
+            <div class="admin-selection-actions" data-selection-actions>
+                <button type="button" class="admin-button admin-button--ghost" data-action="bulk-status">
+                    Alterar status
+                </button>
+                <button type="button" class="admin-button admin-button--danger" data-action="bulk-delete">
+                    Excluir selecionados
+                </button>
+            </div>
         </div>
 
         <form class="admin-search" data-search-form>
@@ -632,6 +652,66 @@
         </div>
     </div>
 
+    <div class="admin-modal" data-modal="bulk-status" aria-hidden="true">
+        <div class="admin-modal__backdrop" data-modal-close></div>
+        <div class="admin-modal__panel" role="dialog" aria-modal="true" aria-labelledby="bulk-status-title">
+            <header class="admin-modal__header">
+                <h2 id="bulk-status-title">Alterar status</h2>
+                <button type="button" class="admin-modal__close" data-modal-close aria-label="Fechar">×</button>
+            </header>
+
+            <form id="bulk-status-form" class="admin-modal__form">
+                <p class="admin-modal__hint">
+                    Você selecionou <strong data-bulk-status-count>0 usuários</strong>.
+                    Escolha o novo status para aplicar a todos.
+                </p>
+
+                <div class="admin-field">
+                    <label for="bulk-status-select">Status</label>
+                    <select id="bulk-status-select" name="is_active">
+                        <option value="1">Ativo</option>
+                        <option value="0">Inativo</option>
+                    </select>
+                </div>
+
+                <div class="form-feedback" data-form-error="bulk-status"></div>
+
+                <div class="admin-modal__actions">
+                    <button type="button" class="admin-button admin-button--ghost" data-modal-close>Cancelar</button>
+                    <button type="submit" class="admin-button admin-button--primary" data-submit-label="Aplicar status">
+                        Aplicar status
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <div class="admin-modal" data-modal="bulk-delete" aria-hidden="true">
+        <div class="admin-modal__backdrop" data-modal-close></div>
+        <div class="admin-modal__panel" role="dialog" aria-modal="true" aria-labelledby="bulk-delete-title">
+            <header class="admin-modal__header">
+                <h2 id="bulk-delete-title">Excluir usuários selecionados</h2>
+                <button type="button" class="admin-modal__close" data-modal-close aria-label="Fechar">×</button>
+            </header>
+
+            <form id="bulk-delete-form" class="admin-modal__form">
+                <p class="admin-modal__hint">
+                    Tem certeza de que deseja excluir <strong data-bulk-delete-count>0 usuários</strong>?
+                    Esta ação não pode ser desfeita.
+                </p>
+
+                <div class="form-feedback" data-form-error="bulk-delete"></div>
+
+                <div class="admin-modal__actions">
+                    <button type="button" class="admin-button admin-button--ghost" data-modal-close>Cancelar</button>
+                    <button type="submit" class="admin-button admin-button--danger" data-submit-label="Excluir usuários">
+                        Excluir usuários
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
     <template id="user-row-template">
         <tr data-row>
             <td style="width: 52px;">
@@ -714,6 +794,7 @@
                     inactive: 0,
                     new_this_month: 0,
                 },
+                selectedIds: [],
                 search: '',
                 perPage: window.adminUsersState?.pagination?.per_page ?? 10,
                 filters: { ...defaultFilters, ...(window.adminUsersState?.filters ?? {}) },
@@ -724,6 +805,7 @@
             const elements = {
                 tbody: document.querySelector('[data-users-list]'),
                 selectedCount: document.querySelector('[data-selected-count]'),
+                selectionActions: document.querySelector('[data-selection-actions]'),
                 paginationLabel: document.querySelector('[data-pagination-label]'),
                 prevButton: document.querySelector('[data-action="prev-page"]'),
                 nextButton: document.querySelector('[data-action="next-page"]'),
@@ -743,6 +825,12 @@
                 editLastAccess: document.querySelector('[data-edit-last-access]'),
                 deleteUserName: document.querySelector('[data-delete-user-name]'),
                 deleteUserEmail: document.querySelector('[data-delete-user-email]'),
+                bulkStatusButton: document.querySelector('[data-action="bulk-status"]'),
+                bulkDeleteButton: document.querySelector('[data-action="bulk-delete"]'),
+                bulkStatusForm: document.getElementById('bulk-status-form'),
+                bulkDeleteForm: document.getElementById('bulk-delete-form'),
+                bulkStatusCount: document.querySelector('[data-bulk-status-count]'),
+                bulkDeleteCount: document.querySelector('[data-bulk-delete-count]'),
             };
 
             let currentUser = null;
@@ -780,22 +868,60 @@
                 delete(id) {
                     return '{{ url('/admin/users') }}/' + id;
                 },
+                bulkStatus() {
+                    return '{{ url('/admin/users/bulk/status') }}';
+                },
+                bulkDelete() {
+                    return '{{ url('/admin/users/bulk') }}';
+                },
             };
 
             function formatUserCount(count) {
                 return `${count} usuário${count === 1 ? '' : 's'} selecionado${count === 1 ? '' : 's'}`;
             }
 
-            function updateSelectedCount() {
-                const checkboxes = elements.tbody.querySelectorAll('input[data-user-select]');
-                const checked = Array.from(checkboxes).filter((checkbox) => checkbox.checked);
-                elements.selectedCount.textContent = checked.length ? formatUserCount(checked.length) : '0 usuário selecionado';
-                elements.selectAll.checked = checkboxes.length > 0 && checked.length === checkboxes.length;
+            function formatSelectionLabel(count) {
+                return `${count} usuário${count === 1 ? '' : 's'}`;
+            }
+
+            function toggleSelectionActions(count) {
+                if (!elements.selectionActions) {
+                    return;
+                }
+
+                if (count > 0) {
+                    elements.selectionActions.classList.add('is-visible');
+                } else {
+                    elements.selectionActions.classList.remove('is-visible');
+                }
+            }
+
+            function updateSelectedState() {
+                const checkboxes = Array.from(elements.tbody.querySelectorAll('input[data-user-select]'));
+                const checked = checkboxes.filter((checkbox) => checkbox.checked);
+
+                state.selectedIds = checked
+                    .map((checkbox) => Number(checkbox.dataset.userId ?? checkbox.value))
+                    .filter((id) => !Number.isNaN(id));
+
+                const count = state.selectedIds.length;
+                elements.selectedCount.textContent = count ? formatUserCount(count) : '0 usuário selecionado';
+                elements.selectAll.checked = checkboxes.length > 0 && count === checkboxes.length;
+                toggleSelectionActions(count);
             }
 
             function resetSelection() {
+                state.selectedIds = [];
                 elements.selectAll.checked = false;
-                updateSelectedCount();
+                elements.selectedCount.textContent = '0 usuário selecionado';
+                Array.from(elements.tbody.querySelectorAll('input[data-user-select]')).forEach((checkbox) => {
+                    checkbox.checked = false;
+                });
+                toggleSelectionActions(0);
+            }
+
+            function hasSelection() {
+                return Array.isArray(state.selectedIds) && state.selectedIds.length > 0;
             }
 
             function formatDateLabel(value) {
@@ -926,6 +1052,7 @@
                 const checkbox = row.querySelector('[data-user-select]');
                 if (checkbox) {
                     checkbox.dataset.userId = String(user.id);
+                    checkbox.value = String(user.id);
                 }
 
                 const nameElement = row.querySelector('[data-user-name]');
@@ -971,7 +1098,7 @@
 
                 const checkboxElement = row.querySelector('input[data-user-select]');
                 if (checkboxElement) {
-                    checkboxElement.addEventListener('change', updateSelectedCount);
+                    checkboxElement.addEventListener('change', updateSelectedState);
                 }
 
                 return fragment;
@@ -1270,6 +1397,112 @@
                 }
             });
 
+            elements.bulkStatusButton?.addEventListener('click', () => {
+                if (!hasSelection()) {
+                    return;
+                }
+
+                if (elements.bulkStatusForm) {
+                    elements.bulkStatusForm.reset();
+                }
+
+                if (elements.bulkStatusCount) {
+                    elements.bulkStatusCount.textContent = formatSelectionLabel(state.selectedIds.length);
+                }
+
+                setFormError('bulk-status', '');
+                openModal('bulk-status');
+            });
+
+            elements.bulkStatusForm?.addEventListener('submit', async (event) => {
+                event.preventDefault();
+                if (!hasSelection()) {
+                    closeModal('bulk-status');
+                    return;
+                }
+
+                const formData = new FormData(elements.bulkStatusForm);
+                const isActive = formData.get('is_active') === '1';
+
+                setFormError('bulk-status', '');
+                setSubmitting(elements.bulkStatusForm, true);
+
+                try {
+                    await handleRequest(endpoints.bulkStatus(), {
+                        method: 'POST',
+                        body: JSON.stringify({
+                            user_ids: state.selectedIds,
+                            is_active: isActive,
+                        }),
+                    });
+
+                    closeModal('bulk-status');
+                    resetSelection();
+                    await fetchUsers(state.pagination.current_page);
+                } catch (error) {
+                    if (error.details) {
+                        const firstError = Object.values(error.details)[0];
+                        setFormError('bulk-status', Array.isArray(firstError) ? firstError[0] : String(firstError));
+                    } else {
+                        setFormError('bulk-status', error.message);
+                    }
+                } finally {
+                    setSubmitting(elements.bulkStatusForm, false);
+                }
+            });
+
+            elements.bulkDeleteButton?.addEventListener('click', () => {
+                if (!hasSelection()) {
+                    return;
+                }
+
+                if (elements.bulkDeleteCount) {
+                    elements.bulkDeleteCount.textContent = formatSelectionLabel(state.selectedIds.length);
+                }
+
+                setFormError('bulk-delete', '');
+                openModal('bulk-delete');
+            });
+
+            elements.bulkDeleteForm?.addEventListener('submit', async (event) => {
+                event.preventDefault();
+                if (!hasSelection()) {
+                    closeModal('bulk-delete');
+                    return;
+                }
+
+                const selectedCount = state.selectedIds.length;
+
+                setFormError('bulk-delete', '');
+                setSubmitting(elements.bulkDeleteForm, true);
+
+                try {
+                    await handleRequest(endpoints.bulkDelete(), {
+                        method: 'DELETE',
+                        body: JSON.stringify({
+                            user_ids: state.selectedIds,
+                        }),
+                    });
+
+                    closeModal('bulk-delete');
+                    const willEmptyPage = selectedCount >= state.users.length && state.pagination.current_page > 1;
+                    const targetPage = willEmptyPage
+                        ? state.pagination.current_page - 1
+                        : state.pagination.current_page;
+                    resetSelection();
+                    await fetchUsers(targetPage);
+                } catch (error) {
+                    if (error.details) {
+                        const firstError = Object.values(error.details)[0];
+                        setFormError('bulk-delete', Array.isArray(firstError) ? firstError[0] : String(firstError));
+                    } else {
+                        setFormError('bulk-delete', error.message);
+                    }
+                } finally {
+                    setSubmitting(elements.bulkDeleteForm, false);
+                }
+            });
+
             elements.prevButton?.addEventListener('click', () => {
                 if (state.pagination.current_page > 1) {
                     fetchUsers(state.pagination.current_page - 1);
@@ -1287,7 +1520,7 @@
                 elements.tbody.querySelectorAll('input[data-user-select]').forEach((checkbox) => {
                     checkbox.checked = checked;
                 });
-                updateSelectedCount();
+                updateSelectedState();
             });
 
             document.querySelector('[data-action="open-create-modal"]')?.addEventListener('click', () => {

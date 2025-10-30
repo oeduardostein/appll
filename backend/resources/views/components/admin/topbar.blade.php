@@ -51,21 +51,15 @@
         }
 
         .admin-topbar__logo {
-            width: 72px;
-            height: 72px;
-            border-radius: 999px;
-            display: grid;
-            place-items: center;
-            background: linear-gradient(135deg, #fff 0%, #f2f6ff 100%);
+            display: inline-flex;
+            align-items: center;
             text-decoration: none;
-            box-shadow: 0 12px 24px rgba(3, 24, 56, 0.35);
         }
 
-        .admin-topbar__logo-mark {
-            font-weight: 700;
-            font-size: 24px;
-            letter-spacing: 0.08em;
-            color: var(--brand-primary);
+        .admin-topbar__logo-image {
+            display: block;
+            height: 42px;
+            width: auto;
         }
 
         .admin-topbar nav {
@@ -158,7 +152,7 @@
 
     <div class="admin-topbar__brand">
         <a href="{{ route('admin.clients.index') }}" class="admin-topbar__logo" aria-label="Início">
-            <span class="admin-topbar__logo-mark">LL</span>
+            <img src="{{ asset('images/logoLL.png') }}" alt="Logo LL" class="admin-topbar__logo-image">
         </a>
 
         <nav aria-label="Navegação principal">

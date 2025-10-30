@@ -18,6 +18,8 @@ Route::prefix('admin')->name('admin.')->group(function () {
         Route::get('/clientes', [ClientController::class, 'index'])->name('clients.index');
         Route::get('/users', [UserController::class, 'index'])->name('users.index');
         Route::post('/users', [UserController::class, 'store'])->name('users.store');
+        Route::post('/users/bulk/status', [UserController::class, 'bulkUpdateStatus'])->name('users.bulk-status');
+        Route::delete('/users/bulk', [UserController::class, 'bulkDestroy'])->name('users.bulk-destroy');
         Route::put('/users/{user}', [UserController::class, 'update'])->name('users.update');
         Route::delete('/users/{user}', [UserController::class, 'destroy'])->name('users.destroy');
     });
