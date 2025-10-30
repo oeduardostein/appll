@@ -36,9 +36,25 @@ class ReportController extends Controller
             ],
         ];
 
+        $statCards = [
+            [
+                'title' => 'Consultas realizadas no mês',
+                'value' => '5.240 consultas',
+            ],
+            [
+                'title' => 'Novos Usuários',
+                'value' => '10.900 créditos',
+            ],
+            [
+                'title' => 'Receita estimada',
+                'value' => 'R$ 12.500,00',
+            ],
+        ];
+
         return view('admin.reports.index', [
             'tableRows' => $tableRows,
             'chartData' => $chartData,
+            'statCards' => $statCards,
         ]);
     }
 }

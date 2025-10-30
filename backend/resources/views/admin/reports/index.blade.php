@@ -19,16 +19,69 @@
             font-size: 15px;
         }
 
-        .admin-reports__tabs {
+        .admin-reports__section {
+            display: none;
+        }
+
+        .admin-reports__section.is-visible {
+            display: block;
+        }
+
+        .admin-reports__actions {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 14px;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 24px;
+        }
+
+        .admin-reports__actions-left {
+            display: inline-flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .admin-action-button {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            padding: 10px 16px;
+            border-radius: 12px;
+            border: 1px solid #d7deeb;
+            background: #f7f9fc;
+            color: var(--text-default);
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: background-color 160ms ease, color 160ms ease, transform 160ms ease;
+        }
+
+        .admin-action-button svg {
+            flex-shrink: 0;
+        }
+
+        .admin-action-button--primary {
+            background: var(--brand-primary);
+            color: #fff;
+            border-color: transparent;
+            box-shadow: 0 12px 24px rgba(11, 78, 162, 0.2);
+        }
+
+        .admin-action-button--ghost {
+            background: #fff;
+            border-color: #d7deeb;
+        }
+
+        .admin-tabs {
             display: inline-flex;
             background: #eef2f9;
             border-radius: 999px;
             padding: 4px;
             gap: 4px;
-            margin-bottom: 24px;
         }
 
-        .admin-reports__tab {
+        .admin-tab {
             border: none;
             border-radius: 999px;
             padding: 10px 22px;
@@ -40,22 +93,34 @@
             transition: background-color 160ms ease, color 160ms ease, transform 160ms ease;
         }
 
-        .admin-reports__tab.is-active {
+        .admin-tab.is-active {
             background: #fff;
             color: var(--brand-primary);
             box-shadow: 0 8px 18px rgba(11, 78, 162, 0.18);
         }
 
-        .admin-reports__tab:not(.is-active):hover {
+        .admin-tab:not(.is-active):hover {
             transform: translateY(-1px);
         }
 
-        .admin-reports__section {
-            display: none;
+        .admin-search {
+            display: inline-flex;
+            align-items: center;
+            gap: 10px;
+            padding: 12px 16px;
+            border-radius: 14px;
+            border: 1px solid #d7deeb;
+            background: #fff;
+            min-width: 260px;
         }
 
-        .admin-reports__section.is-visible {
-            display: block;
+        .admin-search input {
+            border: none;
+            outline: none;
+            font-size: 14px;
+            flex: 1 1 auto;
+            background: transparent;
+            color: var(--text-default);
         }
 
         .admin-table {
@@ -198,13 +263,51 @@
         <p>Centralize os principais indicadores da plataforma e acompanhe a performance.</p>
     </header>
 
-    <div class="admin-reports__tabs" role="tablist">
-        <button type="button" class="admin-reports__tab is-active" data-tab-target="table" role="tab" aria-selected="true">
-            Dados em tabela
-        </button>
-        <button type="button" class="admin-reports__tab" data-tab-target="charts" role="tab" aria-selected="false">
-            Visão gráfica
-        </button>
+    <section class="stat-grid" style="margin-bottom: 32px;">
+        @foreach ($statCards as $card)
+            <x-admin.stat-card
+                :title="$card['title']"
+                :value="$card['value']"
+            />
+        @endforeach
+    </section>
+
+    <div class="admin-reports__actions">
+        <div class="admin-reports__actions-left">
+            <button type="button" class="admin-action-button admin-action-button--ghost" data-action="open-filter-modal">
+                <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+                    <path d="M2.667 4h10.666M4 4c0 3.2 2.133 5.333 4 5.333S12 7.2 12 4M6 12h4"
+                        stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round" />
+                </svg>
+                Filtros
+            </button>
+
+            <button type="button" class="admin-action-button admin-action-button--primary" data-action="export-reports">
+                <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+                    <path d="M12.667 10v2.667H3.333V10M8 9.333l-2.667-2.666M8 9.333l2.667-2.666M8 9.333V2"
+                        stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round" />
+                </svg>
+                Exportar
+            </button>
+
+            <div class="admin-tabs" role="tablist">
+                <button type="button" class="admin-tab is-active" data-tab-target="table" role="tab" aria-selected="true">
+                    Dados em tabela
+                </button>
+                <button type="button" class="admin-tab" data-tab-target="charts" role="tab" aria-selected="false">
+                    Visão gráfica
+                </button>
+            </div>
+        </div>
+
+        <form class="admin-search" data-reports-search>
+            <svg width="17" height="17" viewBox="0 0 20 20" fill="none">
+                <path d="M18 18l-4.35-4.35m1.35-4.65a6 6 0 1 1-12 0 6 6 0 0 1 12 0Z" stroke="#8193ae"
+                    stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" />
+            </svg>
+            <input type="search" placeholder="Pesquisar" name="search" />
+            <button type="submit" aria-label="Pesquisar" style="display: none;"></button>
+        </form>
     </div>
 
     <section class="admin-reports__section is-visible" data-tab-section="table" role="tabpanel">
@@ -281,7 +384,7 @@
         };
 
         (function () {
-            const tabButtons = document.querySelectorAll('[data-tab-target]');
+            const tabButtons = document.querySelectorAll('.admin-tab[data-tab-target]');
             const sections = document.querySelectorAll('[data-tab-section]');
 
             tabButtons.forEach((button) => {
