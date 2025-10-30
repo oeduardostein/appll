@@ -51,4 +51,16 @@ class AuthControllerTest extends TestCase
 
         $byUsername->assertOk()->assertJsonPath('status', 'success');
     }
+
+    public function test_logout_returns_success_payload(): void
+    {
+        $response = $this->postJson('/api/auth/logout');
+
+        $response->assertOk();
+        $response->assertJson([
+            'status' => 'success',
+            'message' => 'Logout realizado com sucesso.',
+            'redirect_to' => 'login',
+        ]);
+    }
 }

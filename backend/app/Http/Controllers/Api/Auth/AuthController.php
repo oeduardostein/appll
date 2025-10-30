@@ -8,6 +8,7 @@ use App\Http\Requests\Auth\RegisterRequest;
 use App\Http\Resources\UserResource;
 use App\Models\User;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
 
 class AuthController extends Controller
@@ -59,6 +60,27 @@ class AuthController extends Controller
             'message' => 'Login realizado com sucesso.',
             'user' => new UserResource($user),
             'redirect_to' => 'home',
+        ]);
+    }
+
+    /**
+     * Handle a logout request from the application.
+     */
+    public function logout(Request $request): JsonResponse
+    {
+        if (auth()->check()) {
+            auth()->logout();
+        }
+
+        if ($request->hasSession()) {
+            $request->session()->invalidate();
+            $request->session()->regenerateToken();
+        }
+
+        return response()->json([
+            'status' => 'success',
+            'message' => 'Logout realizado com sucesso.',
+            'redirect_to' => 'login',
         ]);
     }
 }

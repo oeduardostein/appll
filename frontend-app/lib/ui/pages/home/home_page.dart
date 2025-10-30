@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
+import 'package:frontend_app/services/auth_service.dart';
+
 import '../atpv/atpv_form_page.dart';
 import '../base_state/base_estadual_page.dart';
 import '../base_state/base_outros_estados_page.dart';
@@ -10,6 +12,7 @@ import '../ecrv/ecrv_process_page.dart';
 import '../fines/renainf_page.dart';
 import '../gravame/gravame_page.dart';
 import '../shared/loading_dialog.dart';
+import '../auth/login_page.dart';
 import 'home_models.dart';
 import 'widgets/home_action_card.dart';
 import 'widgets/home_header.dart';
@@ -25,6 +28,9 @@ class HomePage extends StatefulWidget {
 }
 
 class _HomePageState extends State<HomePage> {
+  final _authService = AuthService();
+  final String _userName = 'Lucas';
+
   static final List<HomeAction> _actions = [
     HomeAction(
       icon: Icons.search,
@@ -1523,6 +1529,41 @@ Future<_BinSearchRequest?> _showSimplePlateChassiDialog({
     return '$day/$month/$year';
   }
 
+  Future<void> _handleLogout() async {
+    showDialog<void>(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) => const LoadingDialog(),
+    );
+
+    try {
+      await _authService.logout();
+      if (!mounted) return;
+      Navigator.of(context, rootNavigator: true).pop();
+      if (!mounted) return;
+      Navigator.of(context).pushNamedAndRemoveUntil(
+        LoginPage.routeName,
+        (route) => false,
+      );
+    } on AuthException catch (e) {
+      if (!mounted) return;
+      Navigator.of(context, rootNavigator: true).pop();
+      if (!mounted) return;
+      _showErrorMessage(e.message);
+    } catch (_) {
+      if (!mounted) return;
+      Navigator.of(context, rootNavigator: true).pop();
+      if (!mounted) return;
+      _showErrorMessage('Não foi possível sair. Tente novamente.');
+    }
+  }
+
+  void _showErrorMessage(String message) {
+    ScaffoldMessenger.of(context)
+      ..clearSnackBars()
+      ..showSnackBar(SnackBar(content: Text(message)));
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -1535,7 +1576,10 @@ Future<_BinSearchRequest?> _showSimplePlateChassiDialog({
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  const HomeHeader(userName: 'Lucas'),
+                  HomeHeader(
+                    userName: _userName,
+                    onLogout: () => _handleLogout(),
+                  ),
                   Padding(
                     padding: const EdgeInsets.symmetric(
                       horizontal: 20,

@@ -35,7 +35,7 @@ class AuthService {
   }
 
   Uri _buildUri(String path) {
-    return Uri.parse('$path');
+    return Uri.parse('$_baseUrl$path');
   }
 
   Future<void> register({
@@ -71,6 +71,16 @@ class AuthService {
         'identifier': identifier,
         'password': password,
       }),
+    );
+
+    _handleResponse(response);
+  }
+
+  Future<void> logout() async {
+    final uri = _buildUri('/api/auth/logout');
+    final response = await _client.post(
+      uri,
+      headers: {'Content-Type': 'application/json'},
     );
 
     _handleResponse(response);

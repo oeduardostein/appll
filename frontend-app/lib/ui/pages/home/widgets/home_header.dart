@@ -1,9 +1,14 @@
 import 'package:flutter/material.dart';
 
 class HomeHeader extends StatelessWidget {
-  const HomeHeader({super.key, required this.userName});
+  const HomeHeader({
+    super.key,
+    required this.userName,
+    this.onLogout,
+  });
 
   final String userName;
+  final VoidCallback? onLogout;
 
   @override
   Widget build(BuildContext context) {
@@ -39,6 +44,29 @@ class HomeHeader extends StatelessWidget {
                 ),
               ),
               const Spacer(),
+              if (onLogout != null) ...[
+                OutlinedButton.icon(
+                  onPressed: onLogout,
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: Colors.white,
+                    side: const BorderSide(color: Colors.white24),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 12,
+                      vertical: 10,
+                    ),
+                    textStyle: const TextStyle(
+                      fontWeight: FontWeight.w600,
+                      fontSize: 14,
+                    ),
+                  ),
+                  icon: const Icon(
+                    Icons.logout,
+                    size: 18,
+                  ),
+                  label: const Text('Sair'),
+                ),
+                const SizedBox(width: 12),
+              ],
               Container(
                 decoration: BoxDecoration(
                   color: const Color(0x2EFFFFFF),
