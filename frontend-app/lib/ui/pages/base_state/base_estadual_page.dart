@@ -1,134 +1,76 @@
-import 'package:flutter/material.dart';
+import 'dart:convert';
 
-import '../fines/fines_page.dart';
-import '../gravame/gravame_page.dart';
-import 'comunicacao_venda_page.dart';
-import 'restricoes_page.dart';
-import 'vehicle_info_page.dart';
+import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 class BaseEstadualPage extends StatelessWidget {
-  const BaseEstadualPage({super.key});
+  const BaseEstadualPage({
+    super.key,
+    required this.placa,
+    required this.renavam,
+    required this.payload,
+  });
+
+  final String placa;
+  final String renavam;
+  final Map<String, dynamic> payload;
+
+  String get _formattedPayload {
+    try {
+      return const JsonEncoder.withIndent('  ').convert(payload);
+    } catch (_) {
+      return payload.toString();
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
 
+    final message = payload['message'];
+    final hasOnlyMessage =
+        payload.length == 1 && message is String && message.isNotEmpty;
+
     return Scaffold(
-      backgroundColor: const Color(0xFFF5F6FA),
+      appBar: AppBar(
+        title: const Text('Base estadual'),
+        actions: [
+          if (!hasOnlyMessage)
+            IconButton(
+              tooltip: 'Copiar resultado',
+              onPressed: () async {
+                await Clipboard.setData(ClipboardData(text: _formattedPayload));
+                if (context.mounted) {
+                  ScaffoldMessenger.of(context)
+                    ..clearSnackBars()
+                    ..showSnackBar(
+                      const SnackBar(
+                        content: Text('Dados copiados para a área de transferência.'),
+                      ),
+                    );
+                }
+              },
+              icon: const Icon(Icons.copy_outlined),
+            ),
+        ],
+      ),
       body: SafeArea(
-        child: SingleChildScrollView(
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(20, 16, 20, 24),
           child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              Container(
-                decoration: const BoxDecoration(
-                  color: Color(0xFF123D99),
-                  borderRadius: BorderRadius.vertical(
-                    bottom: Radius.circular(32),
-                  ),
-                ),
-                padding: const EdgeInsets.fromLTRB(20, 24, 20, 28),
-                child: Column(
-                  children: [
-                    Row(
-                      children: [
-                        IconButton(
-                          onPressed: () => Navigator.of(context).maybePop(),
-                          icon: const Icon(
-                            Icons.arrow_back_ios_new,
-                            color: Colors.white,
-                            size: 18,
-                          ),
-                        ),
-                        const SizedBox(width: 4),
-                        Expanded(
-                          child: Text(
-                            'Base estadual',
-                            style: theme.textTheme.titleMedium?.copyWith(
-                              color: Colors.white,
-                              fontSize: 18,
-                            ),
-                          ),
-                        ),
-                        IconButton(
-                          onPressed: () {},
-                          icon: const Icon(
-                            Icons.share_outlined,
-                            color: Colors.white,
-                            size: 22,
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 20),
-                    _VehicleSummaryCard(colorScheme: colorScheme),
-                  ],
-                ),
+              _VehicleQueryCard(
+                colorScheme: colorScheme,
+                placa: placa,
+                renavam: renavam,
               ),
-              const SizedBox(height: 24),
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 20),
-                child: Column(
-                  children: [
-                    _BaseEstadualOption(
-                      icon: Icons.directions_car_outlined,
-                      label: 'Informações do veículo',
-                      onTap: () {
-                        Navigator.of(context).push(
-                          MaterialPageRoute(
-                            builder: (_) => const VehicleInfoPage(),
-                          ),
-                        );
-                      },
-                    ),
-                    const SizedBox(height: 12),
-                    _BaseEstadualOption(
-                      icon: Icons.assignment_outlined,
-                      label: 'Gravame',
-                      onTap: () {
-                        Navigator.of(context).push(
-                          MaterialPageRoute(
-                            builder: (_) => const GravamePage(),
-                          ),
-                        );
-                      },
-                    ),
-                    const SizedBox(height: 12),
-                    _BaseEstadualOption(
-                      icon: Icons.warning_amber_outlined,
-                      label: 'Multas e débitos',
-                      onTap: () {
-                        Navigator.of(context).push(
-                          MaterialPageRoute(builder: (_) => const FinesPage()),
-                        );
-                      },
-                    ),
-                    const SizedBox(height: 12),
-                    _BaseEstadualOption(
-                      icon: Icons.lock_outline,
-                      label: 'Restrições',
-                      onTap: () {
-                        Navigator.of(context).push(
-                          MaterialPageRoute(
-                            builder: (_) => const RestricoesPage(),
-                          ),
-                        );
-                      },
-                    ),
-                    const SizedBox(height: 12),
-                    _BaseEstadualOption(
-                      icon: Icons.receipt_long_outlined,
-                      label: 'Comunicações de venda',
-                      onTap: () {
-                        Navigator.of(context).push(
-                          MaterialPageRoute(
-                            builder: (_) => const ComunicacaoVendaPage(),
-                          ),
-                        );
-                      },
-                    ),
-                    const SizedBox(height: 24),
-                  ],
+              const SizedBox(height: 16),
+              Expanded(
+                child: _BaseEstadualResultView(
+                  payload: payload,
+                  formattedPayload: _formattedPayload,
                 ),
               ),
             ],
@@ -139,10 +81,16 @@ class BaseEstadualPage extends StatelessWidget {
   }
 }
 
-class _VehicleSummaryCard extends StatelessWidget {
-  const _VehicleSummaryCard({required this.colorScheme});
+class _VehicleQueryCard extends StatelessWidget {
+  const _VehicleQueryCard({
+    required this.colorScheme,
+    required this.placa,
+    required this.renavam,
+  });
 
   final ColorScheme colorScheme;
+  final String placa;
+  final String renavam;
 
   @override
   Widget build(BuildContext context) {
@@ -150,178 +98,85 @@ class _VehicleSummaryCard extends StatelessWidget {
 
     return Container(
       decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(24),
+        color: colorScheme.primary,
+        borderRadius: BorderRadius.circular(20),
         boxShadow: [
           BoxShadow(
-            color: const Color(0x0D101828),
-            blurRadius: 18,
+            color: colorScheme.primary.withOpacity(0.22),
+            blurRadius: 20,
             offset: const Offset(0, 10),
           ),
         ],
       ),
-      padding: const EdgeInsets.all(20),
+      padding: const EdgeInsets.fromLTRB(20, 18, 20, 18),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Container(
-                decoration: BoxDecoration(
-                  color: const Color(0xFFF2F6FF),
-                  borderRadius: BorderRadius.circular(18),
-                ),
-                padding: const EdgeInsets.all(12),
-                child: Icon(
-                  Icons.directions_car_filled_outlined,
-                  size: 36,
-                  color: colorScheme.primary,
-                ),
-              ),
-              const SizedBox(width: 16),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'GEP-1E11',
-                      style: theme.textTheme.titleMedium?.copyWith(
-                        fontSize: 18,
-                      ),
-                    ),
-                    const SizedBox(height: 6),
-                    Text(
-                      'Hyundai HB20 Vision\n2021/2022',
-                      style: theme.textTheme.bodyMedium,
-                    ),
-                  ],
-                ),
-              ),
-            ],
+          Text(
+            'Consulta realizada',
+            style: theme.textTheme.titleMedium?.copyWith(
+              color: Colors.white,
+              fontWeight: FontWeight.w700,
+            ),
           ),
-          const SizedBox(height: 18),
+          const SizedBox(height: 12),
           Row(
             children: [
               Expanded(
-                child: _VehicleDetailTile(
-                  title: 'Licenciamento',
-                  value: '2024',
-                  status: 'em dia',
-                  statusColor: const Color(0xFF12B76A),
+                child: _QueryInfoTile(
+                  label: 'Placa',
+                  value: placa,
                 ),
               ),
               const SizedBox(width: 12),
               Expanded(
-                child: _VehicleDetailTile(
-                  title: 'Município',
-                  value: 'Guarujá / SP',
+                child: _QueryInfoTile(
+                  label: 'Renavam',
+                  value: renavam,
                 ),
               ),
             ],
           ),
-          const SizedBox(height: 16),
-          _VehicleOwnerTile(colorScheme: colorScheme),
         ],
       ),
     );
   }
 }
 
-class _VehicleDetailTile extends StatelessWidget {
-  const _VehicleDetailTile({
-    required this.title,
+class _QueryInfoTile extends StatelessWidget {
+  const _QueryInfoTile({
+    required this.label,
     required this.value,
-    this.status,
-    this.statusColor,
   });
 
-  final String title;
+  final String label;
   final String value;
-  final String? status;
-  final Color? statusColor;
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          title,
-          style: theme.textTheme.bodySmall?.copyWith(
-            color: const Color(0xFF667085),
-            fontWeight: FontWeight.w500,
-          ),
-        ),
-        const SizedBox(height: 4),
-        Row(
-          children: [
-            Text(value, style: theme.textTheme.titleMedium),
-            if (status != null) ...[
-              const SizedBox(width: 6),
-              Text(
-                status!,
-                style: theme.textTheme.bodySmall?.copyWith(
-                  color: statusColor ?? const Color(0xFF12B76A),
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-            ],
-          ],
-        ),
-      ],
-    );
-  }
-}
-
-class _VehicleOwnerTile extends StatelessWidget {
-  const _VehicleOwnerTile({required this.colorScheme});
-
-  final ColorScheme colorScheme;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-
     return Container(
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        color: const Color(0xFFF8F9FC),
-        borderRadius: BorderRadius.circular(16),
+        color: Colors.white.withOpacity(0.12),
+        borderRadius: BorderRadius.circular(14),
       ),
-      child: Row(
+      child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                'Proprietário',
-                style: theme.textTheme.bodySmall?.copyWith(
-                  color: const Color(0xFF667085),
+          Text(
+            label,
+            style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                  color: Colors.white70,
                   fontWeight: FontWeight.w500,
                 ),
-              ),
-              const SizedBox(height: 6),
-              Text(
-                'LB DE LIMA VISTORIAS M...',
-                style: theme.textTheme.bodyMedium?.copyWith(
-                  color: const Color(0xFF1D2939),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            value,
+            style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                  color: Colors.white,
                   fontWeight: FontWeight.w600,
                 ),
-              ),
-            ],
-          ),
-          const Spacer(),
-          TextButton(
-            onPressed: () {},
-            style: TextButton.styleFrom(
-              foregroundColor: colorScheme.primary,
-              textStyle: const TextStyle(fontWeight: FontWeight.w600),
-            ),
-            child: const Text('Ver completo'),
           ),
         ],
       ),
@@ -329,66 +184,76 @@ class _VehicleOwnerTile extends StatelessWidget {
   }
 }
 
-class _BaseEstadualOption extends StatelessWidget {
-  const _BaseEstadualOption({
-    required this.icon,
-    required this.label,
-    this.onTap,
+class _BaseEstadualResultView extends StatelessWidget {
+  const _BaseEstadualResultView({
+    required this.payload,
+    required this.formattedPayload,
   });
 
-  final IconData icon;
-  final String label;
-  final VoidCallback? onTap;
+  final Map<String, dynamic> payload;
+  final String formattedPayload;
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final colorScheme = theme.colorScheme;
+    final message = payload['message'];
+    final hasOnlyMessage =
+        payload.length == 1 && message is String && message.isNotEmpty;
 
-    return Material(
-      color: Colors.transparent,
-      child: InkWell(
-        borderRadius: BorderRadius.circular(18),
-        onTap: onTap,
-        child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 16),
-          decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(18),
-            boxShadow: [
-              BoxShadow(
-                color: const Color(0x0D101828),
-                blurRadius: 12,
-                offset: const Offset(0, 6),
-              ),
-            ],
+    if (hasOnlyMessage) {
+      return Container(
+        padding: const EdgeInsets.all(24),
+        decoration: BoxDecoration(
+          color: theme.colorScheme.surface,
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(
+            color: theme.colorScheme.outlineVariant.withOpacity(0.4),
           ),
-          child: Row(
-            children: [
-              Container(
-                decoration: BoxDecoration(
-                  color: const Color(0xFFF2F6FF),
-                  borderRadius: BorderRadius.circular(14),
-                ),
-                padding: const EdgeInsets.all(10),
-                child: Icon(icon, color: colorScheme.primary, size: 22),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Icon(
+              Icons.info_outline,
+              color: theme.colorScheme.primary,
+            ),
+            const SizedBox(height: 12),
+            Text(
+              'Mensagem da consulta',
+              style: theme.textTheme.titleMedium?.copyWith(
+                fontWeight: FontWeight.w600,
               ),
-              const SizedBox(width: 18),
-              Expanded(
-                child: Text(
-                  label,
-                  style: theme.textTheme.bodyMedium?.copyWith(
-                    color: const Color(0xFF1D2939),
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-              ),
-              const Icon(
-                Icons.arrow_forward_ios_rounded,
-                color: Color(0xFF98A2B3),
-                size: 18,
-              ),
-            ],
+            ),
+            const SizedBox(height: 8),
+            Text(
+              message,
+              style: theme.textTheme.bodyLarge,
+            ),
+          ],
+        ),
+      );
+    }
+
+    return Container(
+      decoration: BoxDecoration(
+        color: theme.colorScheme.surface,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(
+          color: theme.colorScheme.outlineVariant.withOpacity(0.4),
+        ),
+      ),
+      clipBehavior: Clip.antiAlias,
+      child: Scrollbar(
+        thumbVisibility: true,
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.all(20),
+          child: SelectableText(
+            formattedPayload,
+            style: const TextStyle(
+              fontFamily: 'monospace',
+              fontSize: 13,
+              height: 1.4,
+            ),
           ),
         ),
       ),

@@ -63,9 +63,10 @@ class AuthService {
 
   final http.Client _client;
   final String _baseUrl;
-  AuthSession? _session;
 
-  AuthSession? get session => _session;
+  static AuthSession? _sharedSession;
+
+  AuthSession? get session => _sharedSession;
 
   static String _sanitizeBaseUrl(String baseUrl) {
     if (baseUrl.endsWith('/')) {
@@ -112,7 +113,7 @@ class AuthService {
     );
 
     final payload = _handleResponse(response);
-    return _createSessionFromPayload(payload);
+    return _createOrUpdateSession(payload);
   }
 
   Future<AuthSession> login({
@@ -130,7 +131,7 @@ class AuthService {
     );
 
     final payload = _handleResponse(response);
-    return _createSessionFromPayload(payload);
+    return _createOrUpdateSession(payload);
   }
 
   Future<void> logout() async {
@@ -143,7 +144,7 @@ class AuthService {
     );
 
     _handleResponse(response);
-    _session = null;
+    _sharedSession = null;
   }
 
   Future<AuthUser> fetchCurrentUser() async {
@@ -161,11 +162,12 @@ class AuthService {
     }
 
     final user = AuthUser.fromJson(userJson);
-    _session = _session?.copyWith(user: user) ?? AuthSession(token: token, user: user);
+    _sharedSession =
+        _sharedSession?.copyWith(user: user) ?? AuthSession(token: token, user: user);
     return user;
   }
 
-  AuthSession _createSessionFromPayload(Map<String, dynamic> payload) {
+  AuthSession _createOrUpdateSession(Map<String, dynamic> payload) {
     final token = payload['token'];
     final userJson = payload['user'];
 
@@ -178,12 +180,12 @@ class AuthService {
 
     final user = AuthUser.fromJson(userJson);
     final session = AuthSession(token: token, user: user);
-    _session = session;
+    _sharedSession = session;
     return session;
   }
 
   void clearSession() {
-    _session = null;
+    _sharedSession = null;
   }
 
   Map<String, dynamic> _handleResponse(http.Response response) {
@@ -216,7 +218,7 @@ class AuthService {
   }
 
   String _ensureToken() {
-    final token = _session?.token;
+    final token = _sharedSession?.token;
     if (token == null || token.isEmpty) {
       throw AuthException('Sessão expirada. Faça login novamente.');
     }

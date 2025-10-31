@@ -1,7 +1,11 @@
+import 'dart:convert';
+import 'dart:typed_data';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import 'package:frontend_app/services/auth_service.dart';
+import 'package:frontend_app/services/base_estadual_service.dart';
 
 import '../atpv/atpv_form_page.dart';
 import '../base_state/base_estadual_page.dart';
@@ -29,6 +33,7 @@ class HomePage extends StatefulWidget {
 
 class _HomePageState extends State<HomePage> {
   final _authService = AuthService();
+  final _baseEstadualService = BaseEstadualService();
   AuthUser? _currentUser;
   bool _isFetchingUser = false;
 
@@ -99,9 +104,7 @@ class _HomePageState extends State<HomePage> {
   ) async {
     if (action.title == 'Pesquisas') {
       if (subAction.label == 'Base estadual') {
-        Navigator.of(context).push(
-          MaterialPageRoute(builder: (context) => const BaseEstadualPage()),
-        );
+        await _handleBaseEstadualFlow();
       } else if (subAction.label == 'Base Outros Estados') {
         await _handleBaseOutrosEstadosFlow();
       } else if (subAction.label == 'BIN') {
@@ -118,16 +121,368 @@ class _HomePageState extends State<HomePage> {
     }
   }
 
+  Future<void> _handleBaseEstadualFlow() async {
+    final query = await _showBaseEstadualDialog();
+    if (query == null || !mounted) return;
+
+    showDialog<void>(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) => const LoadingDialog(),
+    );
+
+    try {
+      final result = await _baseEstadualService.consultar(
+        placa: query.placa,
+        renavam: query.renavam,
+        captcha: query.captcha,
+      );
+      if (!mounted) return;
+      Navigator.of(context, rootNavigator: true).pop();
+      if (!mounted) return;
+      Navigator.of(context).push(
+        MaterialPageRoute(
+          builder: (_) => BaseEstadualPage(
+            placa: query.placa,
+            renavam: query.renavam,
+            payload: result,
+          ),
+        ),
+      );
+    } on BaseEstadualException catch (e) {
+      if (!mounted) return;
+      Navigator.of(context, rootNavigator: true).pop();
+      _showErrorMessage(e.message);
+    } catch (_) {
+      if (!mounted) return;
+      Navigator.of(context, rootNavigator: true).pop();
+      _showErrorMessage('Não foi possível consultar a base estadual.');
+    }
+  }
+
+  Future<_BaseEstadualQuery?> _showBaseEstadualDialog() async {
+    final formKey = GlobalKey<FormState>();
+    final plateController = TextEditingController();
+    final renavamController = TextEditingController();
+    final captchaController = TextEditingController();
+
+    String? captchaBase64;
+    String? captchaError;
+    bool isLoadingCaptcha = false;
+    bool initialized = false;
+
+    Future<void> refreshCaptcha(StateSetter setState) async {
+      setState(() {
+        isLoadingCaptcha = true;
+        captchaError = null;
+      });
+      try {
+        final image = await _baseEstadualService.fetchCaptcha();
+        setState(() {
+          captchaBase64 = image;
+        });
+      } on BaseEstadualException catch (e) {
+        setState(() {
+          captchaError = e.message;
+        });
+      } catch (_) {
+        setState(() {
+          captchaError = 'Erro ao carregar captcha.';
+        });
+      } finally {
+        setState(() {
+          isLoadingCaptcha = false;
+        });
+      }
+    }
+
+    final result = await showDialog<_BaseEstadualQuery>(
+      context: context,
+      barrierDismissible: false,
+      builder: (dialogContext) {
+        return Dialog(
+          insetPadding: const EdgeInsets.symmetric(horizontal: 24),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(24),
+          ),
+          child: StatefulBuilder(
+            builder: (context, setState) {
+              if (!initialized) {
+                initialized = true;
+                Future.microtask(() => refreshCaptcha(setState));
+              }
+
+              Uint8List? captchaBytes;
+              if (captchaBase64 != null && captchaBase64!.isNotEmpty) {
+                try {
+                  captchaBytes = base64Decode(captchaBase64!);
+                } catch (_) {
+                  captchaError ??= 'Captcha recebido em formato inválido.';
+                }
+              }
+
+              return ConstrainedBox(
+                constraints: const BoxConstraints(maxHeight: 520),
+                child: SingleChildScrollView(
+                  padding: const EdgeInsets.fromLTRB(20, 20, 20, 24),
+                  child: Form(
+                    key: formKey,
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        Row(
+                          children: [
+                            Text(
+                              'Consulta base estadual',
+                              style: Theme.of(context).textTheme.titleMedium
+                                  ?.copyWith(fontWeight: FontWeight.w700),
+                            ),
+                            const Spacer(),
+                            IconButton(
+                              onPressed: () {
+                                Navigator.of(dialogContext).pop();
+                              },
+                              icon: const Icon(Icons.close),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 12),
+                        TextFormField(
+                          controller: plateController,
+                          decoration: const InputDecoration(
+                            labelText: 'Placa',
+                          ),
+                          inputFormatters: [
+                            const _UpperCaseTextFormatter(),
+                            FilteringTextInputFormatter.allow(
+                              RegExp('[A-Za-z0-9]'),
+                            ),
+                            LengthLimitingTextInputFormatter(7),
+                          ],
+                          textCapitalization: TextCapitalization.characters,
+                          validator: (value) {
+                            final text = value?.trim().toUpperCase() ?? '';
+                            if (text.isEmpty) {
+                              return 'Informe a placa';
+                            }
+                            final normalized = text.replaceAll('-', '');
+                            if (!_isValidPlate(normalized)) {
+                              return 'Placa inválida';
+                            }
+                            return null;
+                          },
+                        ),
+                        const SizedBox(height: 16),
+                        TextFormField(
+                          controller: renavamController,
+                          decoration: const InputDecoration(
+                            labelText: 'Renavam',
+                          ),
+                          keyboardType: TextInputType.number,
+                          inputFormatters: [
+                            FilteringTextInputFormatter.digitsOnly,
+                            LengthLimitingTextInputFormatter(11),
+                          ],
+                          validator: (value) {
+                            final text = value?.trim() ?? '';
+                            if (text.isEmpty) {
+                              return 'Informe o renavam';
+                            }
+                            if (!_isValidRenavam(text)) {
+                              return 'Renavam inválido';
+                            }
+                            return null;
+                          },
+                        ),
+                        const SizedBox(height: 20),
+                        Container(
+                          decoration: BoxDecoration(
+                            color: Colors.white,
+                            borderRadius: BorderRadius.circular(16),
+                            border: Border.all(
+                              color: Theme.of(context)
+                                  .colorScheme
+                                  .outline
+                                  .withOpacity(0.2),
+                            ),
+                          ),
+                          padding: const EdgeInsets.all(16),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.stretch,
+                            children: [
+                              Row(
+                                children: [
+                                  Text(
+                                    'Captcha',
+                                    style: Theme.of(context)
+                                        .textTheme
+                                        .titleSmall
+                                        ?.copyWith(fontWeight: FontWeight.w600),
+                                  ),
+                                  const Spacer(),
+                                  TextButton.icon(
+                                    onPressed: isLoadingCaptcha
+                                        ? null
+                                        : () => refreshCaptcha(setState),
+                                    icon: const Icon(Icons.refresh),
+                                    label: const Text('Atualizar'),
+                                  ),
+                                ],
+                              ),
+                              const SizedBox(height: 12),
+                              if (isLoadingCaptcha)
+                                const Center(
+                                  child: Padding(
+                                    padding: EdgeInsets.symmetric(vertical: 16),
+                                    child: CircularProgressIndicator(),
+                                  ),
+                                )
+                              else if (captchaError != null)
+                                Padding(
+                                  padding:
+                                      const EdgeInsets.symmetric(vertical: 8),
+                                  child: Text(
+                                    captchaError!,
+                                    style: TextStyle(
+                                      color:
+                                          Theme.of(context).colorScheme.error,
+                                    ),
+                                  ),
+                                )
+                              else if (captchaBytes != null)
+                                Center(
+                                  child: ClipRRect(
+                                    borderRadius: BorderRadius.circular(8),
+                                    child: Image.memory(
+                                      captchaBytes,
+                                      width: 180,
+                                      height: 80,
+                                      fit: BoxFit.contain,
+                                      errorBuilder: (_, __, ___) {
+                                        return const Text(
+                                          'Não foi possível exibir o captcha.',
+                                        );
+                                      },
+                                    ),
+                                  ),
+                                ),
+                              const SizedBox(height: 16),
+                              TextFormField(
+                                controller: captchaController,
+                                decoration: const InputDecoration(
+                                  labelText: 'Informe o captcha',
+                                ),
+                                inputFormatters: [
+                                  const _UpperCaseTextFormatter(),
+                                  FilteringTextInputFormatter.allow(
+                                    RegExp('[A-Za-z0-9]'),
+                                  ),
+                                  LengthLimitingTextInputFormatter(10),
+                                ],
+                                textCapitalization:
+                                    TextCapitalization.characters,
+                                validator: (value) {
+                                  final text = value?.trim() ?? '';
+                                  if (text.isEmpty) {
+                                    return 'Informe o captcha';
+                                  }
+                                  return null;
+                                },
+                              ),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(height: 24),
+                        FilledButton(
+                          onPressed: isLoadingCaptcha || captchaBase64 == null
+                              ? null
+                              : () {
+                                  if (!formKey.currentState!.validate()) {
+                                    return;
+                                  }
+                                  Navigator.of(dialogContext).pop(
+                                    _BaseEstadualQuery(
+                                      placa: plateController.text
+                                          .trim()
+                                          .toUpperCase(),
+                                      renavam: renavamController.text.trim(),
+                                      captcha:
+                                          captchaController.text.trim().toUpperCase(),
+                                    ),
+                                  );
+                                },
+                          child: const Text('Consultar'),
+                        ),
+                        const SizedBox(height: 12),
+                        TextButton(
+                          onPressed: () {
+                            Navigator.of(dialogContext).pop();
+                          },
+                          child: const Text('Cancelar'),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              );
+            },
+          ),
+        );
+      },
+    );
+
+    plateController.dispose();
+    renavamController.dispose();
+    captchaController.dispose();
+
+    return result;
+  }
+
   Future<void> _handleBaseOutrosEstadosFlow() async {
-    final request = await _showBaseOutrosEstadosDialog();
-    if (request == null || !mounted) return;
+    final query = await _showBaseOutrosEstadosDialog();
+    if (query == null || !mounted) return;
 
-    await _showLoadingDialog();
-    if (!mounted) return;
+    showDialog<void>(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) => const LoadingDialog(),
+    );
 
-    Navigator.of(
-      context,
-    ).push(MaterialPageRoute(builder: (_) => const BaseOutrosEstadosPage()));
+    try {
+      final result = await _baseEstadualService.consultarOutrosEstados(
+        chassi: query.chassi,
+        captcha: query.captcha,
+      );
+      if (!mounted) return;
+      Navigator.of(context, rootNavigator: true).pop();
+      if (!mounted) return;
+      final htmlResponse = result['html'];
+      if (htmlResponse is String && htmlResponse.isNotEmpty) {
+        await _showBaseOutrosEstadosHtmlDialog(
+          chassi: query.chassi,
+          html: htmlResponse,
+        );
+      } else {
+        Navigator.of(context).push(
+          MaterialPageRoute(
+            builder: (_) => BaseOutrosEstadosPage(
+              chassi: query.chassi,
+              payload: result,
+            ),
+          ),
+        );
+      }
+    } on BaseEstadualException catch (e) {
+      if (!mounted) return;
+      Navigator.of(context, rootNavigator: true).pop();
+      _showErrorMessage(e.message);
+    } catch (_) {
+      if (!mounted) return;
+      Navigator.of(context, rootNavigator: true).pop();
+      _showErrorMessage(
+        'Não foi possível consultar a base de outros estados.',
+      );
+    }
   }
 
   Future<void> _handleBinFlow() async {
@@ -804,19 +1159,39 @@ Future<_BloqueiosAtivosRequest?> _showBloqueiosAtivosDialog() async {
   }
 
   Future<_OtherStatesSearchRequest?> _showBaseOutrosEstadosDialog() async {
-    final plateController = TextEditingController();
+    final formKey = GlobalKey<FormState>();
     final chassiController = TextEditingController();
-    const states = [
-      'São Paulo',
-      'Rio de Janeiro',
-      'Minas Gerais',
-      'Paraná',
-      'Santa Catarina',
-      'Rio Grande do Sul',
-      'Bahia',
-      'Distrito Federal',
-    ];
-    String? selectedState;
+    final captchaController = TextEditingController();
+
+    String? captchaBase64;
+    String? captchaError;
+    bool isLoadingCaptcha = false;
+    bool initialized = false;
+
+    Future<void> refreshCaptcha(StateSetter setState) async {
+      setState(() {
+        isLoadingCaptcha = true;
+        captchaError = null;
+      });
+      try {
+        final image = await _baseEstadualService.fetchCaptcha();
+        setState(() {
+          captchaBase64 = image;
+        });
+      } on BaseEstadualException catch (e) {
+        setState(() {
+          captchaError = e.message;
+        });
+      } catch (_) {
+        setState(() {
+          captchaError = 'Erro ao carregar captcha.';
+        });
+      } finally {
+        setState(() {
+          isLoadingCaptcha = false;
+        });
+      }
+    }
 
     final result = await showDialog<_OtherStatesSearchRequest>(
       context: context,
@@ -829,133 +1204,204 @@ Future<_BloqueiosAtivosRequest?> _showBloqueiosAtivosDialog() async {
           ),
           child: StatefulBuilder(
             builder: (context, setState) {
-              final plateText = plateController.text.trim().toUpperCase();
-              final chassiText = chassiController.text.trim().toUpperCase();
-              final plateValid =
-                  plateText.isNotEmpty && _isValidPlate(plateText);
-              final chassiValid =
-                  chassiText.isNotEmpty && _isValidChassi(chassiText);
-              final isValid =
-                  selectedState != null && (plateValid || chassiValid);
+              if (!initialized) {
+                initialized = true;
+                Future.microtask(() => refreshCaptcha(setState));
+              }
 
-              return Padding(
-                padding: const EdgeInsets.fromLTRB(20, 20, 20, 24),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    Row(
-                      children: [
-                        Text(
-                          'Base de outros estados',
-                          style: Theme.of(context).textTheme.titleMedium
-                              ?.copyWith(fontWeight: FontWeight.w700),
-                        ),
-                        const Spacer(),
-                        IconButton(
-                          onPressed: () {
-                            FocusManager.instance.primaryFocus?.unfocus();
-                            Navigator.of(dialogContext).pop();
-                          },
-                          icon: const Icon(Icons.close),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 12),
-                    DropdownButtonFormField<String>(
-                      decoration: const InputDecoration(
-                        labelText: 'Selecionar estado',
-                        border: OutlineInputBorder(),
-                        filled: true,
-                      ),
-                      initialValue: selectedState,
-                      items: states
-                          .map(
-                            (state) => DropdownMenuItem(
-                              value: state,
-                              child: Text(state),
-                            ),
-                          )
-                          .toList(),
-                      onChanged: (value) {
-                        setState(() {
-                          selectedState = value;
-                        });
-                      },
-                    ),
-                    const SizedBox(height: 12),
-                    TextField(
-                      controller: plateController,
-                      decoration: InputDecoration(
-                        labelText: 'Placa',
-                        border: OutlineInputBorder(),
-                        filled: true,
-                        errorText: plateText.isNotEmpty && !plateValid
-                            ? 'Placa inválida'
-                            : null,
-                      ),
-                      inputFormatters: [
-                        const _UpperCaseTextFormatter(),
-                        FilteringTextInputFormatter.allow(
-                          RegExp('[A-Za-z0-9]'),
-                        ),
-                        LengthLimitingTextInputFormatter(7),
-                      ],
-                      onChanged: (_) => setState(() {}),
-                    ),
-                    const SizedBox(height: 12),
-                    Center(
-                      child: Text(
-                        'ou',
-                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                          color: const Color(0xFF667085),
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                    ),
-                    const SizedBox(height: 12),
-                    TextField(
-                      controller: chassiController,
-                      decoration: InputDecoration(
-                        labelText: 'Chassi',
-                        border: OutlineInputBorder(),
-                        filled: true,
-                        errorText: chassiText.isNotEmpty && !chassiValid
-                            ? 'Chassi inválido'
-                            : null,
-                      ),
-                      inputFormatters: [
-                        const _UpperCaseTextFormatter(),
-                        FilteringTextInputFormatter.allow(
-                          RegExp('[A-Za-z0-9]'),
-                        ),
-                        LengthLimitingTextInputFormatter(17),
-                      ],
-                      onChanged: (_) => setState(() {}),
-                    ),
-                    const SizedBox(height: 20),
-                    ElevatedButton(
-                      onPressed: isValid
-                          ? () {
+              Uint8List? captchaBytes;
+              if (captchaBase64 != null && captchaBase64!.isNotEmpty) {
+                try {
+                  captchaBytes = base64Decode(captchaBase64!);
+                } catch (_) {
+                  captchaError ??= 'Captcha recebido em formato inválido.';
+                }
+              }
+
+              final theme = Theme.of(context);
+
+              return Form(
+                key: formKey,
+                child: SingleChildScrollView(
+                  padding: const EdgeInsets.fromLTRB(20, 20, 20, 24),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      Row(
+                        children: [
+                          Text(
+                            'Base de outros estados',
+                            style: theme.textTheme.titleMedium
+                                ?.copyWith(fontWeight: FontWeight.w700),
+                          ),
+                          const Spacer(),
+                          IconButton(
+                            onPressed: () {
                               FocusManager.instance.primaryFocus?.unfocus();
-                              Navigator.of(dialogContext).pop(
-                                _OtherStatesSearchRequest(
-                                  state: selectedState!,
-                                  plate: plateValid ? plateText : '',
-                                  chassi: chassiValid ? chassiText : '',
-                                ),
-                              );
-                            }
-                          : null,
-                      style: ElevatedButton.styleFrom(
-                        minimumSize: const Size.fromHeight(52),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(16),
+                              Navigator.of(dialogContext).pop();
+                            },
+                            icon: const Icon(Icons.close),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 12),
+                      Text(
+                        'Informe o chassi e o captcha exibido para consultar a base de outros estados.',
+                        style: theme.textTheme.bodyMedium?.copyWith(
+                          color: const Color(0xFF475467),
                         ),
                       ),
-                      child: const Text('Pesquisar'),
-                    ),
-                  ],
+                      const SizedBox(height: 20),
+                      TextFormField(
+                        controller: chassiController,
+                        decoration: const InputDecoration(
+                          labelText: 'Chassi',
+                        ),
+                        inputFormatters: [
+                          const _UpperCaseTextFormatter(),
+                          FilteringTextInputFormatter.allow(
+                            RegExp('[A-Za-z0-9]'),
+                          ),
+                          LengthLimitingTextInputFormatter(17),
+                        ],
+                        textCapitalization: TextCapitalization.characters,
+                        validator: (value) {
+                          final text = value?.trim().toUpperCase() ?? '';
+                          if (text.isEmpty) {
+                            return 'Informe o chassi';
+                          }
+                          if (!_isValidChassi(text)) {
+                            return 'Chassi inválido';
+                          }
+                          return null;
+                        },
+                      ),
+                      const SizedBox(height: 20),
+                      Container(
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          borderRadius: BorderRadius.circular(16),
+                          border: Border.all(
+                            color: theme.colorScheme.outline
+                                .withOpacity(0.12),
+                          ),
+                        ),
+                        padding: const EdgeInsets.all(16),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
+                            Row(
+                              children: [
+                                Text(
+                                  'Captcha',
+                                  style: theme.textTheme.titleSmall
+                                      ?.copyWith(fontWeight: FontWeight.w600),
+                                ),
+                                const Spacer(),
+                                TextButton.icon(
+                                  onPressed: isLoadingCaptcha
+                                      ? null
+                                      : () => refreshCaptcha(setState),
+                                  icon: const Icon(Icons.refresh),
+                                  label: const Text('Atualizar'),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 12),
+                            if (isLoadingCaptcha)
+                              const Center(
+                                child: Padding(
+                                  padding:
+                                      EdgeInsets.symmetric(vertical: 16),
+                                  child: CircularProgressIndicator(),
+                                ),
+                              )
+                            else if (captchaError != null)
+                              Padding(
+                                padding:
+                                    const EdgeInsets.symmetric(vertical: 8),
+                                child: Text(
+                                  captchaError!,
+                                  style: TextStyle(
+                                    color: theme.colorScheme.error,
+                                  ),
+                                ),
+                              )
+                            else if (captchaBytes != null)
+                              Center(
+                                child: ClipRRect(
+                                  borderRadius: BorderRadius.circular(8),
+                                  child: Image.memory(
+                                    captchaBytes,
+                                    width: 180,
+                                    height: 80,
+                                    fit: BoxFit.contain,
+                                    errorBuilder: (_, __, ___) {
+                                      return const Text(
+                                        'Não foi possível exibir o captcha.',
+                                      );
+                                    },
+                                  ),
+                                ),
+                              ),
+                            const SizedBox(height: 16),
+                            TextFormField(
+                              controller: captchaController,
+                              decoration: const InputDecoration(
+                                labelText: 'Informe o captcha',
+                              ),
+                              inputFormatters: [
+                                const _UpperCaseTextFormatter(),
+                                FilteringTextInputFormatter.allow(
+                                  RegExp('[A-Za-z0-9]'),
+                                ),
+                                LengthLimitingTextInputFormatter(10),
+                              ],
+                              textCapitalization:
+                                  TextCapitalization.characters,
+                              validator: (value) {
+                                final text = value?.trim() ?? '';
+                                if (text.isEmpty) {
+                                  return 'Informe o captcha';
+                                }
+                                return null;
+                              },
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(height: 24),
+                      FilledButton(
+                        onPressed: isLoadingCaptcha || captchaBase64 == null
+                            ? null
+                            : () {
+                                if (!formKey.currentState!.validate()) {
+                                  return;
+                                }
+                                FocusManager.instance.primaryFocus
+                                    ?.unfocus();
+                                Navigator.of(dialogContext).pop(
+                                  _OtherStatesSearchRequest(
+                                    chassi: chassiController.text
+                                        .trim()
+                                        .toUpperCase(),
+                                    captcha: captchaController.text
+                                        .trim()
+                                        .toUpperCase(),
+                                  ),
+                                );
+                              },
+                        style: FilledButton.styleFrom(
+                          minimumSize: const Size.fromHeight(52),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(16),
+                          ),
+                        ),
+                        child: const Text('Pesquisar'),
+                      ),
+                    ],
+                  ),
                 ),
               );
             },
@@ -965,10 +1411,120 @@ Future<_BloqueiosAtivosRequest?> _showBloqueiosAtivosDialog() async {
     );
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      plateController.dispose();
       chassiController.dispose();
+      captchaController.dispose();
     });
     return result;
+  }
+
+  Future<void> _showBaseOutrosEstadosHtmlDialog({
+    required String chassi,
+    required String html,
+  }) async {
+    await showDialog<void>(
+      context: context,
+      barrierDismissible: false,
+      builder: (dialogContext) {
+        final theme = Theme.of(dialogContext);
+        final maxHeight = MediaQuery.of(dialogContext).size.height * 0.7;
+
+        return Dialog(
+          insetPadding: const EdgeInsets.symmetric(horizontal: 24),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(24),
+          ),
+          child: SizedBox(
+            width: 520,
+            height: maxHeight,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(20, 20, 12, 0),
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'Resultado - Base outros estados',
+                              style: theme.textTheme.titleMedium?.copyWith(
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
+                            const SizedBox(height: 4),
+                            Text(
+                              'Chassi consultado: $chassi',
+                              style: theme.textTheme.bodySmall?.copyWith(
+                                color: const Color(0xFF475467),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      IconButton(
+                        onPressed: () => Navigator.of(dialogContext).pop(),
+                        icon: const Icon(Icons.close),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 12),
+                const Divider(height: 1),
+                Expanded(
+                  child: Scrollbar(
+                    thumbVisibility: true,
+                    child: SingleChildScrollView(
+                      padding: const EdgeInsets.fromLTRB(20, 16, 20, 16),
+                      child: SelectableText(
+                        html,
+                        style: const TextStyle(
+                          fontFamily: 'monospace',
+                          fontSize: 13,
+                          height: 1.4,
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+                const Divider(height: 1),
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(20, 12, 20, 16),
+                  child: Row(
+                    children: [
+                      TextButton.icon(
+                        onPressed: () async {
+                          await Clipboard.setData(ClipboardData(text: html));
+                          if (mounted) {
+                            ScaffoldMessenger.of(context)
+                              ..clearSnackBars()
+                              ..showSnackBar(
+                                const SnackBar(
+                                  content: Text(
+                                    'HTML copiado para a área de transferência.',
+                                  ),
+                                ),
+                              );
+                          }
+                        },
+                        icon: const Icon(Icons.copy_outlined),
+                        label: const Text('Copiar HTML'),
+                      ),
+                      const Spacer(),
+                      FilledButton(
+                        onPressed: () => Navigator.of(dialogContext).pop(),
+                        child: const Text('Fechar'),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
   }
 
   Future<_EcrvProcessRequest?> _showEcrvProcessDialog() async {
@@ -1533,6 +2089,7 @@ Future<_BinSearchRequest?> _showSimplePlateChassiDialog({
   @override
   void initState() {
     super.initState();
+    _currentUser = _authService.session?.user;
     _loadCurrentUser();
   }
 
@@ -1680,6 +2237,18 @@ Future<_BinSearchRequest?> _showSimplePlateChassiDialog({
   }
 }
 
+class _BaseEstadualQuery {
+  const _BaseEstadualQuery({
+    required this.placa,
+    required this.renavam,
+    required this.captcha,
+  });
+
+  final String placa;
+  final String renavam;
+  final String captcha;
+}
+
 class _CrlvEmissionRequest {
   const _CrlvEmissionRequest({
     required this.plate,
@@ -1694,14 +2263,12 @@ class _CrlvEmissionRequest {
 
 class _OtherStatesSearchRequest {
   const _OtherStatesSearchRequest({
-    required this.state,
-    required this.plate,
     required this.chassi,
+    required this.captcha,
   });
 
-  final String state;
-  final String plate;
   final String chassi;
+  final String captcha;
 }
 
 class _BinSearchRequest {
