@@ -5,6 +5,8 @@ use App\Http\Controllers\Api\CaptchaController;
 use App\Http\Controllers\Api\BaseEstadualController;
 use App\Http\Controllers\Api\AnotherBaseStateController;
 use App\Http\Controllers\Api\BloqueiosAtivosController;
+use App\Http\Controllers\Api\ImpressaoAtpvController;
+use App\Http\Controllers\Api\ImpressaoCrlvController;
 use Illuminate\Support\Facades\Route;
 
 Route::prefix('auth')->group(function (): void {
@@ -18,3 +20,5 @@ Route::get('captcha', CaptchaController::class);
 Route::get('base-estadual', BaseEstadualController::class);
 Route::get('another-base-estadual', AnotherBaseStateController::class);
 Route::get('bloqueios-ativos', BloqueiosAtivosController::class);
+Route::get('emissao-atpv', ImpressaoAtpvController::class);
+Route::get('emissao-crlv', ImpressaoCrlvController::class);
