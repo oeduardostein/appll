@@ -11,7 +11,7 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
 use Symfony\Component\HttpFoundation\Response;
 
-class ImpressaoAtvpController extends Controller
+class ImpressaoAtpvController extends Controller
 {
     /**
      * Consulta dados para emissão/impressão da ATPV no e-CRVsp e retorna JSON padronizado.
