@@ -162,4 +162,164 @@ class BaseEstadualService {
 
     throw BaseEstadualException('Formato de resposta da consulta inválido.');
   }
+
+  Future<Map<String, dynamic>> consultarBloqueiosAtivos({
+    required String origin,
+    required String captcha,
+    String? placa,
+    String? chassi,
+    String? renavam,
+  }) async {
+    final opcao = origin.toUpperCase() == 'RENAJUD' ? '2' : '1';
+    final params = <String, String>{
+      'opcaoPesquisa': opcao,
+      'captcha': captcha,
+    };
+
+    final sanitizedPlate = placa?.trim().toUpperCase() ?? '';
+    final sanitizedChassi = chassi?.trim().toUpperCase() ?? '';
+
+    params['placa'] = sanitizedPlate;
+    if (sanitizedChassi.isNotEmpty) {
+      params['chassi'] = sanitizedChassi;
+    }
+
+    if (renavam != null && renavam.trim().isNotEmpty) {
+      params['renavam'] = renavam.trim();
+    }
+
+    final uri = Uri.parse(
+      'https://applldespachante.skalacode.com/api/bloqueios-ativos',
+    ).replace(
+      queryParameters: params,
+    );
+
+    final response = await _client.get(uri);
+
+    if (response.statusCode != 200) {
+      throw BaseEstadualException(
+        'Falha ao consultar bloqueios ativos (HTTP ${response.statusCode}).',
+      );
+    }
+
+    final body = response.body.trim();
+    if (body.isEmpty) {
+      throw BaseEstadualException('Resposta vazia da consulta.');
+    }
+
+    try {
+      final decoded = jsonDecode(body);
+      if (decoded is Map<String, dynamic>) {
+        return decoded;
+      }
+      if (decoded is List) {
+        return {'items': decoded};
+      }
+      if (decoded is String) {
+        return {'message': decoded};
+      }
+    } catch (_) {
+      return {'message': body};
+    }
+
+    throw BaseEstadualException('Formato de resposta da consulta inválido.');
+  }
+
+  Future<Map<String, dynamic>> emitirAtpv({
+    required String placa,
+    required String renavam,
+    required String captchaResponse,
+  }) async {
+    final uri = Uri.parse(
+      'https://applldespachante.skalacode.com/api/emissao-atpv',
+    ).replace(
+      queryParameters: {
+        'placa': placa,
+        'renavam': renavam,
+        'captchaResponse': captchaResponse,
+      },
+    );
+
+    final response = await _client.get(uri);
+
+    if (response.statusCode != 200) {
+      throw BaseEstadualException(
+        'Falha ao emitir ATPV-e (HTTP ${response.statusCode}).',
+      );
+    }
+
+    final body = response.body.trim();
+    if (body.isEmpty) {
+      throw BaseEstadualException('Resposta vazia da emissão.');
+    }
+
+    try {
+      final decoded = jsonDecode(body);
+      if (decoded is Map<String, dynamic>) {
+        return decoded;
+      }
+      if (decoded is List) {
+        return {'items': decoded};
+      }
+      if (decoded is String) {
+        return {'message': decoded};
+      }
+    } catch (_) {
+      return {'message': body};
+    }
+
+    throw BaseEstadualException('Formato de resposta da emissão inválido.');
+  }
+
+  Future<Map<String, dynamic>> emitirCrlv({
+    required String placa,
+    required String renavam,
+    required String cpf,
+    required String cnpj,
+    required String captchaResponse,
+    required String opcaoPesquisa,
+  }) async {
+    final uri = Uri.parse(
+      'https://applldespachante.skalacode.com/api/emissao-crlv',
+    ).replace(
+      queryParameters: {
+        'placa': placa,
+        'renavam': renavam,
+        'cpf': cpf,
+        'cnpj': cnpj,
+        'captchaResponse': captchaResponse,
+        'opcaoPesquisa': opcaoPesquisa,
+      },
+    );
+
+    final response = await _client.get(uri);
+
+    if (response.statusCode != 200) {
+      throw BaseEstadualException(
+        'Falha ao emitir CRLV-e (HTTP ${response.statusCode}).',
+      );
+    }
+
+    final body = response.body.trim();
+    if (body.isEmpty) {
+      throw BaseEstadualException('Resposta vazia da emissão.');
+    }
+
+    try {
+      final decoded = jsonDecode(body);
+      if (decoded is Map<String, dynamic>) {
+        return decoded;
+      }
+      if (decoded is List) {
+        return {'items': decoded};
+      }
+      if (decoded is String) {
+        return {'message': decoded};
+      }
+    } catch (_) {
+      return {'message': body};
+    }
+
+    throw BaseEstadualException('Formato de resposta da emissão inválido.');
+  }
 }

@@ -487,15 +487,42 @@ class _HomePageState extends State<HomePage> {
   }
 
   Future<void> _handleBinFlow() async {
-    final request = await _showSimplePlateChassiDialog(title: 'Pesquisa BIN');
-    if (request == null || !mounted) return;
+    final query = await _showBaseEstadualDialog();
+    if (query == null || !mounted) return;
 
-    await _showLoadingDialog();
-    if (!mounted) return;
+    showDialog<void>(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) => const LoadingDialog(),
+    );
 
-    Navigator.of(
-      context,
-    ).push(MaterialPageRoute(builder: (_) => const BinResultPage()));
+    try {
+      final result = await _baseEstadualService.consultar(
+        placa: query.placa,
+        renavam: query.renavam,
+        captcha: query.captcha,
+      );
+      if (!mounted) return;
+      Navigator.of(context, rootNavigator: true).pop();
+      if (!mounted) return;
+      Navigator.of(context).push(
+        MaterialPageRoute(
+          builder: (_) => BinResultPage(
+            placa: query.placa,
+            renavam: query.renavam,
+            payload: result,
+          ),
+        ),
+      );
+    } on BaseEstadualException catch (e) {
+      if (!mounted) return;
+      Navigator.of(context, rootNavigator: true).pop();
+      _showErrorMessage(e.message);
+    } catch (_) {
+      if (!mounted) return;
+      Navigator.of(context, rootNavigator: true).pop();
+      _showErrorMessage('Não foi possível concluir a pesquisa BIN.');
+    }
   }
 
   Future<void> _handleRenainfFlow() async {
@@ -538,18 +565,41 @@ class _HomePageState extends State<HomePage> {
     final request = await _showBloqueiosAtivosDialog();
     if (request == null || !mounted) return;
 
-    await _showLoadingDialog();
-    if (!mounted) return;
-
-    Navigator.of(context).push(
-      MaterialPageRoute(
-        builder: (_) => BloqueiosPage(
-          origin: request.origin,
-          plate: request.plate,
-          chassi: request.chassi,
-        ),
-      ),
+    showDialog<void>(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) => const LoadingDialog(),
     );
+
+    try {
+      final result = await _baseEstadualService.consultarBloqueiosAtivos(
+        origin: request.origin,
+        captcha: request.captcha,
+        placa: request.plate,
+        chassi: request.chassi,
+      );
+      if (!mounted) return;
+      Navigator.of(context, rootNavigator: true).pop();
+      if (!mounted) return;
+      Navigator.of(context).push(
+        MaterialPageRoute(
+          builder: (_) => BloqueiosPage(
+            origin: request.origin,
+            plate: request.plate,
+            chassi: request.chassi,
+            payload: result,
+          ),
+        ),
+      );
+    } on BaseEstadualException catch (e) {
+      if (!mounted) return;
+      Navigator.of(context, rootNavigator: true).pop();
+      _showErrorMessage(e.message);
+    } catch (_) {
+      if (!mounted) return;
+      Navigator.of(context, rootNavigator: true).pop();
+      _showErrorMessage('Não foi possível consultar os bloqueios ativos.');
+    }
   }
 
   Future<void> _handlePrimaryActionTap(HomeAction action) async {
@@ -563,31 +613,126 @@ class _HomePageState extends State<HomePage> {
   Future<void> _handleCrlvEmissionFlow() async {
     final request = await _showCrlvEmissionDialog();
     if (request == null || !mounted) return;
+    showDialog<void>(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) => const LoadingDialog(),
+    );
 
-    final confirm = await _showCrlvConfirmationDialog();
-    if (!mounted || confirm != true) return;
+    try {
+      final isCpf = request.document.length <= 11;
+      final cpf = isCpf ? request.document : '';
+      final cnpj = isCpf ? '' : request.document;
+      final opcao = isCpf ? '1' : '2';
 
-    await _showLoadingDialog();
-    if (!mounted) return;
-
-    await _showCrlvSuccessDialog();
+      final result = await _baseEstadualService.emitirCrlv(
+        placa: request.plate,
+        renavam: request.renavam,
+        cpf: cpf,
+        cnpj: cnpj,
+        captchaResponse: request.captcha,
+        opcaoPesquisa: opcao,
+      );
+      if (!mounted) return;
+      Navigator.of(context, rootNavigator: true).pop();
+      if (!mounted) return;
+      Navigator.of(context).push(
+        MaterialPageRoute(
+          builder: (_) => BaseEstadualPage(
+            placa: request.plate,
+            renavam: request.renavam,
+            payload: result,
+            pageTitle: 'Emissão do CRLV-e',
+          ),
+        ),
+      );
+    } on BaseEstadualException catch (e) {
+      if (!mounted) return;
+      Navigator.of(context, rootNavigator: true).pop();
+      _showErrorMessage(e.message);
+    } catch (_) {
+      if (!mounted) return;
+      Navigator.of(context, rootNavigator: true).pop();
+      _showErrorMessage('Não foi possível emitir o CRLV-e.');
+    }
   }
 
   Future<void> _handleAtpvEmissionFlow() async {
-    final plate = await _showAtpvEmissionDialog();
-    if (plate == null || !mounted) return;
+    final request = await _showAtpvEmissionDialog();
+    if (request == null || !mounted) return;
 
-    Navigator.of(context).push(
-      MaterialPageRoute(
-        builder: (_) => AtpvFormPage(plate: plate),
-      ),
+    showDialog<void>(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) => const LoadingDialog(),
     );
+
+    try {
+      final result = await _baseEstadualService.emitirAtpv(
+        placa: request.plate,
+        renavam: request.renavam,
+        captchaResponse: request.captcha,
+      );
+      if (!mounted) return;
+      Navigator.of(context, rootNavigator: true).pop();
+      if (!mounted) return;
+      Navigator.of(context).push(
+        MaterialPageRoute(
+          builder: (_) => BaseEstadualPage(
+            placa: request.plate,
+            renavam: request.renavam,
+            payload: result,
+            pageTitle: 'Emissão da ATPV-e',
+          ),
+        ),
+      );
+    } on BaseEstadualException catch (e) {
+      if (!mounted) return;
+      Navigator.of(context, rootNavigator: true).pop();
+      _showErrorMessage(e.message);
+    } catch (_) {
+      if (!mounted) return;
+      Navigator.of(context, rootNavigator: true).pop();
+      _showErrorMessage('Não foi possível emitir a ATPV-e.');
+    }
   }
 
   Future<_CrlvEmissionRequest?> _showCrlvEmissionDialog() async {
+    final formKey = GlobalKey<FormState>();
     final plateController = TextEditingController();
     final renavamController = TextEditingController();
     final documentController = TextEditingController();
+    final captchaController = TextEditingController();
+
+    String? captchaBase64;
+    String? captchaError;
+    bool isLoadingCaptcha = false;
+    bool initialized = false;
+
+    Future<void> refreshCaptcha(StateSetter setState) async {
+      setState(() {
+        isLoadingCaptcha = true;
+        captchaError = null;
+      });
+      try {
+        final image = await _baseEstadualService.fetchCaptcha();
+        setState(() {
+          captchaBase64 = image;
+        });
+      } on BaseEstadualException catch (e) {
+        setState(() {
+          captchaError = e.message;
+        });
+      } catch (_) {
+        setState(() {
+          captchaError = 'Erro ao carregar captcha.';
+        });
+      } finally {
+        setState(() {
+          isLoadingCaptcha = false;
+        });
+      }
+    }
 
     final result = await showDialog<_CrlvEmissionRequest>(
       context: context,
@@ -600,549 +745,242 @@ class _HomePageState extends State<HomePage> {
           ),
           child: StatefulBuilder(
             builder: (context, setState) {
-              final plateText = plateController.text.trim().toUpperCase();
-              final renavamText = renavamController.text.trim();
-              final documentText = documentController.text.trim();
+              if (!initialized) {
+                initialized = true;
+                Future.microtask(() => refreshCaptcha(setState));
+              }
 
-              final plateValid =
-                  plateText.isNotEmpty && _isValidPlate(plateText);
-              final renavamValid =
-                  renavamText.isNotEmpty && _isValidRenavam(renavamText);
-              final documentValid =
-                  documentText.isNotEmpty && _isValidCpfCnpj(documentText);
-
-              final isValid = plateValid && renavamValid && documentValid;
+              Uint8List? captchaBytes;
+              if (captchaBase64 != null && captchaBase64!.isNotEmpty) {
+                try {
+                  captchaBytes = base64Decode(captchaBase64!);
+                } catch (_) {
+                  captchaError ??= 'Captcha recebido em formato inválido.';
+                }
+              }
 
               return ConstrainedBox(
-                constraints: const BoxConstraints(maxHeight: 520),
+                constraints: const BoxConstraints(maxHeight: 560),
                 child: SingleChildScrollView(
                   padding: const EdgeInsets.fromLTRB(20, 20, 20, 24),
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      Row(
-                        children: [
-                          Text(
-                            'Emissão do CRLV-e',
-                            style: Theme.of(context).textTheme.titleMedium
-                                ?.copyWith(fontWeight: FontWeight.w700),
-                          ),
-                          const Spacer(),
-                          IconButton(
-                            onPressed: () {
-                              FocusManager.instance.primaryFocus?.unfocus();
-                              Navigator.of(dialogContext).pop();
-                            },
-                            icon: const Icon(Icons.close),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 12),
-                      TextField(
-                        controller: plateController,
-                        decoration: InputDecoration(
-                          labelText: 'Placa',
-                          suffixIcon: Icon(
-                            Icons.search,
-                            color: Theme.of(context).colorScheme.primary,
-                          ),
-                          errorText: plateText.isNotEmpty && !plateValid
-                              ? 'Placa inválida'
-                              : null,
-                        ),
-                        inputFormatters: [
-                          const _UpperCaseTextFormatter(),
-                          FilteringTextInputFormatter.allow(
-                            RegExp('[A-Za-z0-9]'),
-                          ),
-                          LengthLimitingTextInputFormatter(7),
-                        ],
-                        textCapitalization: TextCapitalization.characters,
-                        onChanged: (_) => setState(() {}),
-                      ),
-                      const SizedBox(height: 12),
-                      TextField(
-                        controller: renavamController,
-                        decoration: InputDecoration(
-                          labelText: 'Renavam',
-                          errorText: renavamText.isNotEmpty && !renavamValid
-                              ? 'Renavam inválido'
-                              : null,
-                        ),
-                        keyboardType: TextInputType.number,
-                        inputFormatters: [
-                          FilteringTextInputFormatter.digitsOnly,
-                          LengthLimitingTextInputFormatter(11),
-                        ],
-                        onChanged: (_) => setState(() {}),
-                      ),
-                      const SizedBox(height: 12),
-                      TextField(
-                        controller: documentController,
-                        decoration: InputDecoration(
-                          labelText: 'CPF / CNPJ',
-                          errorText: documentText.isNotEmpty && !documentValid
-                              ? 'Documento inválido'
-                              : null,
-                        ),
-                        keyboardType: TextInputType.number,
-                        inputFormatters: [
-                          FilteringTextInputFormatter.digitsOnly,
-                          LengthLimitingTextInputFormatter(14),
-                        ],
-                        onChanged: (_) => setState(() {}),
-                      ),
-                      const SizedBox(height: 20),
-                      ElevatedButton(
-                        onPressed: isValid
-                            ? () {
-                                FocusManager.instance.primaryFocus?.unfocus();
-                                Navigator.of(dialogContext).pop(
-                                  _CrlvEmissionRequest(
-                                    plate: plateText,
-                                    renavam: renavamText,
-                                    document: documentText,
-                                  ),
-                                );
-                              }
-                            : null,
-                        style: ElevatedButton.styleFrom(
-                          minimumSize: const Size.fromHeight(52),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(16),
-                          ),
-                        ),
-                        child: const Text('Pesquisar'),
-                      ),
-                    ],
-                  ),
-                ),
-              );
-            },
-          ),
-        );
-      },
-    );
-
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      plateController.dispose();
-      renavamController.dispose();
-      documentController.dispose();
-    });
-    return result;
-  }
-
-  Future<String?> _showAtpvEmissionDialog() async {
-    final plateController = TextEditingController();
-
-    final result = await showDialog<String>(
-      context: context,
-      barrierDismissible: false,
-      builder: (dialogContext) {
-        return Dialog(
-          insetPadding: const EdgeInsets.symmetric(horizontal: 24),
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(24),
-          ),
-          child: StatefulBuilder(
-            builder: (context, setState) {
-              final plateText = plateController.text.trim().toUpperCase();
-              final plateValid =
-                  plateText.isNotEmpty && _isValidPlate(plateText);
-
-              return Padding(
-                padding: const EdgeInsets.fromLTRB(20, 20, 20, 24),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    Row(
+                  child: Form(
+                    key: formKey,
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
-                        Text(
-                          'Emissão da ATPV-e',
-                          style: Theme.of(context).textTheme.titleMedium
-                              ?.copyWith(fontWeight: FontWeight.w700),
-                        ),
-                        const Spacer(),
-                        IconButton(
-                          onPressed: () {
-                            FocusManager.instance.primaryFocus?.unfocus();
-                            Navigator.of(dialogContext).pop();
-                          },
-                          icon: const Icon(Icons.close),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 12),
-                    TextField(
-                      controller: plateController,
-                      decoration: InputDecoration(
-                        labelText: 'Placa',
-                        hintText: 'Digite a placa do veículo',
-                        errorText: plateText.isNotEmpty && !plateValid
-                            ? 'Placa inválida'
-                            : null,
-                      ),
-                      inputFormatters: [
-                        const _UpperCaseTextFormatter(),
-                        FilteringTextInputFormatter.allow(
-                          RegExp('[A-Za-z0-9]'),
-                        ),
-                        LengthLimitingTextInputFormatter(7),
-                      ],
-                      textCapitalization: TextCapitalization.characters,
-                      onChanged: (_) => setState(() {}),
-                    ),
-                    const SizedBox(height: 20),
-                    FilledButton(
-                      onPressed: plateValid
-                          ? () {
-                              final normalized = plateText;
-                              FocusManager.instance.primaryFocus?.unfocus();
-                              Navigator.of(dialogContext).pop(normalized);
-                            }
-                          : null,
-                      child: const Text('Avançar'),
-                    ),
-                  ],
-                ),
-              );
-            },
-          ),
-        );
-      },
-    );
-
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      plateController.dispose();
-    });
-    return result;
-  }
-
-  Future<bool?> _showCrlvConfirmationDialog() async {
-    return showDialog<bool>(
-      context: context,
-      barrierDismissible: false,
-      builder: (dialogContext) {
-        return Dialog(
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(24),
-          ),
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(24, 24, 24, 16),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                Text(
-                  'Confirma emissão do CRLV-e?',
-                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                        fontWeight: FontWeight.w700,
-                        color: const Color(0xFF0E2945),
-                      ),
-                  textAlign: TextAlign.center,
-                ),
-                const SizedBox(height: 8),
-                Text(
-                  'Esta ação não poderá ser desfeita.',
-                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                        color: const Color(0xFF475467),
-                      ),
-                  textAlign: TextAlign.center,
-                ),
-                const SizedBox(height: 24),
-                Row(
-                  children: [
-                    Expanded(
-                      child: OutlinedButton(
-                        onPressed: () {
-                          Navigator.of(dialogContext).pop(false);
-                        },
-                        style: OutlinedButton.styleFrom(
-                          minimumSize: const Size.fromHeight(48),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(16),
-                          ),
-                        ),
-                        child: const Text('Não'),
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: FilledButton(
-                        onPressed: () {
-                          Navigator.of(dialogContext).pop(true);
-                        },
-                        style: FilledButton.styleFrom(
-                          minimumSize: const Size.fromHeight(48),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(16),
-                          ),
-                        ),
-                        child: const Text('Sim'),
-                      ),
-                    ),
-                  ],
-                ),
-              ],
-            ),
-          ),
-        );
-      },
-    );
-  }
-
-  Future<void> _showCrlvSuccessDialog() async {
-    if (!mounted) return;
-
-    await showDialog<void>(
-      context: context,
-      barrierDismissible: false,
-      builder: (dialogContext) {
-        return Dialog(
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(24),
-          ),
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(24, 28, 24, 24),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.center,
-              children: [
-                Container(
-                  height: 72,
-                  width: 72,
-                  decoration: BoxDecoration(
-                    color: const Color(0xFFEFFAF3),
-                    shape: BoxShape.circle,
-                  ),
-                  alignment: Alignment.center,
-                  child: const Icon(
-                    Icons.check_circle,
-                    color: Color(0xFF12B76A),
-                    size: 48,
-                  ),
-                ),
-                const SizedBox(height: 20),
-                Text(
-                  'CRLV-e gerado com sucesso',
-                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                        fontWeight: FontWeight.w700,
-                        color: const Color(0xFF0E2945),
-                      ),
-                  textAlign: TextAlign.center,
-                ),
-                const SizedBox(height: 8),
-                Text(
-                  'O documento digital já está disponível para consulta.',
-                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                        color: const Color(0xFF475467),
-                      ),
-                  textAlign: TextAlign.center,
-                ),
-                const SizedBox(height: 24),
-                SizedBox(
-                  width: double.infinity,
-                  child: FilledButton(
-                    onPressed: () {
-                      Navigator.of(dialogContext).pop();
-                    },
-                    style: FilledButton.styleFrom(
-                      minimumSize: const Size.fromHeight(48),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(16),
-                      ),
-                    ),
-                    child: const Text('OK'),
-                  ),
-                ),
-              ],
-            ),
-          ),
-        );
-      },
-    );
-  }
-
-Future<_BloqueiosAtivosRequest?> _showBloqueiosAtivosDialog() async {
-    final plateController = TextEditingController();
-    final chassiController = TextEditingController();
-    String selectedSource = 'DETRAN';
-
-    final result = await showDialog<_BloqueiosAtivosRequest>(
-      context: context,
-      barrierDismissible: false,
-      builder: (dialogContext) {
-        return Dialog(
-          insetPadding: const EdgeInsets.symmetric(horizontal: 24),
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(24),
-          ),
-          child: StatefulBuilder(
-            builder: (context, setState) {
-              final plateText = plateController.text.trim().toUpperCase();
-              final chassiText = chassiController.text.trim().toUpperCase();
-
-              final plateValid =
-                  plateText.isNotEmpty && _isValidPlate(plateText);
-              final chassiValid =
-                  chassiText.isNotEmpty && _isValidChassi(chassiText);
-              final isValid = plateValid || chassiValid;
-
-              Color backgroundFor(String source) =>
-                  selectedSource == source
-                      ? Theme.of(context).colorScheme.primary
-                      : const Color(0xFFE7EDFF);
-              Color foregroundFor(String source) =>
-                  selectedSource == source ? Colors.white : const Color(0xFF344054);
-
-              return ConstrainedBox(
-                constraints: const BoxConstraints(maxHeight: 520),
-                child: SingleChildScrollView(
-                  padding: const EdgeInsets.fromLTRB(20, 20, 20, 24),
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      Row(
-                        children: [
-                          Text(
-                            'Bloqueios ativos',
-                            style: Theme.of(context).textTheme.titleMedium
-                                ?.copyWith(fontWeight: FontWeight.w700),
-                          ),
-                          const Spacer(),
-                          IconButton(
-                            onPressed: () {
-                              FocusManager.instance.primaryFocus?.unfocus();
-                              Navigator.of(dialogContext).pop();
-                            },
-                            icon: const Icon(Icons.close),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 16),
-                      Container(
-                        decoration: BoxDecoration(
-                          color: const Color(0xFFF2F4F7),
-                          borderRadius: BorderRadius.circular(999),
-                        ),
-                        padding: const EdgeInsets.all(4),
-                        child: Row(
+                        Row(
                           children: [
-                            Expanded(
-                              child: FilledButton(
-                                onPressed: () {
-                                  if (selectedSource != 'DETRAN') {
-                                    setState(() => selectedSource = 'DETRAN');
-                                  }
-                                },
-                                style: FilledButton.styleFrom(
-                                  padding:
-                                      const EdgeInsets.symmetric(vertical: 12),
-                                  backgroundColor: backgroundFor('DETRAN'),
-                                  foregroundColor: foregroundFor('DETRAN'),
-                                  shape: RoundedRectangleBorder(
-                                    borderRadius: BorderRadius.circular(999),
-                                  ),
-                                ),
-                                child: const Text('DETRAN'),
-                              ),
+                            Text(
+                              'Emissão do CRLV-e',
+                              style: Theme.of(context).textTheme.titleMedium
+                                  ?.copyWith(fontWeight: FontWeight.w700),
                             ),
-                            const SizedBox(width: 8),
-                            Expanded(
-                              child: FilledButton(
-                                onPressed: () {
-                                  if (selectedSource != 'RENAJUD') {
-                                    setState(() => selectedSource = 'RENAJUD');
-                                  }
-                                },
-                                style: FilledButton.styleFrom(
-                                  padding:
-                                      const EdgeInsets.symmetric(vertical: 12),
-                                  backgroundColor: backgroundFor('RENAJUD'),
-                                  foregroundColor: foregroundFor('RENAJUD'),
-                                  shape: RoundedRectangleBorder(
-                                    borderRadius: BorderRadius.circular(999),
-                                  ),
-                                ),
-                                child: const Text('RENAJUD'),
-                              ),
+                            const Spacer(),
+                            IconButton(
+                              onPressed: () {
+                                Navigator.of(dialogContext).pop();
+                              },
+                              icon: const Icon(Icons.close),
                             ),
                           ],
                         ),
-                      ),
-                      const SizedBox(height: 16),
-                      TextField(
-                        controller: plateController,
-                        decoration: InputDecoration(
-                          labelText: 'Placa',
-                          errorText: plateText.isNotEmpty && !plateValid
-                              ? 'Placa inválida'
-                              : null,
-                        ),
-                        inputFormatters: [
-                          const _UpperCaseTextFormatter(),
-                          FilteringTextInputFormatter.allow(
-                            RegExp('[A-Za-z0-9]'),
+                        const SizedBox(height: 16),
+                        TextFormField(
+                          controller: plateController,
+                          decoration: const InputDecoration(
+                            labelText: 'Placa',
                           ),
-                          LengthLimitingTextInputFormatter(7),
-                        ],
-                        textCapitalization: TextCapitalization.characters,
-                        onChanged: (_) => setState(() {}),
-                      ),
-                      const SizedBox(height: 12),
-                      Center(
-                        child: Text(
-                          'ou',
-                          style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                                color: const Color(0xFF667085),
-                                fontWeight: FontWeight.w600,
-                              ),
+                          inputFormatters: [
+                            const _UpperCaseTextFormatter(),
+                            FilteringTextInputFormatter.allow(
+                              RegExp('[A-Za-z0-9]'),
+                            ),
+                            LengthLimitingTextInputFormatter(7),
+                          ],
+                          textCapitalization: TextCapitalization.characters,
+                          validator: (value) {
+                            final text = value?.trim().toUpperCase() ?? '';
+                            if (text.isEmpty) {
+                              return 'Informe a placa';
+                            }
+                            if (!_isValidPlate(text)) {
+                              return 'Placa inválida';
+                            }
+                            return null;
+                          },
                         ),
-                      ),
-                      const SizedBox(height: 12),
-                      TextField(
-                        controller: chassiController,
-                        decoration: InputDecoration(
-                          labelText: 'Chassi',
-                          errorText: chassiText.isNotEmpty && !chassiValid
-                              ? 'Chassi inválido'
-                              : null,
-                        ),
-                        inputFormatters: [
-                          const _UpperCaseTextFormatter(),
-                          FilteringTextInputFormatter.allow(
-                            RegExp('[A-Za-z0-9]'),
+                        const SizedBox(height: 16),
+                        TextFormField(
+                          controller: renavamController,
+                          decoration: const InputDecoration(
+                            labelText: 'Renavam',
                           ),
-                          LengthLimitingTextInputFormatter(17),
-                        ],
-                        onChanged: (_) => setState(() {}),
-                      ),
-                      const SizedBox(height: 20),
-                      FilledButton(
-                        onPressed: isValid
-                            ? () {
-                                FocusManager.instance.primaryFocus?.unfocus();
-                                Navigator.of(dialogContext).pop(
-                                  _BloqueiosAtivosRequest(
-                                    origin: selectedSource,
-                                    plate: plateValid ? plateText : null,
-                                    chassi: chassiValid ? chassiText : null,
-                                  ),
-                                );
-                              }
-                            : null,
-                        style: FilledButton.styleFrom(
-                          minimumSize: const Size.fromHeight(52),
-                          shape: RoundedRectangleBorder(
+                          keyboardType: TextInputType.number,
+                          inputFormatters: [
+                            FilteringTextInputFormatter.digitsOnly,
+                            LengthLimitingTextInputFormatter(11),
+                          ],
+                          validator: (value) {
+                            final text = value?.trim() ?? '';
+                            if (text.isEmpty) {
+                              return 'Informe o renavam';
+                            }
+                            if (!_isValidRenavam(text)) {
+                              return 'Renavam inválido';
+                            }
+                            return null;
+                          },
+                        ),
+                        const SizedBox(height: 16),
+                        TextFormField(
+                          controller: documentController,
+                          decoration: const InputDecoration(
+                            labelText: 'CPF / CNPJ',
+                          ),
+                          keyboardType: TextInputType.number,
+                          inputFormatters: [
+                            FilteringTextInputFormatter.digitsOnly,
+                            LengthLimitingTextInputFormatter(14),
+                          ],
+                          validator: (value) {
+                            final text = value?.trim() ?? '';
+                            if (text.isEmpty) {
+                              return 'Informe o CPF ou CNPJ';
+                            }
+                            if (!_isValidCpfCnpj(text)) {
+                              return 'Documento inválido';
+                            }
+                            return null;
+                          },
+                        ),
+                        const SizedBox(height: 24),
+                        Container(
+                          decoration: BoxDecoration(
+                            color: Colors.white,
                             borderRadius: BorderRadius.circular(16),
+                            border: Border.all(
+                              color: Theme.of(context)
+                                  .colorScheme
+                                  .outline
+                                  .withOpacity(0.2),
+                            ),
+                          ),
+                          padding: const EdgeInsets.all(16),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.stretch,
+                            children: [
+                              Row(
+                                children: [
+                                  Text(
+                                    'Captcha',
+                                    style: Theme.of(context)
+                                        .textTheme
+                                        .titleSmall
+                                        ?.copyWith(fontWeight: FontWeight.w600),
+                                  ),
+                                  const Spacer(),
+                                  TextButton.icon(
+                                    onPressed: isLoadingCaptcha
+                                        ? null
+                                        : () => refreshCaptcha(setState),
+                                    icon: const Icon(Icons.refresh),
+                                    label: const Text('Atualizar'),
+                                  ),
+                                ],
+                              ),
+                              const SizedBox(height: 12),
+                              if (isLoadingCaptcha)
+                                const Center(
+                                  child: Padding(
+                                    padding: EdgeInsets.symmetric(vertical: 16),
+                                    child: CircularProgressIndicator(),
+                                  ),
+                                )
+                              else if (captchaError != null)
+                                Padding(
+                                  padding:
+                                      const EdgeInsets.symmetric(vertical: 8),
+                                  child: Text(
+                                    captchaError!,
+                                    style: TextStyle(
+                                      color:
+                                          Theme.of(context).colorScheme.error,
+                                    ),
+                                  ),
+                                )
+                              else if (captchaBytes != null)
+                                Center(
+                                  child: ClipRRect(
+                                    borderRadius: BorderRadius.circular(8),
+                                    child: Image.memory(
+                                      captchaBytes,
+                                      width: 180,
+                                      height: 80,
+                                      fit: BoxFit.contain,
+                                    ),
+                                  ),
+                                )
+                              else
+                                const SizedBox.shrink(),
+                              const SizedBox(height: 16),
+                              TextFormField(
+                                controller: captchaController,
+                                decoration: const InputDecoration(
+                                  labelText: 'Digite o captcha',
+                                ),
+                                inputFormatters: [
+                                  const _UpperCaseTextFormatter(),
+                                  FilteringTextInputFormatter.allow(
+                                    RegExp('[A-Za-z0-9]'),
+                                  ),
+                                  LengthLimitingTextInputFormatter(10),
+                                ],
+                                textCapitalization:
+                                    TextCapitalization.characters,
+                                validator: (value) {
+                                  final text = value?.trim() ?? '';
+                                  if (text.isEmpty) {
+                                    return 'Informe o captcha';
+                                  }
+                                  return null;
+                                },
+                              ),
+                            ],
                           ),
                         ),
-                        child: const Text('Pesquisar'),
-                      ),
-                    ],
+                        const SizedBox(height: 24),
+                        FilledButton(
+                          onPressed: isLoadingCaptcha || captchaBase64 == null
+                              ? null
+                              : () {
+                                  if (!formKey.currentState!.validate()) {
+                                    return;
+                                  }
+                                  Navigator.of(dialogContext).pop(
+                                    _CrlvEmissionRequest(
+                                      plate: plateController.text
+                                          .trim()
+                                          .toUpperCase(),
+                                      renavam: renavamController.text.trim(),
+                                      document:
+                                          documentController.text.trim(),
+                                      captcha: captchaController.text
+                                          .trim()
+                                          .toUpperCase(),
+                                    ),
+                                  );
+                                },
+                          child: const Text('Emitir'),
+                        ),
+                        const SizedBox(height: 12),
+                        TextButton(
+                          onPressed: () {
+                            Navigator.of(dialogContext).pop();
+                          },
+                          child: const Text('Cancelar'),
+                        ),
+                      ],
+                    ),
                   ),
                 ),
               );
@@ -1152,14 +990,290 @@ Future<_BloqueiosAtivosRequest?> _showBloqueiosAtivosDialog() async {
       },
     );
 
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      plateController.dispose();
-      chassiController.dispose();
-    });
+    plateController.dispose();
+    renavamController.dispose();
+    documentController.dispose();
+    captchaController.dispose();
+
     return result;
   }
 
-  Future<_OtherStatesSearchRequest?> _showBaseOutrosEstadosDialog() async {
+  Future<_AtpvEmissionRequest?> _showAtpvEmissionDialog() async {
+    final formKey = GlobalKey<FormState>();
+    final plateController = TextEditingController();
+    final renavamController = TextEditingController();
+    final captchaController = TextEditingController();
+
+    String? captchaBase64;
+    String? captchaError;
+    bool isLoadingCaptcha = false;
+    bool initialized = false;
+
+    Future<void> refreshCaptcha(StateSetter setState) async {
+      setState(() {
+        isLoadingCaptcha = true;
+        captchaError = null;
+      });
+      try {
+        final image = await _baseEstadualService.fetchCaptcha();
+        setState(() {
+          captchaBase64 = image;
+        });
+      } on BaseEstadualException catch (e) {
+        setState(() {
+          captchaError = e.message;
+        });
+      } catch (_) {
+        setState(() {
+          captchaError = 'Erro ao carregar captcha.';
+        });
+      } finally {
+        setState(() {
+          isLoadingCaptcha = false;
+        });
+      }
+    }
+
+    final result = await showDialog<_AtpvEmissionRequest>(
+      context: context,
+      barrierDismissible: false,
+      builder: (dialogContext) {
+        return Dialog(
+          insetPadding: const EdgeInsets.symmetric(horizontal: 24),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(24),
+          ),
+          child: StatefulBuilder(
+            builder: (context, setState) {
+              if (!initialized) {
+                initialized = true;
+                Future.microtask(() => refreshCaptcha(setState));
+              }
+
+              Uint8List? captchaBytes;
+              if (captchaBase64 != null && captchaBase64!.isNotEmpty) {
+                try {
+                  captchaBytes = base64Decode(captchaBase64!);
+                } catch (_) {
+                  captchaError ??= 'Captcha recebido em formato inválido.';
+                }
+              }
+
+              return ConstrainedBox(
+                constraints: const BoxConstraints(maxHeight: 520),
+                child: SingleChildScrollView(
+                  padding: const EdgeInsets.fromLTRB(20, 20, 20, 24),
+                  child: Form(
+                    key: formKey,
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        Row(
+                          children: [
+                            Text(
+                              'Emissão da ATPV-e',
+                              style: Theme.of(context).textTheme.titleMedium
+                                  ?.copyWith(fontWeight: FontWeight.w700),
+                            ),
+                            const Spacer(),
+                            IconButton(
+                              onPressed: () {
+                                Navigator.of(dialogContext).pop();
+                              },
+                              icon: const Icon(Icons.close),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 16),
+                        TextFormField(
+                          controller: plateController,
+                          decoration: const InputDecoration(
+                            labelText: 'Placa',
+                          ),
+                          inputFormatters: [
+                            const _UpperCaseTextFormatter(),
+                            FilteringTextInputFormatter.allow(
+                              RegExp('[A-Za-z0-9]'),
+                            ),
+                            LengthLimitingTextInputFormatter(7),
+                          ],
+                          textCapitalization: TextCapitalization.characters,
+                          validator: (value) {
+                            final text = value?.trim().toUpperCase() ?? '';
+                            if (text.isEmpty) {
+                              return 'Informe a placa';
+                            }
+                            if (!_isValidPlate(text)) {
+                              return 'Placa inválida';
+                            }
+                            return null;
+                          },
+                        ),
+                        const SizedBox(height: 16),
+                        TextFormField(
+                          controller: renavamController,
+                          decoration: const InputDecoration(
+                            labelText: 'Renavam',
+                          ),
+                          keyboardType: TextInputType.number,
+                          inputFormatters: [
+                            FilteringTextInputFormatter.digitsOnly,
+                            LengthLimitingTextInputFormatter(11),
+                          ],
+                          validator: (value) {
+                            final text = value?.trim() ?? '';
+                            if (text.isEmpty) {
+                              return 'Informe o renavam';
+                            }
+                            if (!_isValidRenavam(text)) {
+                              return 'Renavam inválido';
+                            }
+                            return null;
+                          },
+                        ),
+                        const SizedBox(height: 24),
+                        Container(
+                          decoration: BoxDecoration(
+                            color: Colors.white,
+                            borderRadius: BorderRadius.circular(16),
+                            border: Border.all(
+                              color: Theme.of(context)
+                                  .colorScheme
+                                  .outline
+                                  .withOpacity(0.2),
+                            ),
+                          ),
+                          padding: const EdgeInsets.all(16),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.stretch,
+                            children: [
+                              Row(
+                                children: [
+                                  Text(
+                                    'Captcha',
+                                    style: Theme.of(context)
+                                        .textTheme
+                                        .titleSmall
+                                        ?.copyWith(fontWeight: FontWeight.w600),
+                                  ),
+                                  const Spacer(),
+                                  TextButton.icon(
+                                    onPressed: isLoadingCaptcha
+                                        ? null
+                                        : () => refreshCaptcha(setState),
+                                    icon: const Icon(Icons.refresh),
+                                    label: const Text('Atualizar'),
+                                  ),
+                                ],
+                              ),
+                              const SizedBox(height: 12),
+                              if (isLoadingCaptcha)
+                                const Center(
+                                  child: Padding(
+                                    padding: EdgeInsets.symmetric(vertical: 16),
+                                    child: CircularProgressIndicator(),
+                                  ),
+                                )
+                              else if (captchaError != null)
+                                Padding(
+                                  padding:
+                                      const EdgeInsets.symmetric(vertical: 8),
+                                  child: Text(
+                                    captchaError!,
+                                    style: TextStyle(
+                                      color:
+                                          Theme.of(context).colorScheme.error,
+                                    ),
+                                  ),
+                                )
+                              else if (captchaBytes != null)
+                                Center(
+                                  child: ClipRRect(
+                                    borderRadius: BorderRadius.circular(8),
+                                    child: Image.memory(
+                                      captchaBytes,
+                                      width: 180,
+                                      height: 80,
+                                      fit: BoxFit.contain,
+                                    ),
+                                  ),
+                                )
+                              else
+                                const SizedBox.shrink(),
+                              const SizedBox(height: 16),
+                              TextFormField(
+                                controller: captchaController,
+                                decoration: const InputDecoration(
+                                  labelText: 'Digite o captcha',
+                                ),
+                                inputFormatters: [
+                                  const _UpperCaseTextFormatter(),
+                                  FilteringTextInputFormatter.allow(
+                                    RegExp('[A-Za-z0-9]'),
+                                  ),
+                                  LengthLimitingTextInputFormatter(10),
+                                ],
+                                textCapitalization:
+                                    TextCapitalization.characters,
+                                validator: (value) {
+                                  final text = value?.trim() ?? '';
+                                  if (text.isEmpty) {
+                                    return 'Informe o captcha';
+                                  }
+                                  return null;
+                                },
+                              ),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(height: 24),
+                        FilledButton(
+                          onPressed: isLoadingCaptcha || captchaBase64 == null
+                              ? null
+                              : () {
+                                  if (!formKey.currentState!.validate()) {
+                                    return;
+                                  }
+                                  Navigator.of(dialogContext).pop(
+                                    _AtpvEmissionRequest(
+                                      plate: plateController.text
+                                          .trim()
+                                          .toUpperCase(),
+                                      renavam: renavamController.text.trim(),
+                                      captcha: captchaController.text
+                                          .trim()
+                                          .toUpperCase(),
+                                    ),
+                                  );
+                                },
+                          child: const Text('Emitir'),
+                        ),
+                        const SizedBox(height: 12),
+                        TextButton(
+                          onPressed: () {
+                            Navigator.of(dialogContext).pop();
+                          },
+                          child: const Text('Cancelar'),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              );
+            },
+          ),
+        );
+      },
+    );
+
+    plateController.dispose();
+    renavamController.dispose();
+    captchaController.dispose();
+
+    return result;
+  }
+
+  Future<_BaseOutrosEstadosQuery?> _showBaseOutrosEstadosDialog() async {
     final formKey = GlobalKey<FormState>();
     final chassiController = TextEditingController();
     final ufController = TextEditingController(text: 'SP');
@@ -1195,7 +1309,7 @@ Future<_BloqueiosAtivosRequest?> _showBloqueiosAtivosDialog() async {
       }
     }
 
-    final result = await showDialog<_OtherStatesSearchRequest>(
+    final result = await showDialog<_BaseOutrosEstadosQuery>(
       context: context,
       barrierDismissible: false,
       builder: (dialogContext) {
@@ -1240,7 +1354,6 @@ Future<_BloqueiosAtivosRequest?> _showBloqueiosAtivosDialog() async {
                           const Spacer(),
                           IconButton(
                             onPressed: () {
-                              FocusManager.instance.primaryFocus?.unfocus();
                               Navigator.of(dialogContext).pop();
                             },
                             icon: const Icon(Icons.close),
@@ -1299,7 +1412,7 @@ Future<_BloqueiosAtivosRequest?> _showBloqueiosAtivosDialog() async {
                           if (text.isEmpty) {
                             return 'Informe a UF';
                           }
-                          if (text.length != 2) {
+                          if (!RegExp(r'^[A-Z]{2}$').hasMatch(text)) {
                             return 'UF inválida';
                           }
                           return null;
@@ -1311,8 +1424,10 @@ Future<_BloqueiosAtivosRequest?> _showBloqueiosAtivosDialog() async {
                           color: Colors.white,
                           borderRadius: BorderRadius.circular(16),
                           border: Border.all(
-                            color: theme.colorScheme.outline
-                                .withOpacity(0.12),
+                            color: Theme.of(context)
+                                .colorScheme
+                                .outline
+                                .withOpacity(0.2),
                           ),
                         ),
                         padding: const EdgeInsets.all(16),
@@ -1340,8 +1455,7 @@ Future<_BloqueiosAtivosRequest?> _showBloqueiosAtivosDialog() async {
                             if (isLoadingCaptcha)
                               const Center(
                                 child: Padding(
-                                  padding:
-                                      EdgeInsets.symmetric(vertical: 16),
+                                  padding: EdgeInsets.symmetric(vertical: 16),
                                   child: CircularProgressIndicator(),
                                 ),
                               )
@@ -1365,19 +1479,16 @@ Future<_BloqueiosAtivosRequest?> _showBloqueiosAtivosDialog() async {
                                     width: 180,
                                     height: 80,
                                     fit: BoxFit.contain,
-                                    errorBuilder: (_, __, ___) {
-                                      return const Text(
-                                        'Não foi possível exibir o captcha.',
-                                      );
-                                    },
                                   ),
                                 ),
-                              ),
+                              )
+                            else
+                              const SizedBox.shrink(),
                             const SizedBox(height: 16),
                             TextFormField(
                               controller: captchaController,
                               decoration: const InputDecoration(
-                                labelText: 'Informe o captcha',
+                                labelText: 'Digite o captcha',
                               ),
                               inputFormatters: [
                                 const _UpperCaseTextFormatter(),
@@ -1407,16 +1518,13 @@ Future<_BloqueiosAtivosRequest?> _showBloqueiosAtivosDialog() async {
                                 if (!formKey.currentState!.validate()) {
                                   return;
                                 }
-                                FocusManager.instance.primaryFocus
-                                    ?.unfocus();
+                                FocusManager.instance.primaryFocus?.unfocus();
                                 Navigator.of(dialogContext).pop(
-                                  _OtherStatesSearchRequest(
+                                  _BaseOutrosEstadosQuery(
                                     chassi: chassiController.text
                                         .trim()
                                         .toUpperCase(),
-                                    uf: ufController.text
-                                        .trim()
-                                        .toUpperCase(),
+                                    uf: ufController.text.trim().toUpperCase(),
                                     captcha: captchaController.text
                                         .trim()
                                         .toUpperCase(),
@@ -1447,6 +1555,151 @@ Future<_BloqueiosAtivosRequest?> _showBloqueiosAtivosDialog() async {
       captchaController.dispose();
     });
     return result;
+  }
+
+  Future<_SimplePlateChassiRequest?> _showSimplePlateChassiDialog({
+    required String title,
+  }) async {
+    final plateController = TextEditingController();
+    final chassiController = TextEditingController();
+
+    final result = await showDialog<_SimplePlateChassiRequest>(
+      context: context,
+      barrierDismissible: false,
+      builder: (dialogContext) {
+        return Dialog(
+          insetPadding: const EdgeInsets.symmetric(horizontal: 24),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(24),
+          ),
+          child: StatefulBuilder(
+            builder: (context, setState) {
+              final plateText = plateController.text.trim().toUpperCase();
+              final chassiText = chassiController.text.trim().toUpperCase();
+
+              final plateValid =
+                  plateText.isNotEmpty && _isValidPlate(plateText);
+              final chassiValid =
+                  chassiText.isNotEmpty && _isValidChassi(chassiText);
+              final isValid = plateValid || chassiValid;
+
+              return ConstrainedBox(
+                constraints: const BoxConstraints(maxHeight: 460),
+                child: SingleChildScrollView(
+                  padding: const EdgeInsets.fromLTRB(20, 20, 20, 24),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      Row(
+                        children: [
+                          Text(
+                            title,
+                            style: Theme.of(context).textTheme.titleMedium
+                                ?.copyWith(fontWeight: FontWeight.w700),
+                          ),
+                          const Spacer(),
+                          IconButton(
+                            onPressed: () {
+                              FocusManager.instance.primaryFocus?.unfocus();
+                              Navigator.of(dialogContext).pop();
+                            },
+                            icon: const Icon(Icons.close),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 12),
+                      TextField(
+                        controller: plateController,
+                        decoration: InputDecoration(
+                          labelText: 'Placa',
+                          errorText: plateText.isNotEmpty && !plateValid
+                              ? 'Placa inválida'
+                              : null,
+                        ),
+                        inputFormatters: [
+                          const _UpperCaseTextFormatter(),
+                          FilteringTextInputFormatter.allow(
+                            RegExp('[A-Za-z0-9]'),
+                          ),
+                          LengthLimitingTextInputFormatter(7),
+                        ],
+                        textCapitalization: TextCapitalization.characters,
+                        onChanged: (_) => setState(() {}),
+                      ),
+                      const SizedBox(height: 12),
+                      Center(
+                        child: Text(
+                          'ou',
+                          style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                                color: const Color(0xFF667085),
+                                fontWeight: FontWeight.w600,
+                              ),
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+                      TextField(
+                        controller: chassiController,
+                        decoration: InputDecoration(
+                          labelText: 'Chassi',
+                          errorText: chassiText.isNotEmpty && !chassiValid
+                              ? 'Chassi inválido'
+                              : null,
+                        ),
+                        inputFormatters: [
+                          const _UpperCaseTextFormatter(),
+                          FilteringTextInputFormatter.allow(
+                            RegExp('[A-Za-z0-9]'),
+                          ),
+                          LengthLimitingTextInputFormatter(17),
+                        ],
+                        textCapitalization: TextCapitalization.characters,
+                        onChanged: (_) => setState(() {}),
+                      ),
+                      const SizedBox(height: 20),
+                      FilledButton(
+                        onPressed: isValid
+                            ? () {
+                                FocusManager.instance.primaryFocus?.unfocus();
+                                Navigator.of(dialogContext).pop(
+                                  _SimplePlateChassiRequest(
+                                    plate: plateValid ? plateText : '',
+                                    chassi: chassiValid ? chassiText : '',
+                                  ),
+                                );
+                              }
+                            : null,
+                        child: const Text('Pesquisar'),
+                      ),
+                    ],
+                  ),
+                ),
+              );
+            },
+          ),
+        );
+      },
+    );
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      plateController.dispose();
+      chassiController.dispose();
+    });
+    return result;
+  }
+
+  Future<void> _handleGravameFlow() async {
+    final request = await _showSimplePlateChassiDialog(title: 'Gravame');
+    if (request == null || !mounted) return;
+
+    await _showLoadingDialog();
+    if (!mounted) return;
+
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => const GravamePage(),
+      ),
+    );
   }
 
   Future<void> _showBaseOutrosEstadosHtmlDialog({
@@ -1607,14 +1860,7 @@ Future<_BloqueiosAtivosRequest?> _showBloqueiosAtivosDialog() async {
                           ),
                         ],
                       ),
-                      const SizedBox(height: 12),
-                      Text(
-                        'Informe a placa ou o chassi para consultar o status do processo.',
-                        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                              color: const Color(0xFF475467),
-                            ),
-                      ),
-                      const SizedBox(height: 20),
+                      const SizedBox(height: 16),
                       TextField(
                         controller: plateController,
                         decoration: InputDecoration(
@@ -1637,10 +1883,7 @@ Future<_BloqueiosAtivosRequest?> _showBloqueiosAtivosDialog() async {
                       Center(
                         child: Text(
                           'ou',
-                          style: Theme.of(context)
-                              .textTheme
-                              .bodySmall
-                              ?.copyWith(
+                          style: Theme.of(context).textTheme.bodySmall?.copyWith(
                                 color: const Color(0xFF667085),
                                 fontWeight: FontWeight.w600,
                               ),
@@ -1662,9 +1905,10 @@ Future<_BloqueiosAtivosRequest?> _showBloqueiosAtivosDialog() async {
                           ),
                           LengthLimitingTextInputFormatter(17),
                         ],
+                        textCapitalization: TextCapitalization.characters,
                         onChanged: (_) => setState(() {}),
                       ),
-                      const SizedBox(height: 20),
+                      const SizedBox(height: 24),
                       FilledButton(
                         onPressed: isValid
                             ? () {
@@ -1677,7 +1921,13 @@ Future<_BloqueiosAtivosRequest?> _showBloqueiosAtivosDialog() async {
                                 );
                               }
                             : null,
-                        child: const Text('Consultar'),
+                        style: FilledButton.styleFrom(
+                          minimumSize: const Size.fromHeight(52),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(16),
+                          ),
+                        ),
+                        child: const Text('Avançar'),
                       ),
                     ],
                   ),
@@ -1696,25 +1946,52 @@ Future<_BloqueiosAtivosRequest?> _showBloqueiosAtivosDialog() async {
     return result;
   }
 
-Future<_RenainfSearchRequest?> _showRenainfDialog() async {
+  Future<_RenainfRequest?> _showRenainfDialog() async {
     final plateController = TextEditingController();
     final startDateController = TextEditingController();
     final endDateController = TextEditingController();
 
-    const statusOptions = [
-      'Multas em cobrança',
-      'Multas pagas',
-      'Todas',
-    ];
+    final statusOptions = ['Todas', 'Em aberto', 'Pago', 'Em recurso'];
 
-    DateTime? startDate = DateTime(2000, 1, 1);
-    DateTime? endDate = DateTime.now();
-    String? selectedStatus;
+    String? selectedStatus = 'Todas';
+    DateTime? startDate;
+    DateTime? endDate;
+    bool dateRangeValid = true;
 
-    startDateController.text = _formatDate(startDate);
-    endDateController.text = _formatDate(endDate);
+    Future<void> pickDate({required bool isStart}) async {
+      final initialDate = isStart ? startDate ?? DateTime.now() : endDate ?? DateTime.now();
+      final firstDate = DateTime(DateTime.now().year - 5);
+      final lastDate = DateTime.now();
 
-    final result = await showDialog<_RenainfSearchRequest>(
+      final picked = await showDatePicker(
+        context: context,
+        initialDate: initialDate,
+        firstDate: firstDate,
+        lastDate: lastDate,
+      );
+
+      if (picked == null) return;
+
+      if (isStart) {
+        startDate = picked;
+        startDateController.text = _formatDate(picked);
+        if (endDate != null && picked.isAfter(endDate!)) {
+          dateRangeValid = false;
+        } else {
+          dateRangeValid = endDate != null;
+        }
+      } else {
+        endDate = picked;
+        endDateController.text = _formatDate(picked);
+        if (startDate != null && picked.isBefore(startDate!)) {
+          dateRangeValid = false;
+        } else {
+          dateRangeValid = startDate != null;
+        }
+      }
+    }
+
+    final result = await showDialog<_RenainfRequest>(
       context: context,
       barrierDismissible: false,
       builder: (dialogContext) {
@@ -1728,41 +2005,9 @@ Future<_RenainfSearchRequest?> _showRenainfDialog() async {
               final plateText = plateController.text.trim().toUpperCase();
               final plateValid =
                   plateText.isNotEmpty && _isValidPlate(plateText);
-              final statusValid = selectedStatus != null;
-              final dateRangeValid = startDate != null &&
-                  endDate != null &&
-                  !endDate!.isBefore(startDate!);
-              final isValid = plateValid && statusValid && dateRangeValid;
 
-              Future<void> pickDate({
-                required bool isStart,
-              }) async {
-                final initialDate = isStart
-                    ? (startDate ?? DateTime.now())
-                    : (endDate ?? DateTime.now());
-                final firstDate = DateTime(2000, 1, 1);
-                final lastDate =
-                    DateTime.now().add(const Duration(days: 365 * 5));
-
-                final selectedDate = await showDatePicker(
-                  context: dialogContext,
-                  initialDate: initialDate,
-                  firstDate: firstDate,
-                  lastDate: lastDate,
-                );
-
-                if (selectedDate != null) {
-                  setState(() {
-                    if (isStart) {
-                      startDate = selectedDate;
-                      startDateController.text = _formatDate(selectedDate);
-                    } else {
-                      endDate = selectedDate;
-                      endDateController.text = _formatDate(selectedDate);
-                    }
-                  });
-                }
-              }
+              final readyToSubmit =
+                  plateValid && startDate != null && endDate != null && dateRangeValid;
 
               return Padding(
                 padding: const EdgeInsets.fromLTRB(20, 20, 20, 24),
@@ -1792,8 +2037,6 @@ Future<_RenainfSearchRequest?> _showRenainfDialog() async {
                       controller: plateController,
                       decoration: InputDecoration(
                         labelText: 'Placa',
-                        border: const OutlineInputBorder(),
-                        filled: true,
                         errorText: plateText.isNotEmpty && !plateValid
                             ? 'Placa inválida'
                             : null,
@@ -1805,6 +2048,7 @@ Future<_RenainfSearchRequest?> _showRenainfDialog() async {
                         ),
                         LengthLimitingTextInputFormatter(7),
                       ],
+                      textCapitalization: TextCapitalization.characters,
                       onChanged: (_) => setState(() {}),
                     ),
                     const SizedBox(height: 12),
@@ -1812,7 +2056,7 @@ Future<_RenainfSearchRequest?> _showRenainfDialog() async {
                       decoration: const InputDecoration(
                         labelText: 'Status da multa',
                       ),
-                      initialValue: selectedStatus,
+                      value: selectedStatus,
                       items: statusOptions
                           .map(
                             (status) => DropdownMenuItem(
@@ -1835,6 +2079,7 @@ Future<_RenainfSearchRequest?> _showRenainfDialog() async {
                             onTap: () async {
                               FocusManager.instance.primaryFocus?.unfocus();
                               await pickDate(isStart: true);
+                              setState(() {});
                             },
                             child: AbsorbPointer(
                               child: TextField(
@@ -1854,6 +2099,7 @@ Future<_RenainfSearchRequest?> _showRenainfDialog() async {
                             onTap: () async {
                               FocusManager.instance.primaryFocus?.unfocus();
                               await pickDate(isStart: false);
+                              setState(() {});
                             },
                             child: AbsorbPointer(
                               child: TextField(
@@ -1873,171 +2119,35 @@ Future<_RenainfSearchRequest?> _showRenainfDialog() async {
                       Padding(
                         padding: const EdgeInsets.only(top: 8),
                         child: Text(
-                          'Escolha um intervalo de datas válido.',
-                          style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                                color: const Color(0xFFD92D20),
-                                fontWeight: FontWeight.w600,
-                              ),
+                          'A data final deve ser posterior à data inicial.',
+                          style: TextStyle(
+                            color: Theme.of(context).colorScheme.error,
+                            fontSize: 12,
+                          ),
                         ),
                       ),
-                    const SizedBox(height: 20),
-                    ElevatedButton(
-                      onPressed: isValid
+                    const SizedBox(height: 24),
+                    FilledButton(
+                      onPressed: readyToSubmit
                           ? () {
                               FocusManager.instance.primaryFocus?.unfocus();
                               Navigator.of(dialogContext).pop(
-                                _RenainfSearchRequest(
+                                _RenainfRequest(
                                   plate: plateText,
-                                  status: selectedStatus!,
+                                  status: selectedStatus ?? 'Todas',
                                   startDate: startDate!,
                                   endDate: endDate!,
                                 ),
                               );
                             }
                           : null,
-                      style: ElevatedButton.styleFrom(
+                      style: FilledButton.styleFrom(
                         minimumSize: const Size.fromHeight(52),
                         shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(16),
                         ),
                       ),
-                      child: const Text('Pesquisar'),
-                    ),
-                  ],
-                ),
-              );
-            },
-          ),
-        );
-      },
-    );
-
-  WidgetsBinding.instance.addPostFrameCallback((_) {
-    plateController.dispose();
-    startDateController.dispose();
-    endDateController.dispose();
-  });
-  return result;
-}
-
-Future<_BinSearchRequest?> _showSimplePlateChassiDialog({
-  required String title,
-}) async {
-    final plateController = TextEditingController();
-    final chassiController = TextEditingController();
-
-    final result = await showDialog<_BinSearchRequest>(
-      context: context,
-      barrierDismissible: false,
-      builder: (dialogContext) {
-        return Dialog(
-          insetPadding: const EdgeInsets.symmetric(horizontal: 24),
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(24),
-          ),
-          child: StatefulBuilder(
-            builder: (context, setState) {
-              final plateText = plateController.text.trim().toUpperCase();
-              final chassiText = chassiController.text.trim().toUpperCase();
-              final plateValid =
-                  plateText.isNotEmpty && _isValidPlate(plateText);
-              final chassiValid =
-                  chassiText.isNotEmpty && _isValidChassi(chassiText);
-              final isValid = plateValid || chassiValid;
-
-              return Padding(
-                padding: const EdgeInsets.fromLTRB(20, 20, 20, 24),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    Row(
-                      children: [
-                        Text(
-                          title,
-                          style: Theme.of(context).textTheme.titleMedium
-                              ?.copyWith(fontWeight: FontWeight.w700),
-                        ),
-                        const Spacer(),
-                        IconButton(
-                          onPressed: () {
-                            FocusManager.instance.primaryFocus?.unfocus();
-                            Navigator.of(dialogContext).pop();
-                          },
-                          icon: const Icon(Icons.close),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 12),
-                    TextField(
-                      controller: plateController,
-                      decoration: InputDecoration(
-                        labelText: 'Placa',
-                        border: const OutlineInputBorder(),
-                        filled: true,
-                        errorText: plateText.isNotEmpty && !plateValid
-                            ? 'Placa inválida'
-                            : null,
-                      ),
-                      inputFormatters: [
-                        const _UpperCaseTextFormatter(),
-                        FilteringTextInputFormatter.allow(
-                          RegExp('[A-Za-z0-9]'),
-                        ),
-                        LengthLimitingTextInputFormatter(7),
-                      ],
-                      onChanged: (_) => setState(() {}),
-                    ),
-                    const SizedBox(height: 12),
-                    Center(
-                      child: Text(
-                        'ou',
-                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                          color: const Color(0xFF667085),
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                    ),
-                    const SizedBox(height: 12),
-                    TextField(
-                      controller: chassiController,
-                      decoration: InputDecoration(
-                        labelText: 'Chassi',
-                        border: const OutlineInputBorder(),
-                        filled: true,
-                        errorText: chassiText.isNotEmpty && !chassiValid
-                            ? 'Chassi inválido'
-                            : null,
-                      ),
-                      inputFormatters: [
-                        const _UpperCaseTextFormatter(),
-                        FilteringTextInputFormatter.allow(
-                          RegExp('[A-Za-z0-9]'),
-                        ),
-                        LengthLimitingTextInputFormatter(17),
-                      ],
-                      onChanged: (_) => setState(() {}),
-                    ),
-                    const SizedBox(height: 20),
-                    ElevatedButton(
-                      onPressed: isValid
-                          ? () {
-                              FocusManager.instance.primaryFocus?.unfocus();
-                              Navigator.of(dialogContext).pop(
-                                _BinSearchRequest(
-                                  plate: plateValid ? plateText : '',
-                                  chassi: chassiValid ? chassiText : '',
-                                ),
-                              );
-                            }
-                          : null,
-                      style: ElevatedButton.styleFrom(
-                        minimumSize: const Size.fromHeight(52),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(16),
-                        ),
-                      ),
-                      child: const Text('Pesquisar'),
+                      child: const Text('Consultar'),
                     ),
                   ],
                 ),
@@ -2050,21 +2160,348 @@ Future<_BinSearchRequest?> _showSimplePlateChassiDialog({
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
       plateController.dispose();
-      chassiController.dispose();
+      startDateController.dispose();
+      endDateController.dispose();
     });
     return result;
   }
 
-  Future<void> _handleGravameFlow() async {
-    final request = await _showSimplePlateChassiDialog(title: 'GRAVAME');
-    if (request == null || !mounted) return;
+  Future<_BloqueiosAtivosRequest?> _showBloqueiosAtivosDialog() async {
+    final plateController = TextEditingController();
+    final chassiController = TextEditingController();
+    final captchaController = TextEditingController();
 
-    await _showLoadingDialog();
-    if (!mounted) return;
+    String selectedSource = 'DETRAN';
 
-    Navigator.of(
-      context,
-    ).push(MaterialPageRoute(builder: (_) => const GravamePage()));
+    String? captchaBase64;
+    String? captchaError;
+    bool isLoadingCaptcha = false;
+    bool initialized = false;
+
+    Future<void> refreshCaptcha(StateSetter setState) async {
+      setState(() {
+        isLoadingCaptcha = true;
+        captchaError = null;
+      });
+      try {
+        final image = await _baseEstadualService.fetchCaptcha();
+        setState(() {
+          captchaBase64 = image;
+        });
+      } on BaseEstadualException catch (e) {
+        setState(() {
+          captchaError = e.message;
+        });
+      } catch (_) {
+        setState(() {
+          captchaError = 'Erro ao carregar captcha.';
+        });
+      } finally {
+        setState(() {
+          isLoadingCaptcha = false;
+        });
+      }
+    }
+
+    final result = await showDialog<_BloqueiosAtivosRequest>(
+      context: context,
+      barrierDismissible: false,
+      builder: (dialogContext) {
+        return Dialog(
+          insetPadding: const EdgeInsets.symmetric(horizontal: 24),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(24),
+          ),
+          child: StatefulBuilder(
+            builder: (context, setState) {
+              if (!initialized) {
+                initialized = true;
+                Future.microtask(() => refreshCaptcha(setState));
+              }
+
+              final plateText = plateController.text.trim().toUpperCase();
+              final chassiText = chassiController.text.trim().toUpperCase();
+
+              final plateValid =
+                  plateText.isNotEmpty && _isValidPlate(plateText);
+              final chassiValid =
+                  chassiText.isNotEmpty && _isValidChassi(chassiText);
+              final captchaValid =
+                  captchaController.text.trim().isNotEmpty;
+              final isValid = (plateValid || chassiValid) &&
+                  captchaValid &&
+                  captchaBase64 != null &&
+                  !isLoadingCaptcha;
+
+              Color backgroundFor(String source) =>
+                  selectedSource == source
+                      ? Theme.of(context).colorScheme.primary
+                      : const Color(0xFFE7EDFF);
+              Color foregroundFor(String source) =>
+                  selectedSource == source ? Colors.white : const Color(0xFF344054);
+
+              Uint8List? captchaBytes;
+              if (captchaBase64 != null && captchaBase64!.isNotEmpty) {
+                try {
+                  captchaBytes = base64Decode(captchaBase64!);
+                } catch (_) {
+                  captchaError ??= 'Captcha recebido em formato inválido.';
+                }
+              }
+
+              return ConstrainedBox(
+                constraints: const BoxConstraints(maxHeight: 680),
+                child: SingleChildScrollView(
+                  padding: const EdgeInsets.fromLTRB(20, 20, 20, 24),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      Row(
+                        children: [
+                          Text(
+                            'Bloqueios ativos',
+                            style: Theme.of(context).textTheme.titleMedium
+                                ?.copyWith(fontWeight: FontWeight.w700),
+                          ),
+                          const Spacer(),
+                          IconButton(
+                            onPressed: () {
+                              FocusManager.instance.primaryFocus?.unfocus();
+                              Navigator.of(dialogContext).pop();
+                            },
+                            icon: const Icon(Icons.close),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 16),
+                      Container(
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFF2F4F7),
+                          borderRadius: BorderRadius.circular(999),
+                        ),
+                        padding: const EdgeInsets.all(4),
+                        child: Row(
+                          children: [
+                            Expanded(
+                              child: FilledButton(
+                                onPressed: () {
+                                  if (selectedSource != 'DETRAN') {
+                                    setState(() => selectedSource = 'DETRAN');
+                                  }
+                                },
+                                style: FilledButton.styleFrom(
+                                  padding:
+                                      const EdgeInsets.symmetric(vertical: 12),
+                                  backgroundColor: backgroundFor('DETRAN'),
+                                  foregroundColor: foregroundFor('DETRAN'),
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(999),
+                                  ),
+                                ),
+                                child: const Text('DETRAN'),
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: FilledButton(
+                                onPressed: () {
+                                  if (selectedSource != 'RENAJUD') {
+                                    setState(() => selectedSource = 'RENAJUD');
+                                  }
+                                },
+                                style: FilledButton.styleFrom(
+                                  padding:
+                                      const EdgeInsets.symmetric(vertical: 12),
+                                  backgroundColor: backgroundFor('RENAJUD'),
+                                  foregroundColor: foregroundFor('RENAJUD'),
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(999),
+                                  ),
+                                ),
+                                child: const Text('RENAJUD'),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+                      TextField(
+                        controller: plateController,
+                        decoration: InputDecoration(
+                          labelText: 'Placa',
+                          errorText: plateText.isNotEmpty && !plateValid
+                              ? 'Placa inválida'
+                              : null,
+                        ),
+                        inputFormatters: [
+                          const _UpperCaseTextFormatter(),
+                          FilteringTextInputFormatter.allow(
+                            RegExp('[A-Za-z0-9]'),
+                          ),
+                          LengthLimitingTextInputFormatter(7),
+                        ],
+                        textCapitalization: TextCapitalization.characters,
+                        onChanged: (_) => setState(() {}),
+                      ),
+                      const SizedBox(height: 12),
+                      Center(
+                        child: Text(
+                          'ou',
+                          style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                                color: const Color(0xFF667085),
+                                fontWeight: FontWeight.w600,
+                              ),
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+                      TextField(
+                        controller: chassiController,
+                        decoration: InputDecoration(
+                          labelText: 'Chassi',
+                          errorText: chassiText.isNotEmpty && !chassiValid
+                              ? 'Chassi inválido'
+                              : null,
+                        ),
+                        inputFormatters: [
+                          const _UpperCaseTextFormatter(),
+                          FilteringTextInputFormatter.allow(
+                            RegExp('[A-Za-z0-9]'),
+                          ),
+                          LengthLimitingTextInputFormatter(17),
+                        ],
+                        textCapitalization: TextCapitalization.characters,
+                        onChanged: (_) => setState(() {}),
+                      ),
+                      const SizedBox(height: 20),
+                      Container(
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          borderRadius: BorderRadius.circular(16),
+                          border: Border.all(
+                            color: Theme.of(context)
+                                .colorScheme
+                                .outline
+                                .withOpacity(0.2),
+                          ),
+                        ),
+                        padding: const EdgeInsets.all(16),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
+                            Row(
+                              children: [
+                                Text(
+                                  'Captcha',
+                                  style: Theme.of(context)
+                                      .textTheme
+                                      .titleSmall
+                                      ?.copyWith(fontWeight: FontWeight.w600),
+                                ),
+                                const Spacer(),
+                                TextButton.icon(
+                                  onPressed: isLoadingCaptcha
+                                      ? null
+                                      : () => refreshCaptcha(setState),
+                                  icon: const Icon(Icons.refresh),
+                                  label: const Text('Atualizar'),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 12),
+                            if (isLoadingCaptcha)
+                              const Center(
+                                child: Padding(
+                                  padding: EdgeInsets.symmetric(vertical: 16),
+                                  child: CircularProgressIndicator(),
+                                ),
+                              )
+                            else if (captchaError != null)
+                              Padding(
+                                padding:
+                                    const EdgeInsets.symmetric(vertical: 8),
+                                child: Text(
+                                  captchaError!,
+                                  style: TextStyle(
+                                    color: Theme.of(context).colorScheme.error,
+                                  ),
+                                ),
+                              )
+                            else if (captchaBytes != null)
+                              Center(
+                                child: ClipRRect(
+                                  borderRadius: BorderRadius.circular(8),
+                                  child: Image.memory(
+                                    captchaBytes,
+                                    width: 180,
+                                    height: 80,
+                                    fit: BoxFit.contain,
+                                  ),
+                                ),
+                              )
+                            else
+                              const SizedBox.shrink(),
+                            const SizedBox(height: 16),
+                            TextField(
+                              controller: captchaController,
+                              decoration: const InputDecoration(
+                                labelText: 'Digite o captcha',
+                              ),
+                              inputFormatters: [
+                                const _UpperCaseTextFormatter(),
+                                FilteringTextInputFormatter.allow(
+                                  RegExp('[A-Za-z0-9]'),
+                                ),
+                                LengthLimitingTextInputFormatter(10),
+                              ],
+                              textCapitalization:
+                                  TextCapitalization.characters,
+                              onChanged: (_) => setState(() {}),
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(height: 24),
+                      FilledButton(
+                        onPressed: isValid
+                            ? () {
+                                FocusManager.instance.primaryFocus?.unfocus();
+                                Navigator.of(dialogContext).pop(
+                                  _BloqueiosAtivosRequest(
+                                    origin: selectedSource,
+                                    captcha: captchaController.text
+                                        .trim()
+                                        .toUpperCase(),
+                                    plate: plateValid ? plateText : null,
+                                    chassi: chassiValid ? chassiText : null,
+                                  ),
+                                );
+                              }
+                            : null,
+                        style: FilledButton.styleFrom(
+                          minimumSize: const Size.fromHeight(52),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(16),
+                          ),
+                        ),
+                        child: const Text('Pesquisar'),
+                      ),
+                    ],
+                  ),
+                ),
+              );
+            },
+          ),
+        );
+      },
+    );
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      plateController.dispose();
+      chassiController.dispose();
+      captchaController.dispose();
+    });
+    return result;
   }
 
   Future<void> _showLoadingDialog() async {
@@ -2081,6 +2518,13 @@ Future<_BinSearchRequest?> _showSimplePlateChassiDialog({
     Navigator.of(context, rootNavigator: true).pop();
   }
 
+  void _showErrorMessage(String message) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context)
+      ..clearSnackBars()
+      ..showSnackBar(SnackBar(content: Text(message)));
+  }
+
   bool _isValidPlate(String value) {
     final normalized = value.replaceAll('-', '').toUpperCase();
     if (normalized.length != 7) {
@@ -2091,9 +2535,8 @@ Future<_BinSearchRequest?> _showSimplePlateChassiDialog({
   }
 
   bool _isValidChassi(String value) {
-    final normalized = value
-        .replaceAll(RegExp('[^A-Za-z0-9]'), '')
-        .toUpperCase();
+    final normalized =
+        value.replaceAll(RegExp('[^A-Za-z0-9]'), '').toUpperCase();
     if (normalized.length != 17) {
       return false;
     }
@@ -2187,20 +2630,14 @@ Future<_BinSearchRequest?> _showSimplePlateChassiDialog({
   }
 
   void _handleUnauthorized() {
-    _authService.clearSession();
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!mounted) return;
-      Navigator.of(context).pushNamedAndRemoveUntil(
-        LoginPage.routeName,
-        (route) => false,
-      );
-    });
-  }
-
-  void _showErrorMessage(String message) {
-    ScaffoldMessenger.of(context)
-      ..clearSnackBars()
-      ..showSnackBar(SnackBar(content: Text(message)));
+   _authService.clearSession();
+   WidgetsBinding.instance.addPostFrameCallback((_) {
+     if (!mounted) return;
+     Navigator.of(context).pushNamedAndRemoveUntil(
+       LoginPage.routeName,
+       (route) => false,
+     );
+   });
   }
 
   @override
@@ -2281,20 +2718,8 @@ class _BaseEstadualQuery {
   final String captcha;
 }
 
-class _CrlvEmissionRequest {
-  const _CrlvEmissionRequest({
-    required this.plate,
-    required this.renavam,
-    required this.document,
-  });
-
-  final String plate;
-  final String renavam;
-  final String document;
-}
-
-class _OtherStatesSearchRequest {
-  const _OtherStatesSearchRequest({
+class _BaseOutrosEstadosQuery {
+  const _BaseOutrosEstadosQuery({
     required this.chassi,
     required this.uf,
     required this.captcha,
@@ -2305,15 +2730,44 @@ class _OtherStatesSearchRequest {
   final String captcha;
 }
 
-class _BinSearchRequest {
-  const _BinSearchRequest({required this.plate, required this.chassi});
+class _CrlvEmissionRequest {
+  const _CrlvEmissionRequest({
+    required this.plate,
+    required this.renavam,
+    required this.document,
+    required this.captcha,
+  });
+
+  final String plate;
+  final String renavam;
+  final String document;
+  final String captcha;
+}
+
+class _AtpvEmissionRequest {
+  const _AtpvEmissionRequest({
+    required this.plate,
+    required this.renavam,
+    required this.captcha,
+  });
+
+  final String plate;
+  final String renavam;
+  final String captcha;
+}
+
+class _SimplePlateChassiRequest {
+  const _SimplePlateChassiRequest({
+    required this.plate,
+    required this.chassi,
+  });
 
   final String plate;
   final String chassi;
 }
 
-class _RenainfSearchRequest {
-  const _RenainfSearchRequest({
+class _RenainfRequest {
+  const _RenainfRequest({
     required this.plate,
     required this.status,
     required this.startDate,
@@ -2329,11 +2783,13 @@ class _RenainfSearchRequest {
 class _BloqueiosAtivosRequest {
   const _BloqueiosAtivosRequest({
     required this.origin,
+    required this.captcha,
     this.plate,
     this.chassi,
   });
 
   final String origin;
+  final String captcha;
   final String? plate;
   final String? chassi;
 }
@@ -2360,3 +2816,4 @@ class _UpperCaseTextFormatter extends TextInputFormatter {
     );
   }
 }
+  

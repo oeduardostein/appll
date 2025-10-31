@@ -9,11 +9,13 @@ class BaseEstadualPage extends StatelessWidget {
     required this.placa,
     required this.renavam,
     required this.payload,
+    this.pageTitle = 'Base estadual',
   });
 
   final String placa;
   final String renavam;
   final Map<String, dynamic> payload;
+  final String pageTitle;
 
   String get _formattedPayload {
     try {
@@ -30,12 +32,14 @@ class BaseEstadualPage extends StatelessWidget {
 
     if (structuredPayload != null) {
       return _BaseEstadualStructuredScreen(
+        title: pageTitle,
         data: structuredPayload,
         formattedPayload: _formattedPayload,
       );
     }
 
     return _BaseEstadualFallbackScreen(
+      title: pageTitle,
       placa: placa,
       renavam: renavam,
       payload: payload,
@@ -226,12 +230,14 @@ class _BaseEstadualResultView extends StatelessWidget {
 
 class _BaseEstadualFallbackScreen extends StatelessWidget {
   const _BaseEstadualFallbackScreen({
+    required this.title,
     required this.placa,
     required this.renavam,
     required this.payload,
     required this.formattedPayload,
   });
 
+  final String title;
   final String placa;
   final String renavam;
   final Map<String, dynamic> payload;
@@ -248,7 +254,7 @@ class _BaseEstadualFallbackScreen extends StatelessWidget {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Base estadual'),
+        title: Text(title),
         actions: [
           if (!hasOnlyMessage)
             IconButton(
@@ -297,10 +303,12 @@ class _BaseEstadualFallbackScreen extends StatelessWidget {
 
 class _BaseEstadualStructuredScreen extends StatelessWidget {
   const _BaseEstadualStructuredScreen({
+    required this.title,
     required this.data,
     required this.formattedPayload,
   });
 
+  final String title;
   final _BaseEstadualStructuredPayload data;
   final String formattedPayload;
 
@@ -326,7 +334,7 @@ class _BaseEstadualStructuredScreen extends StatelessWidget {
             Column(
               children: [
                 _BlueHeader(
-                  title: 'Base estadual',
+                  title: title,
                   onBack: () => Navigator.of(context).pop(),
                   onShare: () => _copyToClipboard(context),
                 ),
