@@ -17,11 +17,11 @@ class BaseEstadualService {
   final http.Client _client;
 
   static final Uri _captchaUri = Uri.parse(
-    'https://100.27.58.138/diedespachante/api/frizzo/captcha.php',
+    'https://applldespachante.skalacode.com/api/captcha',
   );
 
   static final Uri _consultaBaseUri = Uri.parse(
-    'https://100.27.58.138/diedespachante/api/frizzo/consulta_base_estadual.php',
+    'https://applldespachante.skalacode.com/api/base-estadual',
   );
 
   static final Uri _consultaBaseOutrosEstadosUri = Uri.parse(
