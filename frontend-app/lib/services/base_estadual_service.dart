@@ -25,7 +25,7 @@ class BaseEstadualService {
   );
 
   static final Uri _consultaBaseOutrosEstadosUri = Uri.parse(
-    'https://100.27.58.138/diedespachante/api/frizzo/consulta_base_outros_estados.php',
+    'https://applldespachante.skalacode.com/api/another-base-estadual',
   );
 
   Future<String> fetchCaptcha() async {
@@ -121,11 +121,13 @@ class BaseEstadualService {
 
   Future<Map<String, dynamic>> consultarOutrosEstados({
     required String chassi,
+    required String uf,
     required String captcha,
   }) async {
     final uri = _consultaBaseOutrosEstadosUri.replace(
       queryParameters: {
         'chassi': chassi,
+        'uf': uf,
         'captcha': captcha,
       },
     );

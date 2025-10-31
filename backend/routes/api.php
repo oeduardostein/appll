@@ -3,6 +3,7 @@
 use App\Http\Controllers\Api\Auth\AuthController;
 use App\Http\Controllers\Api\CaptchaController;
 use App\Http\Controllers\Api\BaseEstadualController;
+use App\Http\Controllers\Api\AnotherBaseStateController;
 use Illuminate\Support\Facades\Route;
 
 Route::prefix('auth')->group(function (): void {
@@ -14,3 +15,4 @@ Route::prefix('auth')->group(function (): void {
 
 Route::get('captcha', CaptchaController::class);
 Route::get('base-estadual', BaseEstadualController::class);
+Route::get('another-base-estadual', AnotherBaseStateController::class);

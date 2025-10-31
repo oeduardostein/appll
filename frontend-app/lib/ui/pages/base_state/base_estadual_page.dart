@@ -800,8 +800,12 @@ class _ActionMenuCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final dividerColor = theme.colorScheme.outlineVariant.withOpacity(0.35);
+
     return Card(
-      elevation: 0,
+      elevation: 6,
+      shadowColor: Colors.black.withOpacity(0.08),
       color: Colors.white,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(24),
@@ -813,25 +817,25 @@ class _ActionMenuCard extends StatelessWidget {
             label: 'Informações do veículo',
             onTap: onVehicleTap,
           ),
-          const Divider(height: 1),
+          Divider(height: 1, thickness: 1, color: dividerColor),
           _ActionMenuItem(
             icon: Icons.credit_card,
             label: 'Gravame',
             onTap: onGravameTap,
           ),
-          const Divider(height: 1),
+          Divider(height: 1, thickness: 1, color: dividerColor),
           _ActionMenuItem(
             icon: Icons.warning_amber_outlined,
             label: 'Multas e débitos',
             onTap: onDebitosTap,
           ),
-          const Divider(height: 1),
+          Divider(height: 1, thickness: 1, color: dividerColor),
           _ActionMenuItem(
             icon: Icons.lock_outline,
             label: 'Restrições',
             onTap: onRestricoesTap,
           ),
-          const Divider(height: 1),
+          Divider(height: 1, thickness: 1, color: dividerColor),
           _ActionMenuItem(
             icon: Icons.forum_outlined,
             label: 'Comunicações de venda',
@@ -1720,12 +1724,20 @@ class _SectionCard extends StatelessWidget {
     }
 
     return Container(
-      padding: const EdgeInsets.all(16),
+      width: double.infinity,
+      padding: const EdgeInsets.fromLTRB(20, 18, 20, 18),
       decoration: BoxDecoration(
-        color: theme.colorScheme.surfaceVariant.withOpacity(0.4),
-        borderRadius: BorderRadius.circular(16),
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(24),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.05),
+            blurRadius: 24,
+            offset: const Offset(0, 16),
+          ),
+        ],
         border: Border.all(
-          color: theme.colorScheme.outlineVariant.withOpacity(0.35),
+          color: theme.colorScheme.outlineVariant.withOpacity(0.12),
         ),
       ),
       child: Column(
@@ -1735,9 +1747,10 @@ class _SectionCard extends StatelessWidget {
             title,
             style: theme.textTheme.titleMedium?.copyWith(
               fontWeight: FontWeight.w700,
+              color: theme.colorScheme.onSurface,
             ),
           ),
-          const SizedBox(height: 12),
+          const SizedBox(height: 16),
           ...content,
         ],
       ),
@@ -1788,8 +1801,9 @@ class _InfoRow extends StatelessWidget {
         const SizedBox(height: 4),
         Text(
           _formatDisplayValue(value),
-          style: theme.textTheme.bodyLarge?.copyWith(
-            fontWeight: FontWeight.w600,
+          style: theme.textTheme.titleMedium?.copyWith(
+            fontWeight: FontWeight.w700,
+            color: theme.colorScheme.onSurface,
           ),
         ),
       ],

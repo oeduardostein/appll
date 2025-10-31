@@ -451,6 +451,7 @@ class _HomePageState extends State<HomePage> {
     try {
       final result = await _baseEstadualService.consultarOutrosEstados(
         chassi: query.chassi,
+        uf: query.uf,
         captcha: query.captcha,
       );
       if (!mounted) return;
@@ -1161,6 +1162,7 @@ Future<_BloqueiosAtivosRequest?> _showBloqueiosAtivosDialog() async {
   Future<_OtherStatesSearchRequest?> _showBaseOutrosEstadosDialog() async {
     final formKey = GlobalKey<FormState>();
     final chassiController = TextEditingController();
+    final ufController = TextEditingController(text: 'SP');
     final captchaController = TextEditingController();
 
     String? captchaBase64;
@@ -1277,6 +1279,32 @@ Future<_BloqueiosAtivosRequest?> _showBloqueiosAtivosDialog() async {
                           return null;
                         },
                       ),
+                      const SizedBox(height: 16),
+                      TextFormField(
+                        controller: ufController,
+                        decoration: const InputDecoration(
+                          labelText: 'UF',
+                          hintText: 'Ex: SP',
+                        ),
+                        inputFormatters: [
+                          const _UpperCaseTextFormatter(),
+                          FilteringTextInputFormatter.allow(
+                            RegExp('[A-Za-z]'),
+                          ),
+                          LengthLimitingTextInputFormatter(2),
+                        ],
+                        textCapitalization: TextCapitalization.characters,
+                        validator: (value) {
+                          final text = value?.trim().toUpperCase() ?? '';
+                          if (text.isEmpty) {
+                            return 'Informe a UF';
+                          }
+                          if (text.length != 2) {
+                            return 'UF inválida';
+                          }
+                          return null;
+                        },
+                      ),
                       const SizedBox(height: 20),
                       Container(
                         decoration: BoxDecoration(
@@ -1386,6 +1414,9 @@ Future<_BloqueiosAtivosRequest?> _showBloqueiosAtivosDialog() async {
                                     chassi: chassiController.text
                                         .trim()
                                         .toUpperCase(),
+                                    uf: ufController.text
+                                        .trim()
+                                        .toUpperCase(),
                                     captcha: captchaController.text
                                         .trim()
                                         .toUpperCase(),
@@ -1412,6 +1443,7 @@ Future<_BloqueiosAtivosRequest?> _showBloqueiosAtivosDialog() async {
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
       chassiController.dispose();
+      ufController.dispose();
       captchaController.dispose();
     });
     return result;
@@ -2264,10 +2296,12 @@ class _CrlvEmissionRequest {
 class _OtherStatesSearchRequest {
   const _OtherStatesSearchRequest({
     required this.chassi,
+    required this.uf,
     required this.captcha,
   });
 
   final String chassi;
+  final String uf;
   final String captcha;
 }
 
