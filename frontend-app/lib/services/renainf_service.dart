@@ -42,11 +42,11 @@ class RenainfService {
       '/api/renainf',
       queryParameters: {
         'placa': plate,
-        'status': statusCode.toString(),
-        'data_inicial': _formatRequestDate(startDate),
-        'data_final': _formatRequestDate(endDate),
+        'indExigib': statusCode.toString(),
+        'periodoIni': _formatRequestDate(startDate),
+        'periodoFin': _formatRequestDate(endDate),
         'uf': uf,
-        'captcha': captcha,
+        'captchaResponse': captcha,
       },
     );
 

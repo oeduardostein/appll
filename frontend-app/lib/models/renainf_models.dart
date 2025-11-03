@@ -10,6 +10,11 @@ class RenainfResult {
     required this.endDate,
     required this.summary,
     required this.infractions,
+    this.sourceTitle,
+    this.sourceGeneratedAt,
+    this.consulta,
+    this.occurrences = const [],
+    this.occurrencesCount,
   });
 
   final String plate;
@@ -20,6 +25,11 @@ class RenainfResult {
   final DateTime endDate;
   final RenainfSummary summary;
   final List<RenainfInfraction> infractions;
+  final String? sourceTitle;
+  final String? sourceGeneratedAt;
+  final RenainfConsulta? consulta;
+  final List<RenainfOccurrence> occurrences;
+  final int? occurrencesCount;
 
   factory RenainfResult.fromJson(
     Map<String, dynamic> json, {
@@ -59,6 +69,40 @@ class RenainfResult {
         ? {...json, ...rootData}
         : json;
 
+    final fonteMap = _asMap(effectiveJson['fonte']);
+    final sourceTitle = fonteMap != null
+        ? _readString(fonteMap, ['titulo', 'title'])
+        : '';
+    final sourceGeneratedAt = fonteMap != null
+        ? _readString(fonteMap, ['gerado_em', 'geradoEm', 'gerado'])
+        : '';
+
+    final consultaMap = _asMap(effectiveJson['consulta']);
+    final consulta = consultaMap != null
+        ? RenainfConsulta.fromJson(
+            consultaMap,
+            fallbackPlate: resolvedPlate,
+            fallbackUf: resolvedUf,
+            fallbackIndicator: resolvedStatusLabel,
+          )
+        : null;
+
+    final renainfMap = _asMap(effectiveJson['renainf']);
+    int? occurrencesCount;
+    final occurrences = <RenainfOccurrence>[];
+    if (renainfMap != null) {
+      occurrencesCount = _readInt(
+        renainfMap,
+        ['quantidade_ocorrencias', 'quantidade', 'total'],
+      );
+      final rawOccurrences = _coerceListOfMap(renainfMap['ocorrencias']) ?? [];
+      for (final item in rawOccurrences) {
+        occurrences.add(RenainfOccurrence.fromJson(item));
+      }
+      occurrencesCount ??=
+          occurrences.isNotEmpty ? occurrences.length : occurrencesCount;
+    }
+
     final summaryJson = _asMap(effectiveJson['summary']) ??
         _asMap(effectiveJson['resumo']) ??
         _asMap(effectiveJson['totals']) ??
@@ -73,7 +117,15 @@ class RenainfResult {
         )
         .toList();
 
-    final summary = RenainfSummary.fromJson(summaryJson, infractions);
+    final summaryBase = RenainfSummary.fromJson(summaryJson, infractions);
+    final summary = RenainfSummary(
+      totalInfractions:
+          occurrencesCount ?? summaryBase.totalInfractions,
+      totalValue: summaryBase.totalValue,
+      openValue: summaryBase.openValue,
+      lastUpdatedAt: summaryBase.lastUpdatedAt,
+      lastUpdatedLabel: summaryBase.lastUpdatedLabel,
+    );
 
     return RenainfResult(
       plate: resolvedPlate,
@@ -84,6 +136,12 @@ class RenainfResult {
       endDate: apiEndDate ?? requestEndDate,
       summary: summary,
       infractions: infractions,
+      sourceTitle: sourceTitle.isNotEmpty ? sourceTitle : null,
+      sourceGeneratedAt:
+          sourceGeneratedAt.isNotEmpty ? sourceGeneratedAt : null,
+      consulta: consulta,
+      occurrences: occurrences,
+      occurrencesCount: occurrencesCount,
     );
   }
 }
@@ -143,6 +201,84 @@ class RenainfSummary {
       lastUpdatedAt: lastUpdatedAt,
       lastUpdatedLabel:
           lastUpdatedAt == null && lastUpdateRaw.isNotEmpty ? lastUpdateRaw : null,
+    );
+  }
+}
+
+class RenainfConsulta {
+  const RenainfConsulta({
+    required this.placa,
+    required this.ufEmplacamento,
+    required this.indicadorExigibilidade,
+  });
+
+  final String placa;
+  final String ufEmplacamento;
+  final String indicadorExigibilidade;
+
+  factory RenainfConsulta.fromJson(
+    Map<String, dynamic> json, {
+    required String fallbackPlate,
+    required String fallbackUf,
+    required String fallbackIndicator,
+  }) {
+    final placa = _fallbackValue(
+      _readString(json, ['placa', 'plate']),
+      fallbackPlate,
+    );
+    final ufEmplacamento = _fallbackValue(
+      _readString(json, ['uf_emplacamento', 'ufEmplacamento', 'uf']),
+      fallbackUf,
+    );
+    final indicador = _fallbackValue(
+      _readString(json, [
+        'indicador_exigibilidade',
+        'indicadorExigibilidade',
+        'indicador',
+      ]),
+      fallbackIndicator,
+    );
+
+    return RenainfConsulta(
+      placa: placa,
+      ufEmplacamento: ufEmplacamento,
+      indicadorExigibilidade: indicador,
+    );
+  }
+}
+
+class RenainfOccurrence {
+  const RenainfOccurrence({
+    required this.orgaoAutuador,
+    required this.autoInfracao,
+    required this.infracao,
+    required this.dataInfracao,
+    required this.exigibilidade,
+  });
+
+  final String orgaoAutuador;
+  final String autoInfracao;
+  final String infracao;
+  final String dataInfracao;
+  final String exigibilidade;
+
+  factory RenainfOccurrence.fromJson(Map<String, dynamic> json) {
+    return RenainfOccurrence(
+      orgaoAutuador: _ensureValue(
+        _readString(json, ['orgao_autuador', 'orgaoAutuador', 'orgao']),
+      ),
+      autoInfracao: _ensureValue(
+        _readString(json, ['auto_infracao', 'autoInfracao', 'auto']),
+      ),
+      infracao: _ensureValue(
+        _readString(json, ['infracao', 'codigo_infracao', 'codigoInfracao']),
+      ),
+      dataInfracao: _ensureValue(
+        _readString(json, ['data_infracao', 'dataInfracao', 'data']),
+      ),
+      exigibilidade: _ensureValue(
+        _readString(json, ['exigibilidade', 'indicador_exigibilidade']),
+      ),
     );
   }
 }

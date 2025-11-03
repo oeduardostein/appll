@@ -15,8 +15,9 @@ class RenainfPlacaController extends Controller
 {
     public function __invoke(Request $request): Response
     {
-        // Parser como CLOSURE para evitar "Cannot redeclare"
+        // Parser como CLOSURE para evitar redeclaração
         $parse = function (string $html): string {
+            // Força encoding amigável ao DOM (página declara ISO-8859-1)
             if (stripos($html, 'charset=iso-8859-1') !== false || stripos($html, 'charset=iso8859-1') !== false) {
                 $html = @mb_convert_encoding($html, 'HTML-ENTITIES', 'ISO-8859-1');
             }
@@ -27,28 +28,32 @@ class RenainfPlacaController extends Controller
             libxml_clear_errors();
             $xp = new DOMXPath($dom);
 
+            // Helpers
             $norm = fn($s) => preg_replace('/\s+/u', ' ', trim(html_entity_decode($s, ENT_QUOTES | ENT_HTML5, 'UTF-8')));
             $getText = function (?DOMNode $n) use ($norm) { return $n ? $norm($n->textContent ?? '') : null; };
 
+            // Label → valor (à direita)
             $findValueByLabel = function (string $label) use ($xp, $getText) {
-                $q1 = sprintf('//span[contains(@class,"texto_black2")][normalize-space()="%s"]/ancestor::td[1]/following-sibling::td[1]//span[contains(@class,"texto_menor")][1]', $label);
+                $q1 = sprintf('//span[contains(@class,"texto_black2")][normalize-space()="%s"]/ancestor::td[1]/following-sibling::td[1]//*[contains(@class,"texto_menor")][1]', $label);
                 $n = $xp->query($q1)->item(0); if ($n) return $getText($n);
 
-                $q2 = sprintf('//span[contains(@class,"texto_black2")][contains(normalize-space(), "%s")]/ancestor::td[1]/following-sibling::td[1]//span[contains(@class,"texto_menor")][1]', $label);
+                $q2 = sprintf('//span[contains(@class,"texto_black2")][contains(normalize-space(), "%s")]/ancestor::td[1]/following-sibling::td[1]//*[contains(@class,"texto_menor")][1]', $label);
                 $n = $xp->query($q2)->item(0); if ($n) return $getText($n);
 
-                $q3 = sprintf('//span[contains(@class,"texto_black2")][contains(normalize-space(), "%s")]/ancestor::td[1]/following-sibling::td//span[contains(@class,"texto_menor")][1]', $label);
+                $q3 = sprintf('//span[contains(@class,"texto_black2")][contains(normalize-space(), "%s")]/ancestor::td[1]/following-sibling::td//*[contains(@class,"texto_menor")][1]', $label);
                 $n = $xp->query($q3)->item(0); if ($n) return $getText($n);
 
                 return null;
             };
 
+            // Inline (fallback)
             $findInlineValue = function (string $label) use ($xp, $getText) {
                 $q = sprintf('//span[contains(@class,"texto_black2")][contains(normalize-space(), "%s")]/following::span[contains(@class,"texto_menor")][1]', $label);
                 $n = $xp->query($q)->item(0);
                 return $n ? $getText($n) : null;
             };
 
+            // Data/hora impressa (ex.: 03/11/2025 16:19:19)
             $bodyText = $xp->query('//body')->item(0);
             $allText  = $getText($bodyText);
             $dataHora = null;
@@ -56,8 +61,17 @@ class RenainfPlacaController extends Controller
                 $dataHora = $m[1];
             }
 
+            // Labels da tela RENAINF (exatamente como no HTML enviado)
             $L = [
-                'Placa'        => ['Placa'],
+                // bloco "Dados da Consulta"
+                'Placa'                 => ['Placa'],
+                'UF_Emplacamento'       => ['UF de Emplacamento'],
+                'IndicadorExigibilidade'=> ['Indicador Exigibilidade'],
+
+                // bloco "Quantidade de Ocorrências"
+                'QtdOcorrencias'        => ['Quantidade de Ocorrências'],
+
+                // (genéricos – mantidos se a tela tiver)
                 'Municipio'    => ['Município', 'Municipio'],
                 'Renavam'      => ['Renavam'],
                 'Chassi'       => ['Chassi'],
@@ -70,9 +84,6 @@ class RenainfPlacaController extends Controller
                 'AnoFab'       => ['Ano Fabr.', 'Ano Fabr', "Ano\nFabr."],
                 'AnoModelo'    => ['Ano Modelo', "Ano\nModelo"],
                 'Proprietario' => ['Nome do Proprietário', 'Nome do Proprietario'],
-
-                'Renainf_Qtd'   => ['Qtde', 'Quantidade', 'Total de Autuações', 'Total de Autuacoes'],
-                'Renainf_Valor' => ['Valor', 'Valor Total', 'Total'],
             ];
 
             $pick = function (array $labels) use ($findValueByLabel, $findInlineValue) {
@@ -83,46 +94,54 @@ class RenainfPlacaController extends Controller
                 return null;
             };
 
+            // Extrai a tabela de ocorrências (id="listRenainfId")
+            $ocorrencias = [];
+            $table = $xp->query('//*[@id="listRenainfId"]/tbody')->item(0);
+            if ($table) {
+                foreach ($xp->query('./tr', $table) as $tr) {
+                    $tds = $xp->query('./td', $tr);
+                    if ($tds->length >= 6) {
+                        // Colunas (ignorando a 1ª que tem o botão)
+                        $orgao         = trim($getText($tds->item(1)));
+                        $autoInfracao  = trim($getText($tds->item(2)));
+                        $infracao      = trim($getText($tds->item(3)));
+                        $dataInfracao  = trim($getText($tds->item(4)));
+                        $exigibilidade = trim($getText($tds->item(5)));
+
+                        $ocorrencias[] = [
+                            'orgao_autuador'    => $orgao,         // ex.: "271070"
+                            'auto_infracao'     => $autoInfracao,  // ex.: "7RA1254609"
+                            'infracao'          => $infracao,      // ex.: "5746"
+                            'data_infracao'     => $dataInfracao,  // ex.: "08/05/2025"
+                            'exigibilidade'     => $exigibilidade, // ex.: "Não"
+                        ];
+                    }
+                }
+            }
+
+            // Monta JSON padronizado
             $out = [
                 'fonte' => [
                     'titulo'    => 'eCRVsp - DETRAN - São Paulo',
                     'gerado_em' => $dataHora,
                 ],
-                'veiculo' => [
-                    'placa'          => $pick($L['Placa']),
-                    'municipio'      => $pick($L['Municipio']),
-                    'renavam'        => $pick($L['Renavam']),
-                    'chassi'         => $pick($L['Chassi']),
-                    'tipo'           => $pick($L['Tipo']),
-                    'procedencia'    => $pick($L['Procedencia']),
-                    'combustivel'    => $pick($L['Combustivel']),
-                    'cor'            => $pick($L['Cor']),
-                    'marca'          => $pick($L['Marca']),
-                    'categoria'      => $pick($L['Categoria']),
-                    'ano_fabricacao' => $pick($L['AnoFab']),
-                    'ano_modelo'     => $pick($L['AnoModelo']),
+                'consulta' => [
+                    'placa'                 => $pick($L['Placa']),                 // "FMY8A88"
+                    'uf_emplacamento'       => $pick($L['UF_Emplacamento']),       // "SP"
+                    'indicador_exigibilidade'=> $pick($L['IndicadorExigibilidade']) // "Todas as Multas"
                 ],
-                'proprietario' => [
-                    'nome' => $pick($L['Proprietario']),
+                'renainf' => [
+                    'quantidade_ocorrencias' => $pick($L['QtdOcorrencias']),       // "28"
+                    'ocorrencias'            => $ocorrencias,                      // lista com as linhas da tabela
                 ],
             ];
 
-            $lower = mb_strtolower($allText ?? '', 'UTF-8');
-            if (strpos($lower, 'renainf') !== false) {
-                $out['renainf'] = [
-                    'quantidade'  => $pick($L['Renainf_Qtd']),
-                    'valor_total' => $pick($L['Renainf_Valor']),
-                ];
-            }
-
+            // Sanitização suave
             $sanitize = function (&$arr) use (&$sanitize) {
                 foreach ($arr as $k => &$v) {
                     if (is_array($v)) { $sanitize($v); continue; }
                     if ($v === null) continue;
                     $v = preg_replace('/\s+/u', ' ', trim($v));
-                    if (preg_match('/^n\s*a\s*d\s*a\s*consta$/iu', preg_replace('/\s+/', '', $v))) {
-                        $v = 'Nada Consta';
-                    }
                 }
             };
             $sanitize($out);
@@ -131,9 +150,9 @@ class RenainfPlacaController extends Controller
         };
 
         // ---------- Entrada ----------
-        $indExigib  = $request->query('indExigib');
-        $periodoIni = $request->query('periodoIni');
-        $periodoFin = $request->query('periodoFin');
+        $indExigib  = $request->query('indExigib');      // "Todas", "Exigíveis", etc. (como no seu front)
+        $periodoIni = $request->query('periodoIni');     // dd/mm/aaaa
+        $periodoFin = $request->query('periodoFin');     // dd/mm/aaaa
         $placa      = $request->query('placa');
         $uf         = $request->query('uf');
         $captcha    = $request->query('captchaResponse');
@@ -186,7 +205,7 @@ class RenainfPlacaController extends Controller
         ];
 
         $response = Http::withHeaders($headers)
-            ->withOptions(['verify' => false]) // REMOVA em produção
+            ->withOptions(['verify' => false]) // em produção, prefira verify=true
             ->withCookies([
                 'dataUsuarPublic' => 'Mon Mar 24 2025 08:14:44 GMT-0300 (Horário Padrão de Brasília)',
                 'JSESSIONID'      => $token,
@@ -194,11 +213,7 @@ class RenainfPlacaController extends Controller
             ->asForm()
             ->post('https://www.e-crvsp.sp.gov.br/gever/GVR/pesquisa/renainf/placa.do', $form);
 
-        // (Opcional) tratar erro HTTP
-        // if (!$response->successful()) {
-        //     return response()->json(['message' => 'Falha ao consultar o serviço RENAINF.'], Response::HTTP_BAD_GATEWAY);
-        // }
-
+        // Saída JSON (tela HTML → JSON)
         $body = $parse($response->body());
 
         return response($body, Response::HTTP_OK)

@@ -969,6 +969,7 @@ class _OutrosEstadosGravamePage extends StatelessWidget {
         'arrendatario': 'Arrendatário',
         'cnpj_cpf_financiado': 'CNPJ/CPF financiado',
       },
+      excludeKeys: const {'datas'},
     );
 
     final gravameDatas = _buildInfoRows(
@@ -1113,6 +1114,7 @@ class _OutrosEstadosComunicacaoPage extends StatelessWidget {
         'cnpj_cpf_comprador': 'CNPJ/CPF comprador',
         'origem': 'Origem',
       },
+      excludeKeys: const {'datas'},
     );
 
     final datasRows = _buildInfoRows(
@@ -1639,19 +1641,82 @@ Future<void> _copyJsonToClipboard(
 
 List<Widget> _buildInfoRows(
   Map<String, dynamic>? source,
-  Map<String, String> labels,
-) {
+  Map<String, String> labels, {
+  Set<String> excludeKeys = const {},
+}) {
   if (source == null) {
     return [];
   }
-  return labels.entries
-      .map<Widget>(
-        (entry) => _OutrosInfoRow(
-          label: entry.value,
-          value: source[entry.key],
-        ),
-      )
-      .toList();
+
+  final rows = <Widget>[];
+  final handledKeys = <String>{};
+
+  for (final entry in labels.entries) {
+    handledKeys.add(entry.key);
+    final value = source[entry.key];
+    if (!_hasDisplayValue(value)) continue;
+    rows.add(
+      _OutrosInfoRow(
+        label: entry.value,
+        value: value,
+      ),
+    );
+  }
+
+  for (final entry in source.entries) {
+    final key = entry.key;
+    if (handledKeys.contains(key) || excludeKeys.contains(key)) {
+      continue;
+    }
+    final value = entry.value;
+    if (!_hasDisplayValue(value)) continue;
+    rows.add(
+      _OutrosInfoRow(
+        label: _generateAutoLabel(key),
+        value: value,
+      ),
+    );
+  }
+
+  return rows;
+}
+
+bool _hasDisplayValue(dynamic value) {
+  if (value == null) return false;
+  if (value is String) {
+    return value.trim().isNotEmpty;
+  }
+  if (value is Iterable) {
+    return value.isNotEmpty;
+  }
+  if (value is Map) {
+    return value.isNotEmpty;
+  }
+  return true;
+}
+
+String _generateAutoLabel(String key) {
+  if (key.trim().isEmpty) return 'Valor';
+  String working = key
+      .replaceAll(RegExp(r'[\-]+'), ' ')
+      .replaceAll(RegExp(r'[_]+'), ' ');
+  working = working.replaceAllMapped(
+    RegExp(r'(?<=[a-z0-9])([A-Z])'),
+    (match) => ' ${match.group(1)}',
+  );
+
+  final buffer = StringBuffer();
+  for (final word in working.split(RegExp(r'\s+'))) {
+    if (word.isEmpty) continue;
+    if (buffer.isNotEmpty) buffer.write(' ');
+    final cleaned = word.toLowerCase();
+    buffer.write(cleaned[0].toUpperCase());
+    if (cleaned.length > 1) {
+      buffer.write(cleaned.substring(1));
+    }
+  }
+
+  return buffer.isEmpty ? key : buffer.toString();
 }
 
 String _formatDisplayValue(dynamic value) {

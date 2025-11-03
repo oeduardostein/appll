@@ -16,6 +16,9 @@ class RenainfPage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isNewFormat =
+        result.occurrences.isNotEmpty || result.consulta != null || result.sourceTitle != null;
+
     final infractions = result.statusCode == 1
         ? result.infractions.where((infraction) => infraction.isOpen).toList()
         : result.infractions;
@@ -26,45 +29,119 @@ class RenainfPage extends StatelessWidget {
         ? _formatDateTime(result.summary.lastUpdatedAt)
         : (result.summary.lastUpdatedLabel ?? '—');
 
-    final summary = VehicleSummaryData(
-      plate: result.plate,
-      description: 'Consulta RENAINF',
-      chips: [
+    String display(String? value) {
+      if (value == null) return '—';
+      final trimmed = value.trim();
+      return trimmed.isEmpty ? '—' : trimmed;
+    }
+
+    final consulta = result.consulta;
+    final summaryDescription =
+        display(result.sourceTitle ?? '').replaceAll(RegExp(r'^—$'), 'Consulta RENAINF');
+
+    final summaryChips = <VehicleSummaryChip>[
+      VehicleSummaryChip(
+        label: 'Período pesquisado',
+        value:
+            '${_formatDate(result.startDate)} • ${_formatDate(result.endDate)}',
+      ),
+      VehicleSummaryChip(
+        label: 'UF pesquisada',
+        value: result.uf,
+      ),
+      if (isNewFormat && display(consulta?.ufEmplacamento) != '—')
         VehicleSummaryChip(
-          label: 'Período pesquisado',
-          value:
-              '${_formatDate(result.startDate)} • ${_formatDate(result.endDate)}',
+          label: 'UF de emplacamento',
+          value: display(consulta?.ufEmplacamento),
         ),
+      if (isNewFormat && display(consulta?.indicadorExigibilidade) != '—')
+        VehicleSummaryChip(
+          label: 'Indicador de exigibilidade',
+          value: display(consulta?.indicadorExigibilidade),
+        ),
+      if (!isNewFormat)
         VehicleSummaryChip(
           label: 'Filtro de status',
           value: result.statusLabel,
         ),
+      if (isNewFormat)
         VehicleSummaryChip(
-          label: 'UF',
-          value: result.uf,
+          label: 'Ocorrências encontradas',
+          value: '${result.occurrencesCount ?? result.occurrences.length}',
         ),
-      ],
+    ];
+
+    final summary = VehicleSummaryData(
+      plate: result.plate,
+      description: summaryDescription == '—' ? 'Consulta RENAINF' : summaryDescription,
+      chips: summaryChips,
     );
 
-    final sections = [
-      VehicleInfoSectionData(
-        title: 'Resumo da consulta',
-        rows: [
-          VehicleInfoRowData(
-            leftLabel: 'Total de infrações',
-            leftValue: '${infractions.length}',
-            rightLabel: 'Valor total',
-            rightValue: _formatCurrency(totalValue),
+    final sections = <VehicleInfoSectionData>[];
+
+    if (isNewFormat) {
+      sections.add(
+        VehicleInfoSectionData(
+          title: 'Dados da consulta',
+          rows: [
+            VehicleInfoRowData(
+              leftLabel: 'Placa consultada',
+              leftValue: display(consulta?.placa ?? result.plate),
+              rightLabel: 'UF de emplacamento',
+              rightValue: display(consulta?.ufEmplacamento ?? result.uf),
+            ),
+            VehicleInfoRowData(
+              leftLabel: 'Indicador de exigibilidade',
+              leftValue: display(consulta?.indicadorExigibilidade ?? result.statusLabel),
+              rightLabel: 'UF pesquisada',
+              rightValue: result.uf,
+            ),
+            VehicleInfoRowData(
+              leftLabel: 'Quantidade de ocorrências',
+              leftValue: '${result.occurrencesCount ?? result.occurrences.length}',
+              rightLabel: 'Filtro de status',
+              rightValue: result.statusLabel,
+            ),
+          ],
+        ),
+      );
+
+      if (result.sourceTitle != null || result.sourceGeneratedAt != null) {
+        sections.add(
+          VehicleInfoSectionData(
+            title: 'Fonte',
+            rows: [
+              VehicleInfoRowData(
+                leftLabel: 'Sistema',
+                leftValue: display(result.sourceTitle),
+                rightLabel: 'Gerado em',
+                rightValue: display(result.sourceGeneratedAt),
+              ),
+            ],
           ),
-          VehicleInfoRowData(
-            leftLabel: 'Valor em aberto',
-            leftValue: _formatCurrency(openValue),
-            rightLabel: 'Última atualização',
-            rightValue: lastUpdate,
-          ),
-        ],
-      ),
-    ];
+        );
+      }
+    } else {
+      sections.add(
+        VehicleInfoSectionData(
+          title: 'Resumo da consulta',
+          rows: [
+            VehicleInfoRowData(
+              leftLabel: 'Total de infrações',
+              leftValue: '${infractions.length}',
+              rightLabel: 'Valor total',
+              rightValue: _formatCurrency(totalValue),
+            ),
+            VehicleInfoRowData(
+              leftLabel: 'Valor em aberto',
+              leftValue: _formatCurrency(openValue),
+              rightLabel: 'Última atualização',
+              rightValue: lastUpdate,
+            ),
+          ],
+        ),
+      );
+    }
 
     return Scaffold(
       backgroundColor: const Color(0xFFF5F6FA),
@@ -83,9 +160,15 @@ class RenainfPage extends StatelessWidget {
                       sections: sections,
                     ),
                     const SizedBox(height: 20),
-                    RenainfInfractionsSection(
-                      infractions: infractions,
-                    ),
+                    if (isNewFormat)
+                      _RenainfOccurrencesSection(
+                        occurrences: result.occurrences,
+                        totalCount: result.occurrencesCount ?? result.occurrences.length,
+                      )
+                    else
+                      RenainfInfractionsSection(
+                        infractions: infractions,
+                      ),
                     const SizedBox(height: 28),
                   ],
                 ),
@@ -301,6 +384,145 @@ class _RenainfInfoTile extends StatelessWidget {
           ),
         ),
       ],
+    );
+  }
+}
+
+class _RenainfOccurrencesSection extends StatelessWidget {
+  const _RenainfOccurrencesSection({
+    required this.occurrences,
+    required this.totalCount,
+  });
+
+  final List<RenainfOccurrence> occurrences;
+  final int totalCount;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'Ocorrências encontradas',
+          style: theme.textTheme.titleMedium?.copyWith(
+            fontWeight: FontWeight.w700,
+          ),
+        ),
+        const SizedBox(height: 12),
+        Container(
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(24),
+            boxShadow: const [
+              BoxShadow(
+                color: Color(0x0D101828),
+                blurRadius: 18,
+                offset: Offset(0, 10),
+              ),
+            ],
+          ),
+          child: Column(
+            children: [
+              const _OccurrenceRow.header(),
+              const Divider(height: 1, color: Color(0xFFE4E7EC)),
+              if (occurrences.isEmpty)
+                Padding(
+                  padding: const EdgeInsets.all(20),
+                  child: Text(
+                    'Nenhuma ocorrência retornada para os filtros informados.',
+                    textAlign: TextAlign.center,
+                    style: theme.textTheme.bodyMedium?.copyWith(
+                      color: const Color(0xFF475467),
+                    ),
+                  ),
+                )
+              else
+                for (var i = 0; i < occurrences.length; i++) ...[
+                  if (i > 0) const Divider(height: 1, color: Color(0xFFE4E7EC)),
+                  _OccurrenceRow(occurrence: occurrences[i]),
+                ],
+            ],
+          ),
+        ),
+        const SizedBox(height: 12),
+        Text(
+          'Total informado: $totalCount',
+          style: theme.textTheme.bodySmall?.copyWith(
+            color: const Color(0xFF475467),
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _OccurrenceRow extends StatelessWidget {
+  const _OccurrenceRow({required this.occurrence}) : isHeader = false;
+
+  const _OccurrenceRow.header()
+      : occurrence = null,
+        isHeader = true;
+
+  final RenainfOccurrence? occurrence;
+  final bool isHeader;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final labelStyle = theme.textTheme.labelSmall?.copyWith(
+      color: const Color(0xFF667085),
+      fontWeight: FontWeight.w600,
+    );
+    final valueStyle = theme.textTheme.bodyMedium?.copyWith(
+      color: const Color(0xFF1D2939),
+      fontWeight: FontWeight.w600,
+    );
+
+    String display(String? value) {
+      if (value == null) return '—';
+      final trimmed = value.trim();
+      return trimmed.isEmpty ? '—' : trimmed;
+    }
+
+    final cells = isHeader
+        ? const [
+            'Órgão autuador',
+            'Auto de infração',
+            'Infração',
+            'Data da infração',
+            'Exigibilidade',
+          ]
+        : [
+            display(occurrence!.orgaoAutuador),
+            display(occurrence!.autoInfracao),
+            display(occurrence!.infracao),
+            display(occurrence!.dataInfracao),
+            display(occurrence!.exigibilidade),
+          ];
+
+    final textStyle = isHeader ? labelStyle : valueStyle;
+
+    final weights = const [2, 3, 2, 2, 2];
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+      child: Row(
+        children: [
+          for (var i = 0; i < cells.length; i++) ...[
+            Expanded(
+              flex: weights[i],
+              child: Text(
+                cells[i],
+                style: textStyle,
+              ),
+            ),
+            if (i < cells.length - 1) const SizedBox(width: 12),
+          ],
+        ],
+      ),
     );
   }
 }
