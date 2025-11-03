@@ -7,6 +7,7 @@ use App\Http\Controllers\Api\AnotherBaseStateController;
 use App\Http\Controllers\Api\BloqueiosAtivosController;
 use App\Http\Controllers\Api\ImpressaoAtpvController;
 use App\Http\Controllers\Api\ImpressaoCrlvController;
+use App\Http\Controllers\Api\RenainfPlacaController;
 use Illuminate\Support\Facades\Route;
 
 Route::prefix('auth')->group(function (): void {
@@ -22,3 +23,4 @@ Route::get('another-base-estadual', AnotherBaseStateController::class);
 Route::get('bloqueios-ativos', BloqueiosAtivosController::class);
 Route::get('emissao-atpv', ImpressaoAtpvController::class);
 Route::get('emissao-crlv', ImpressaoCrlvController::class);
+Route::get('renainf', RenainfPlacaController::class);

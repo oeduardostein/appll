@@ -201,10 +201,8 @@ class BloqueiosAtivosController extends Controller
 
         // Entrada
         $opcao = $request->query('opcaoPesquisa');
-        $placa = $request->query('placa');
+        $chassi = $request->query('chassi');
         $captcha = $request->query('captcha');
-        $renavam = $request->query('renavam', ''); // opcional
-        $chassi = $request->query('chassi', '');
 
         // validação compatível com seu script antigo
         if (!in_array((string)$opcao, ['1', '2'], true)) {
@@ -213,15 +211,9 @@ class BloqueiosAtivosController extends Controller
                 Response::HTTP_UNPROCESSABLE_ENTITY
             );
         }
-        if (!$placa && !$chassi) {
+        if (!$chassi || !$captcha) {
             return response()->json(
-                ['message' => 'Informe placa ou chassi para realizar a consulta.'],
-                Response::HTTP_UNPROCESSABLE_ENTITY
-            );
-        }
-        if (!$captcha) {
-            return response()->json(
-                ['message' => 'Informe o captcha para realizar a consulta.'],
+                ['message' => 'Informe placa e captcha para realizar a consulta.'],
                 Response::HTTP_UNPROCESSABLE_ENTITY
             );
         }
@@ -256,13 +248,13 @@ class BloqueiosAtivosController extends Controller
         ];
         $cookieDomain = 'www.e-crvsp.sp.gov.br';
 
+        // Importante: seu script antigo postava "chassi" (mas não definia a variável).
+        // Aqui manteremos compatibilidade com o site enviando os campos clássicos.
+        // Se a tela exigir chassi conforme a opção, ajuste aqui para atender ao formulário real.
         $form = [
             'method'          => 'pesquisar',
             'opcaoPesquisa'   => (string)$opcao,
-            'placa'           => strtoupper($placa ?? ''),
-            'renavam'         => $renavam,
-            'chassi'          => strtoupper($chassi ?? ''),
-            'municipio'       => '0',
+            'placa'           => $chassi,
             'captchaResponse' => strtoupper($captcha),
         ];
 
@@ -275,6 +267,15 @@ class BloqueiosAtivosController extends Controller
             ->asForm()
             ->post('https://www.e-crvsp.sp.gov.br/gever/GVR/pesquisa/bloqueiosAtivos.do', $form);
 
+        // (Opcional) tratar HTTP de erro
+        // if (!$response->successful()) {
+        //     return response()->json(
+        //         ['message' => 'Falha ao consultar a base de Bloqueios Ativos.'],
+        //         Response::HTTP_BAD_GATEWAY
+        //     );
+        // }
+
+        // Parse do HTML -> JSON padronizado
         $body = parseDetranHtmlToJson($response->body());
 
         return response($body, Response::HTTP_OK)
