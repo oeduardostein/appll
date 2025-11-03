@@ -4,10 +4,12 @@ class HomeHeader extends StatelessWidget {
   const HomeHeader({
     super.key,
     required this.userName,
+    this.monthlyCreditsLabel,
     this.onLogout,
   });
 
   final String userName;
+  final String? monthlyCreditsLabel;
   final VoidCallback? onLogout;
 
   @override
@@ -83,10 +85,13 @@ class HomeHeader extends StatelessWidget {
           ),
           const SizedBox(height: 24),
           Text(
-            'Usuário: $userName',
+            monthlyCreditsLabel != null
+                ? 'Usuário: $userName • $monthlyCreditsLabel'
+                : 'Usuário: $userName',
             style: theme.textTheme.titleMedium?.copyWith(color: Colors.white),
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
           ),
-          
         ],
       ),
     );

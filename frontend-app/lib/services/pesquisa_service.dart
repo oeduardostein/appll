@@ -91,27 +91,23 @@ class PesquisaService {
       throw PesquisaException(message);
     }
 
-    try {
-      final dynamic decoded = jsonDecode(response.body);
-      if (decoded is Map<String, dynamic>) {
-        final data = decoded['data'];
-        if (data is List) {
-          return data
-              .whereType<Map>()
-              .map(
-                (item) => PesquisaResumo.fromJson(
-                  item.map(
-                    (key, dynamic value) => MapEntry(key.toString(), value),
-                  ),
-                ),
-              )
-              .toList();
-        }
-      }
-      throw const FormatException();
-    } catch (_) {
-      throw PesquisaException('Resposta inválida ao carregar pesquisas.');
+    return _parsePesquisaList(response.body);
+  }
+
+  Future<List<PesquisaResumo>> listarUltimoMes() async {
+    final uri = _buildUri('/api/pesquisas/ultimo-mes');
+    final response = await _client.get(
+      uri,
+      headers: _authorizedHeaders(),
+    );
+
+    if (response.statusCode != 200) {
+      final message = _extractMessage(response.body) ??
+          'Falha ao carregar pesquisas do último mês (HTTP ${response.statusCode}).';
+      throw PesquisaException(message);
     }
+
+    return _parsePesquisaList(response.body);
   }
 
   String? _extractMessage(String body) {
@@ -135,5 +131,29 @@ class PesquisaService {
       return null;
     }
     return null;
+  }
+
+  List<PesquisaResumo> _parsePesquisaList(String body) {
+    try {
+      final dynamic decoded = jsonDecode(body);
+      if (decoded is Map<String, dynamic>) {
+        final data = decoded['data'];
+        if (data is List) {
+          return data
+              .whereType<Map>()
+              .map(
+                (item) => PesquisaResumo.fromJson(
+                  item.map(
+                    (key, dynamic value) => MapEntry(key.toString(), value),
+                  ),
+                ),
+              )
+              .toList(growable: false);
+        }
+      }
+      throw const FormatException();
+    } catch (_) {
+      throw PesquisaException('Resposta inválida ao carregar pesquisas.');
+    }
   }
 }

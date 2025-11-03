@@ -53,6 +53,9 @@ class _HomePageState extends State<HomePage> {
   List<RecentVehicle> _recentVehicles = const [];
   bool _isLoadingRecentVehicles = false;
   String? _recentVehiclesError;
+  int? _monthlyCreditsUsed;
+  bool _isLoadingMonthlyCredits = false;
+  String? _monthlyCreditsError;
 
   static final List<HomeAction> _actions = [
     HomeAction(
@@ -1832,6 +1835,9 @@ class _HomePageState extends State<HomePage> {
           chassi: normalize(chassi),
           opcaoPesquisa: normalize(opcaoPesquisa),
         );
+        if (!mounted) return;
+        _loadRecentVehicles();
+        _loadMonthlyCredits();
       } on PesquisaException catch (e) {
         debugPrint('Falha ao registrar pesquisa "$nome": ${e.message}');
       } catch (e) {
@@ -2885,6 +2891,7 @@ class _HomePageState extends State<HomePage> {
     _currentUser = _authService.session?.user;
     _loadCurrentUser();
     _loadRecentVehicles();
+    _loadMonthlyCredits();
   }
 
   Future<void> _loadRecentVehicles() async {
@@ -2931,6 +2938,52 @@ class _HomePageState extends State<HomePage> {
         _isLoadingRecentVehicles = false;
         _recentVehiclesError =
             'Não foi possível carregar os veículos pesquisados.';
+      });
+    }
+  }
+
+  Future<void> _loadMonthlyCredits() async {
+    if (!mounted) return;
+    if (_authService.session == null) {
+      setState(() {
+        _monthlyCreditsUsed = null;
+        _monthlyCreditsError = null;
+        _isLoadingMonthlyCredits = false;
+      });
+      return;
+    }
+
+    setState(() {
+      _isLoadingMonthlyCredits = true;
+      _monthlyCreditsError = null;
+    });
+
+    try {
+      final pesquisas = await _pesquisaService.listarUltimoMes();
+      if (!mounted) return;
+      setState(() {
+        _monthlyCreditsUsed = pesquisas.length;
+        _isLoadingMonthlyCredits = false;
+      });
+    } on PesquisaException catch (e) {
+      if (!mounted) return;
+      if (e.message.contains('Sessão inválida') ||
+          e.message.contains('Não autenticado')) {
+        _handleUnauthorized();
+        return;
+      }
+      setState(() {
+        _monthlyCreditsUsed = null;
+        _isLoadingMonthlyCredits = false;
+        _monthlyCreditsError = e.message;
+      });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        _monthlyCreditsUsed = null;
+        _isLoadingMonthlyCredits = false;
+        _monthlyCreditsError =
+            'Não foi possível carregar os créditos utilizados este mês.';
       });
     }
   }
@@ -3036,6 +3089,13 @@ class _HomePageState extends State<HomePage> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final monthlyCreditsLabel = _isLoadingMonthlyCredits
+        ? 'Créditos usados este mês: carregando...'
+        : _monthlyCreditsError != null
+            ? 'Créditos usados este mês: indisponível'
+            : _monthlyCreditsUsed != null
+                ? 'Créditos usados este mês: $_monthlyCreditsUsed'
+                : null;
 
     return Scaffold(
       body: SafeArea(
@@ -3049,6 +3109,7 @@ class _HomePageState extends State<HomePage> {
                     userName: _isFetchingUser
                         ? 'Carregando...'
                         : _currentUser?.username ?? 'Usuário',
+                    monthlyCreditsLabel: monthlyCreditsLabel,
                     onLogout: () => _handleLogout(),
                   ),
                   Padding(

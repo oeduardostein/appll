@@ -54,14 +54,22 @@ class _FakeAuthService extends AuthService {
 class _FakePesquisaService extends PesquisaService {
   _FakePesquisaService({
     required this.items,
+    List<PesquisaResumo>? monthlyItems,
     required AuthService authService,
-  }) : super(client: _FakeHttpClient(), authService: authService);
+  })  : monthlyItems = monthlyItems ?? items,
+        super(client: _FakeHttpClient(), authService: authService);
 
   final List<PesquisaResumo> items;
+  final List<PesquisaResumo> monthlyItems;
 
   @override
   Future<List<PesquisaResumo>> listarRecentes() async {
     return items;
+  }
+
+  @override
+  Future<List<PesquisaResumo>> listarUltimoMes() async {
+    return monthlyItems;
   }
 }
 
@@ -99,7 +107,8 @@ void main() {
 
     await tester.pumpAndSettle();
 
-    expect(find.text('Usuário: Lucas'), findsOneWidget);
+    expect(find.textContaining('Usuário: Lucas'), findsOneWidget);
+    expect(find.textContaining('Créditos usados este mês: 1'), findsOneWidget);
     expect(find.text('Consultar'), findsOneWidget);
     expect(find.text('Últimos veículos pesquisados'), findsOneWidget);
     expect(find.text('AAA1A23'), findsOneWidget);
