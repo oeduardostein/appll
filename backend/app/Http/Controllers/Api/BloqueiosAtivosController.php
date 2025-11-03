@@ -15,13 +15,12 @@ class BloqueiosAtivosController extends Controller
 {
     /**
      * Consulta Bloqueios Ativos no e-CRVsp e retorna os dados tratados em JSON.
-     * Ex.: GET /api/bloqueios-ativos?opcaoPesquisa=1&chassi=ABC1D23&captcha=AB12&renavam=1234567890
+     * Ex.: GET /api/bloqueios-ativos?opcaoPesquisa=1&chassi=9BWZZZ377VT004251&captcha=AB12
      */
     public function __invoke(Request $request): Response
     {
-        // ---------- Função de parsing (mesma base usada nos demais controllers) ----------
-        function parseDetranHtmlToJson(string $html): string {
-            // 1) Forçar encoding amigável ao DOM
+        // ---------- Parser (closure p/ evitar "redeclare") ----------
+        $parse = function (string $html): string {
             if (stripos($html, 'charset=iso-8859-1') !== false || stripos($html, 'charset=iso8859-1') !== false) {
                 $html = @mb_convert_encoding($html, 'HTML-ENTITIES', 'ISO-8859-1');
             }
@@ -33,38 +32,30 @@ class BloqueiosAtivosController extends Controller
             $xp = new DOMXPath($dom);
 
             $norm = fn($s) => preg_replace('/\s+/u', ' ', trim(html_entity_decode($s, ENT_QUOTES | ENT_HTML5, 'UTF-8')));
-            $getText = function(?DOMNode $n) use ($norm) {
-                if (!$n) return null;
-                return $norm($n->textContent ?? '');
-            };
+            $getText = function(?DOMNode $n) use ($norm) { return $n ? $norm($n->textContent ?? '') : null; };
 
-            // pega valor ao lado do label
             $findValueByLabel = function(string $label) use ($xp, $getText) {
                 $q1 = sprintf(
                     '//span[contains(@class,"texto_black2")][normalize-space()="%s"]/ancestor::td[1]/following-sibling::td[1]//span[contains(@class,"texto_menor")][1]',
                     $label
                 );
-                $n = $xp->query($q1)->item(0);
-                if ($n) return $getText($n);
+                $n = $xp->query($q1)->item(0); if ($n) return $getText($n);
 
                 $q2 = sprintf(
                     '//span[contains(@class,"texto_black2")][contains(normalize-space(), "%s")]/ancestor::td[1]/following-sibling::td[1]//span[contains(@class,"texto_menor")][1]',
                     $label
                 );
-                $n = $xp->query($q2)->item(0);
-                if ($n) return $getText($n);
+                $n = $xp->query($q2)->item(0); if ($n) return $getText($n);
 
                 $q3 = sprintf(
                     '//span[contains(@class,"texto_black2")][contains(normalize-space(), "%s")]/ancestor::td[1]/following-sibling::td//span[contains(@class,"texto_menor")][1]',
                     $label
                 );
-                $n = $xp->query($q3)->item(0);
-                if ($n) return $getText($n);
+                $n = $xp->query($q3)->item(0); if ($n) return $getText($n);
 
                 return null;
             };
 
-            // pega valor inline
             $findInlineValue = function(string $label) use ($xp, $getText) {
                 $q = sprintf(
                     '//span[contains(@class,"texto_black2")][contains(normalize-space(), "%s")]/following::span[contains(@class,"texto_menor")][1]',
@@ -74,7 +65,6 @@ class BloqueiosAtivosController extends Controller
                 return $n ? $getText($n) : null;
             };
 
-            // data/hora impressa (se existir, padrão do site)
             $bodyText = $xp->query('//body')->item(0);
             $allText = $getText($bodyText);
             $dataHora = null;
@@ -82,7 +72,6 @@ class BloqueiosAtivosController extends Controller
                 $dataHora = $m[1];
             }
 
-            // labels genéricos (aproveitamos a mesma base)
             $L = [
                 'Placa'                     => ['Placa'],
                 'Municipio'                 => ['Município', 'Municipio'],
@@ -130,7 +119,6 @@ class BloqueiosAtivosController extends Controller
                 return null;
             };
 
-            // objeto base
             $out = [
                 'fonte' => [
                     'titulo'    => 'eCRVsp - DETRAN - São Paulo',
@@ -153,7 +141,6 @@ class BloqueiosAtivosController extends Controller
                 'proprietario' => [
                     'nome' => $pick($L['Proprietario']),
                 ],
-                // Grupo "bloqueios" destacado pois esta consulta é de Bloqueios Ativos
                 'bloqueios' => [
                     'renajud'          => $pick($L['Rest_RENAJUD']),
                     'judicial'         => $pick($L['Rest_Judicial']),
@@ -162,7 +149,6 @@ class BloqueiosAtivosController extends Controller
                     'furto'            => $pick($L['Rest_Furto']),
                     'guincho'          => $pick($L['Rest_Guincho']),
                 ],
-                // mantemos seções extras caso o HTML retorne dados correlatos
                 'inspecao_ambiental' => $pick($L['Rest_InspecaoAmbiental']),
                 'crv_crlv_atualizacao' => [
                     'exercicio_licenciamento' => $pick($L['CRV_Exercicio']),
@@ -182,7 +168,6 @@ class BloqueiosAtivosController extends Controller
                 ],
             ];
 
-            // 3) Sanitização geral
             $sanitize = function (&$arr) use (&$sanitize) {
                 foreach ($arr as $k => &$v) {
                     if (is_array($v)) { $sanitize($v); continue; }
@@ -196,15 +181,14 @@ class BloqueiosAtivosController extends Controller
             $sanitize($out);
 
             return json_encode($out, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_PRETTY_PRINT);
-        }
+        };
         // ---------- Fim parser ----------
 
         // Entrada
-        $opcao = $request->query('opcaoPesquisa');
+        $opcao  = $request->query('opcaoPesquisa');
         $chassi = $request->query('chassi');
         $captcha = $request->query('captcha');
 
-        // validação compatível com seu script antigo
         if (!in_array((string)$opcao, ['1', '2'], true)) {
             return response()->json(
                 ['message' => 'Valor inválido para opcaoPesquisa. Apenas 1 ou 2 são permitidos.'],
@@ -227,7 +211,7 @@ class BloqueiosAtivosController extends Controller
             );
         }
 
-        // Headers/Cookies
+        // Requisição
         $headers = [
             'Accept'                    => 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7',
             'Accept-Language'           => 'pt-BR,pt;q=0.9,en-US;q=0.8,en;q=0.7',
@@ -248,18 +232,15 @@ class BloqueiosAtivosController extends Controller
         ];
         $cookieDomain = 'www.e-crvsp.sp.gov.br';
 
-        // Importante: seu script antigo postava "chassi" (mas não definia a variável).
-        // Aqui manteremos compatibilidade com o site enviando os campos clássicos.
-        // Se a tela exigir chassi conforme a opção, ajuste aqui para atender ao formulário real.
         $form = [
             'method'          => 'pesquisar',
-            'opcaoPesquisa'   => $opcao,
-            'chassi'           => $chassi,
+            'opcaoPesquisa'   => (string)$opcao,
+            'chassi'          => strtoupper($chassi),
             'captchaResponse' => strtoupper($captcha),
         ];
 
         $response = Http::withHeaders($headers)
-            ->withOptions(['verify' => false]) // se necessário; em produção prefira manter verificação
+            ->withOptions(['verify' => false])
             ->withCookies([
                 'dataUsuarPublic' => 'Mon Mar 24 2025 08:14:44 GMT-0300 (Horário Padrão de Brasília)',
                 'JSESSIONID'      => $token,
@@ -267,16 +248,8 @@ class BloqueiosAtivosController extends Controller
             ->asForm()
             ->post('https://www.e-crvsp.sp.gov.br/gever/GVR/pesquisa/bloqueiosAtivos.do', $form);
 
-        // (Opcional) tratar HTTP de erro
-        // if (!$response->successful()) {
-        //     return response()->json(
-        //         ['message' => 'Falha ao consultar a base de Bloqueios Ativos.'],
-        //         Response::HTTP_BAD_GATEWAY
-        //     );
-        // }
-
-        // Parse do HTML -> JSON padronizado
-        $body = parseDetranHtmlToJson($response->body());
+        // Saída JSON
+        $body = $parse($response->body());
 
         return response($body, Response::HTTP_OK)
             ->header('Content-Type', 'application/json; charset=UTF-8');
