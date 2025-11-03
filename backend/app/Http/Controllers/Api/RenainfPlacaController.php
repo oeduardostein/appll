@@ -15,9 +15,9 @@ class RenainfPlacaController extends Controller
 {
     public function __invoke(Request $request): Response
     {
-        // Parser como CLOSURE para evitar redeclaração
+        // -------- Parser (closure p/ evitar redeclaração) --------
         $parse = function (string $html): string {
-            // Força encoding amigável ao DOM (página declara ISO-8859-1)
+            // Página declara ISO-8859-1 — converte p/ entidades HTML (seguro p/ DOM)
             if (stripos($html, 'charset=iso-8859-1') !== false || stripos($html, 'charset=iso8859-1') !== false) {
                 $html = @mb_convert_encoding($html, 'HTML-ENTITIES', 'ISO-8859-1');
             }
@@ -28,115 +28,91 @@ class RenainfPlacaController extends Controller
             libxml_clear_errors();
             $xp = new DOMXPath($dom);
 
-            // Helpers
             $norm = fn($s) => preg_replace('/\s+/u', ' ', trim(html_entity_decode($s, ENT_QUOTES | ENT_HTML5, 'UTF-8')));
-            $getText = function (?DOMNode $n) use ($norm) { return $n ? $norm($n->textContent ?? '') : null; };
+            $txt  = function (?DOMNode $n) use ($norm) { return $n ? $norm($n->textContent ?? '') : null; };
 
-            // Label → valor (à direita)
-            $findValueByLabel = function (string $label) use ($xp, $getText) {
+            // Busca valor ao lado de um label (<span.texto_black2>)
+            $findValueByLabel = function (string $label) use ($xp, $txt) {
+                // match exato
                 $q1 = sprintf('//span[contains(@class,"texto_black2")][normalize-space()="%s"]/ancestor::td[1]/following-sibling::td[1]//*[contains(@class,"texto_menor")][1]', $label);
-                $n = $xp->query($q1)->item(0); if ($n) return $getText($n);
-
+                $n1 = $xp->query($q1)->item(0);
+                if ($n1) return $txt($n1);
+                // contém (tolerante)
                 $q2 = sprintf('//span[contains(@class,"texto_black2")][contains(normalize-space(), "%s")]/ancestor::td[1]/following-sibling::td[1]//*[contains(@class,"texto_menor")][1]', $label);
-                $n = $xp->query($q2)->item(0); if ($n) return $getText($n);
-
+                $n2 = $xp->query($q2)->item(0);
+                if ($n2) return $txt($n2);
+                // fallback (colspan)
                 $q3 = sprintf('//span[contains(@class,"texto_black2")][contains(normalize-space(), "%s")]/ancestor::td[1]/following-sibling::td//*[contains(@class,"texto_menor")][1]', $label);
-                $n = $xp->query($q3)->item(0); if ($n) return $getText($n);
-
-                return null;
+                $n3 = $xp->query($q3)->item(0);
+                return $n3 ? $txt($n3) : null;
             };
 
-            // Inline (fallback)
-            $findInlineValue = function (string $label) use ($xp, $getText) {
-                $q = sprintf('//span[contains(@class,"texto_black2")][contains(normalize-space(), "%s")]/following::span[contains(@class,"texto_menor")][1]', $label);
-                $n = $xp->query($q)->item(0);
-                return $n ? $getText($n) : null;
-            };
-
-            // Data/hora impressa (ex.: 03/11/2025 16:19:19)
-            $bodyText = $xp->query('//body')->item(0);
-            $allText  = $getText($bodyText);
+            // Timestamp (ex.: 03/11/2025 16:19:19)
+            $allText  = $txt($xp->query('//body')->item(0));
             $dataHora = null;
             if ($allText && preg_match('/\b(\d{2}\/\d{2}\/\d{4}\s+\d{2}:\d{2}:\d{2})\b/u', $allText, $m)) {
                 $dataHora = $m[1];
             }
 
-            // Labels da tela RENAINF (exatamente como no HTML enviado)
+            // Labels conforme a tela enviada
             $L = [
-                // bloco "Dados da Consulta"
-                'Placa'                 => ['Placa'],
-                'UF_Emplacamento'       => ['UF de Emplacamento'],
-                'IndicadorExigibilidade'=> ['Indicador Exigibilidade'],
-
-                // bloco "Quantidade de Ocorrências"
-                'QtdOcorrencias'        => ['Quantidade de Ocorrências'],
-
-                // (genéricos – mantidos se a tela tiver)
-                'Municipio'    => ['Município', 'Municipio'],
-                'Renavam'      => ['Renavam'],
-                'Chassi'       => ['Chassi'],
-                'Tipo'         => ['Tipo'],
-                'Procedencia'  => ['Procedência', 'Procedencia'],
-                'Combustivel'  => ['Combustível', 'Combustivel'],
-                'Cor'          => ['Cor'],
-                'Marca'        => ['Marca'],
-                'Categoria'    => ['Categoria'],
-                'AnoFab'       => ['Ano Fabr.', 'Ano Fabr', "Ano\nFabr."],
-                'AnoModelo'    => ['Ano Modelo', "Ano\nModelo"],
-                'Proprietario' => ['Nome do Proprietário', 'Nome do Proprietario'],
+                'Placa'                   => ['Placa'],
+                'UF_Emplacamento'         => ['UF de Emplacamento'],
+                'IndicadorExigibilidade'  => ['Indicador Exigibilidade'],
+                'QtdOcorrencias'          => ['Quantidade de Ocorrências', 'Quantidade de Ocorr\u00eancias', 'Quantidade de Ocorrencias'],
             ];
 
-            $pick = function (array $labels) use ($findValueByLabel, $findInlineValue) {
+            $pick = function (array $labels) use ($findValueByLabel) {
                 foreach ($labels as $lab) {
-                    $v = $findValueByLabel($lab); if ($v !== null && $v !== '') return $v;
-                    $v = $findInlineValue($lab);  if ($v !== null && $v !== '') return $v;
+                    $v = $findValueByLabel($lab);
+                    if ($v !== null && $v !== '') return $v;
                 }
                 return null;
             };
 
-            // Extrai a tabela de ocorrências (id="listRenainfId")
+            // Tabela de ocorrências
             $ocorrencias = [];
-            $table = $xp->query('//*[@id="listRenainfId"]/tbody')->item(0);
-            if ($table) {
-                foreach ($xp->query('./tr', $table) as $tr) {
+            $tbody = $xp->query('//*[@id="listRenainfId"]/tbody')->item(0);
+            if ($tbody) {
+                foreach ($xp->query('./tr', $tbody) as $tr) {
                     $tds = $xp->query('./td', $tr);
                     if ($tds->length >= 6) {
-                        // Colunas (ignorando a 1ª que tem o botão)
-                        $orgao         = trim($getText($tds->item(1)));
-                        $autoInfracao  = trim($getText($tds->item(2)));
-                        $infracao      = trim($getText($tds->item(3)));
-                        $dataInfracao  = trim($getText($tds->item(4)));
-                        $exigibilidade = trim($getText($tds->item(5)));
+                        // ignora col 0 (botão lupa)
+                        $orgao         = $txt($tds->item(1));
+                        $autoInfracao  = $txt($tds->item(2));
+                        $infracao      = $txt($tds->item(3));
+                        $dataInfracao  = $txt($tds->item(4));
+                        $exigibilidade = $txt($tds->item(5));
 
                         $ocorrencias[] = [
-                            'orgao_autuador'    => $orgao,         // ex.: "271070"
-                            'auto_infracao'     => $autoInfracao,  // ex.: "7RA1254609"
-                            'infracao'          => $infracao,      // ex.: "5746"
-                            'data_infracao'     => $dataInfracao,  // ex.: "08/05/2025"
-                            'exigibilidade'     => $exigibilidade, // ex.: "Não"
+                            'orgao_autuador' => $orgao,          // ex.: 271070
+                            'auto_infracao'  => $autoInfracao,   // ex.: 7RA1254609
+                            'infracao'       => $infracao,       // ex.: 5746
+                            'data_infracao'  => $dataInfracao,   // ex.: 08/05/2025
+                            'exigibilidade'  => $exigibilidade,  // ex.: Não
                         ];
                     }
                 }
             }
 
-            // Monta JSON padronizado
+            // JSON de saída
             $out = [
                 'fonte' => [
                     'titulo'    => 'eCRVsp - DETRAN - São Paulo',
                     'gerado_em' => $dataHora,
                 ],
                 'consulta' => [
-                    'placa'                 => $pick($L['Placa']),                 // "FMY8A88"
-                    'uf_emplacamento'       => $pick($L['UF_Emplacamento']),       // "SP"
-                    'indicador_exigibilidade'=> $pick($L['IndicadorExigibilidade']) // "Todas as Multas"
+                    'placa'                   => $pick($L['Placa']),
+                    'uf_emplacamento'         => $pick($L['UF_Emplacamento']),
+                    'indicador_exigibilidade' => $pick($L['IndicadorExigibilidade']),
                 ],
                 'renainf' => [
-                    'quantidade_ocorrencias' => $pick($L['QtdOcorrencias']),       // "28"
-                    'ocorrencias'            => $ocorrencias,                      // lista com as linhas da tabela
+                    'quantidade_ocorrencias'  => $pick($L['QtdOcorrencias']),
+                    'ocorrencias'             => $ocorrencias,
                 ],
             ];
 
-            // Sanitização suave
+            // Sanitização leve (apenas espaços)
             $sanitize = function (&$arr) use (&$sanitize) {
                 foreach ($arr as $k => &$v) {
                     if (is_array($v)) { $sanitize($v); continue; }
@@ -148,23 +124,26 @@ class RenainfPlacaController extends Controller
 
             return json_encode($out, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_PRETTY_PRINT);
         };
+        // -------- Fim parser --------
 
-        // ---------- Entrada ----------
-        $indExigib  = $request->query('indExigib');      // "Todas", "Exigíveis", etc. (como no seu front)
-        $periodoIni = $request->query('periodoIni');     // dd/mm/aaaa
-        $periodoFin = $request->query('periodoFin');     // dd/mm/aaaa
-        $placa      = $request->query('placa');
-        $uf         = $request->query('uf');
-        $captcha    = $request->query('captchaResponse');
+        // -------- Entrada --------
+        $indExigib  = $request->query('indExigib');     // "1" (Cobrança) | "2" (Todas) — conforme tela
+        $periodoIni = $request->query('periodoIni');    // dd/mm/aaaa
+        $periodoFin = $request->query('periodoFin');    // dd/mm/aaaa
+        $placa      = $request->query('placa');         // obrigatório
+        $uf         = $request->query('uf');            // OPCIONAL na tela
+        // aceitar captchaResponse OU captcha
+        $captcha    = $request->query('captchaResponse') ?: $request->query('captcha');
 
-        if (!$placa || !$uf || !$periodoIni || !$periodoFin || $indExigib === null || !$captcha) {
+        // Validação (UF não é obrigatório)
+        if (!$placa || !$periodoIni || !$periodoFin || $indExigib === null || !$captcha) {
             return response()->json(
-                ['message' => 'Informe placa, uf, periodoIni, periodoFin, indExigib e captchaResponse.'],
+                ['message' => 'Informe placa, periodoIni, periodoFin, indExigib e captchaResponse (ou captcha).'],
                 Response::HTTP_UNPROCESSABLE_ENTITY
             );
         }
 
-        // ---------- Token via admin_settings.value ----------
+        // -------- Token (JSESSIONID) --------
         $token = DB::table('admin_settings')->where('id', 1)->value('value');
         if (!$token) {
             return response()->json(
@@ -173,7 +152,7 @@ class RenainfPlacaController extends Controller
             );
         }
 
-        // ---------- Requisição ----------
+        // -------- Requisição --------
         $headers = [
             'Accept'                    => 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7',
             'Accept-Language'           => 'pt-BR,pt;q=0.9,en-US;q=0.8,en;q=0.7',
@@ -194,15 +173,19 @@ class RenainfPlacaController extends Controller
         ];
         $cookieDomain = 'www.e-crvsp.sp.gov.br';
 
+        // Monta o formulário exatamente como a tela usa (method=pesquisar)
         $form = [
             'method'          => 'pesquisar',
             'placa'           => strtoupper($placa),
-            'uf'              => strtoupper($uf),
             'periodoIni'      => $periodoIni,
             'periodoFin'      => $periodoFin,
             'indExigib'       => (string) $indExigib,
             'captchaResponse' => strtoupper($captcha),
         ];
+        // Só envia UF se o cliente tiver informado (é opcional)
+        if (!empty($uf)) {
+            $form['uf'] = strtoupper($uf);
+        }
 
         $response = Http::withHeaders($headers)
             ->withOptions(['verify' => false]) // em produção, prefira verify=true
@@ -213,7 +196,7 @@ class RenainfPlacaController extends Controller
             ->asForm()
             ->post('https://www.e-crvsp.sp.gov.br/gever/GVR/pesquisa/renainf/placa.do', $form);
 
-        // Saída JSON (tela HTML → JSON)
+        // -------- Saída JSON --------
         $body = $parse($response->body());
 
         return response($body, Response::HTTP_OK)
