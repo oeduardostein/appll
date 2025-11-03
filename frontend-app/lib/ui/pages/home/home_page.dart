@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:typed_data';
 
@@ -6,6 +7,8 @@ import 'package:flutter/services.dart';
 
 import 'package:frontend_app/services/auth_service.dart';
 import 'package:frontend_app/services/base_estadual_service.dart';
+import 'package:frontend_app/services/renainf_service.dart';
+import 'package:frontend_app/services/pesquisa_service.dart';
 
 import '../atpv/atpv_form_page.dart';
 import '../base_state/base_estadual_page.dart';
@@ -34,6 +37,9 @@ class HomePage extends StatefulWidget {
 class _HomePageState extends State<HomePage> {
   final _authService = AuthService();
   final _baseEstadualService = BaseEstadualService();
+  late final PesquisaService _pesquisaService =
+      PesquisaService(authService: _authService);
+  final _renainfService = RenainfService();
   AuthUser? _currentUser;
   bool _isFetchingUser = false;
 
@@ -90,6 +96,36 @@ class _HomePageState extends State<HomePage> {
   );
   static final RegExp _chassiPattern = RegExp(r'^[A-HJ-NPR-Z0-9]{17}$');
 
+  static const List<String> _brazilUfCodes = [
+    'AC',
+    'AL',
+    'AP',
+    'AM',
+    'BA',
+    'CE',
+    'DF',
+    'ES',
+    'GO',
+    'MA',
+    'MT',
+    'MS',
+    'MG',
+    'PA',
+    'PB',
+    'PR',
+    'PE',
+    'PI',
+    'RJ',
+    'RN',
+    'RS',
+    'RO',
+    'RR',
+    'SC',
+    'SP',
+    'SE',
+    'TO',
+  ];
+
   int? _expandedIndex;
 
   void _toggleExpanded(int index) {
@@ -140,6 +176,11 @@ class _HomePageState extends State<HomePage> {
       if (!mounted) return;
       Navigator.of(context, rootNavigator: true).pop();
       if (!mounted) return;
+      _registerPesquisa(
+        nome: 'Base estadual',
+        placa: query.placa,
+        renavam: query.renavam,
+      );
       Navigator.of(context).push(
         MaterialPageRoute(
           builder: (_) => BaseEstadualPage(
@@ -457,6 +498,11 @@ class _HomePageState extends State<HomePage> {
       if (!mounted) return;
       Navigator.of(context, rootNavigator: true).pop();
       if (!mounted) return;
+      _registerPesquisa(
+        nome: 'Base outros estados',
+        chassi: query.chassi,
+        opcaoPesquisa: query.uf,
+      );
       final htmlResponse = result['html'];
       if (htmlResponse is String && htmlResponse.isNotEmpty) {
         await _showBaseOutrosEstadosHtmlDialog(
@@ -505,6 +551,11 @@ class _HomePageState extends State<HomePage> {
       if (!mounted) return;
       Navigator.of(context, rootNavigator: true).pop();
       if (!mounted) return;
+      _registerPesquisa(
+        nome: 'BIN',
+        placa: query.placa,
+        renavam: query.renavam,
+      );
       Navigator.of(context).push(
         MaterialPageRoute(
           builder: (_) => BinResultPage(
@@ -529,19 +580,44 @@ class _HomePageState extends State<HomePage> {
     final request = await _showRenainfDialog();
     if (request == null || !mounted) return;
 
-    await _showLoadingDialog();
-    if (!mounted) return;
-
-    Navigator.of(context).push(
-      MaterialPageRoute(
-        builder: (_) => RenainfPage(
-          plate: request.plate,
-          status: request.status,
-          startDate: request.startDate,
-          endDate: request.endDate,
-        ),
-      ),
+    showDialog<void>(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) => const LoadingDialog(),
     );
+
+    try {
+      final result = await _renainfService.consultar(
+        plate: request.plate,
+        statusCode: request.statusCode,
+        statusLabel: request.statusLabel,
+        uf: request.uf,
+        startDate: request.startDate,
+        endDate: request.endDate,
+        captcha: request.captcha,
+      );
+      if (!mounted) return;
+      Navigator.of(context, rootNavigator: true).pop();
+      if (!mounted) return;
+      _registerPesquisa(
+        nome: 'RENAINF',
+        placa: request.plate,
+        opcaoPesquisa: '${request.statusCode}-${request.statusLabel}',
+      );
+      Navigator.of(context).push(
+        MaterialPageRoute(
+          builder: (_) => RenainfPage(result: result),
+        ),
+      );
+    } on RenainfException catch (e) {
+      if (!mounted) return;
+      Navigator.of(context, rootNavigator: true).pop();
+      _showErrorMessage(e.message);
+    } catch (_) {
+      if (!mounted) return;
+      Navigator.of(context, rootNavigator: true).pop();
+      _showErrorMessage('Não foi possível consultar o RENAINF.');
+    }
   }
 
   Future<void> _handleEcrvProcessFlow() async {
@@ -550,6 +626,11 @@ class _HomePageState extends State<HomePage> {
 
     await _showLoadingDialog();
     if (!mounted) return;
+    _registerPesquisa(
+      nome: 'Processo e-CRVsp',
+      placa: request.plate,
+      chassi: request.chassi,
+    );
 
     Navigator.of(context).push(
       MaterialPageRoute(
@@ -575,17 +656,21 @@ class _HomePageState extends State<HomePage> {
       final result = await _baseEstadualService.consultarBloqueiosAtivos(
         origin: request.origin,
         captcha: request.captcha,
-        placa: request.plate,
         chassi: request.chassi,
+        opcaoPesquisa: request.opcaoPesquisa,
       );
       if (!mounted) return;
       Navigator.of(context, rootNavigator: true).pop();
       if (!mounted) return;
+      _registerPesquisa(
+        nome: 'Bloqueios ativos',
+        chassi: request.chassi,
+        opcaoPesquisa: request.opcaoPesquisa,
+      );
       Navigator.of(context).push(
         MaterialPageRoute(
           builder: (_) => BloqueiosPage(
             origin: request.origin,
-            plate: request.plate,
             chassi: request.chassi,
             payload: result,
           ),
@@ -636,6 +721,12 @@ class _HomePageState extends State<HomePage> {
       if (!mounted) return;
       Navigator.of(context, rootNavigator: true).pop();
       if (!mounted) return;
+      _registerPesquisa(
+        nome: 'Emissão do CRLV-e',
+        placa: request.plate,
+        renavam: request.renavam,
+        opcaoPesquisa: opcao,
+      );
       Navigator.of(context).push(
         MaterialPageRoute(
           builder: (_) => BaseEstadualPage(
@@ -676,6 +767,11 @@ class _HomePageState extends State<HomePage> {
       if (!mounted) return;
       Navigator.of(context, rootNavigator: true).pop();
       if (!mounted) return;
+      _registerPesquisa(
+        nome: 'Emissão da ATPV-e',
+        placa: request.plate,
+        renavam: request.renavam,
+      );
       Navigator.of(context).push(
         MaterialPageRoute(
           builder: (_) => BaseEstadualPage(
@@ -1276,8 +1372,8 @@ class _HomePageState extends State<HomePage> {
   Future<_BaseOutrosEstadosQuery?> _showBaseOutrosEstadosDialog() async {
     final formKey = GlobalKey<FormState>();
     final chassiController = TextEditingController();
-    final ufController = TextEditingController(text: 'SP');
     final captchaController = TextEditingController();
+    String? selectedUf;
 
     String? captchaBase64;
     String? captchaError;
@@ -1393,27 +1489,28 @@ class _HomePageState extends State<HomePage> {
                         },
                       ),
                       const SizedBox(height: 16),
-                      TextFormField(
-                        controller: ufController,
+                      DropdownButtonFormField<String>(
+                        value: selectedUf,
                         decoration: const InputDecoration(
                           labelText: 'UF',
-                          hintText: 'Ex: SP',
+                          hintText: 'Selecione a UF',
                         ),
-                        inputFormatters: [
-                          const _UpperCaseTextFormatter(),
-                          FilteringTextInputFormatter.allow(
-                            RegExp('[A-Za-z]'),
-                          ),
-                          LengthLimitingTextInputFormatter(2),
-                        ],
-                        textCapitalization: TextCapitalization.characters,
+                        items: _brazilUfCodes
+                            .map(
+                              (uf) => DropdownMenuItem<String>(
+                                value: uf,
+                                child: Text(uf),
+                              ),
+                            )
+                            .toList(),
+                        onChanged: (value) {
+                          setState(() {
+                            selectedUf = value;
+                          });
+                        },
                         validator: (value) {
-                          final text = value?.trim().toUpperCase() ?? '';
-                          if (text.isEmpty) {
-                            return 'Informe a UF';
-                          }
-                          if (!RegExp(r'^[A-Z]{2}$').hasMatch(text)) {
-                            return 'UF inválida';
+                          if (value == null || value.isEmpty) {
+                            return 'Selecione a UF';
                           }
                           return null;
                         },
@@ -1518,13 +1615,16 @@ class _HomePageState extends State<HomePage> {
                                 if (!formKey.currentState!.validate()) {
                                   return;
                                 }
+                                if (selectedUf == null) {
+                                  return;
+                                }
                                 FocusManager.instance.primaryFocus?.unfocus();
                                 Navigator.of(dialogContext).pop(
                                   _BaseOutrosEstadosQuery(
                                     chassi: chassiController.text
                                         .trim()
                                         .toUpperCase(),
-                                    uf: ufController.text.trim().toUpperCase(),
+                                    uf: selectedUf!,
                                     captcha: captchaController.text
                                         .trim()
                                         .toUpperCase(),
@@ -1551,7 +1651,6 @@ class _HomePageState extends State<HomePage> {
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
       chassiController.dispose();
-      ufController.dispose();
       captchaController.dispose();
     });
     return result;
@@ -1694,12 +1793,53 @@ class _HomePageState extends State<HomePage> {
 
     await _showLoadingDialog();
     if (!mounted) return;
+    _registerPesquisa(
+      nome: 'Gravame',
+      placa: request.plate,
+      chassi: request.chassi,
+    );
 
     Navigator.of(context).push(
       MaterialPageRoute(
         builder: (_) => const GravamePage(),
       ),
     );
+  }
+
+  void _registerPesquisa({
+    required String nome,
+    String? placa,
+    String? renavam,
+    String? chassi,
+    String? opcaoPesquisa,
+  }) {
+    if (_authService.session == null) {
+      return;
+    }
+
+    String? normalize(String? value) {
+      final trimmed = value?.trim();
+      if (trimmed == null || trimmed.isEmpty) {
+        return null;
+      }
+      return trimmed;
+    }
+
+    unawaited(() async {
+      try {
+        await _pesquisaService.salvarPesquisa(
+          nome: nome,
+          placa: normalize(placa),
+          renavam: normalize(renavam),
+          chassi: normalize(chassi),
+          opcaoPesquisa: normalize(opcaoPesquisa),
+        );
+      } on PesquisaException catch (e) {
+        debugPrint('Falha ao registrar pesquisa "$nome": ${e.message}');
+      } catch (e) {
+        debugPrint('Falha ao registrar pesquisa "$nome": $e');
+      }
+    }());
   }
 
   Future<void> _showBaseOutrosEstadosHtmlDialog({
@@ -1947,19 +2087,59 @@ class _HomePageState extends State<HomePage> {
   }
 
   Future<_RenainfRequest?> _showRenainfDialog() async {
+    final formKey = GlobalKey<FormState>();
     final plateController = TextEditingController();
     final startDateController = TextEditingController();
     final endDateController = TextEditingController();
+    final captchaController = TextEditingController();
 
-    final statusOptions = ['Todas', 'Em aberto', 'Pago', 'Em recurso'];
+    const statusOptions = [
+      {'label': 'Todas', 'value': 2},
+      {'label': 'Multas em cobrança', 'value': 1},
+    ];
 
-    String? selectedStatus = 'Todas';
+    int? selectedStatusValue = 2;
+    String selectedStatusLabel = 'Todas';
+    String? selectedUf;
     DateTime? startDate;
     DateTime? endDate;
-    bool dateRangeValid = true;
 
-    Future<void> pickDate({required bool isStart}) async {
-      final initialDate = isStart ? startDate ?? DateTime.now() : endDate ?? DateTime.now();
+    String? captchaBase64;
+    String? captchaError;
+    bool isLoadingCaptcha = false;
+    bool initialized = false;
+
+    Future<void> refreshCaptcha(StateSetter setState) async {
+      setState(() {
+        isLoadingCaptcha = true;
+        captchaError = null;
+      });
+      try {
+        final image = await _baseEstadualService.fetchCaptcha();
+        setState(() {
+          captchaBase64 = image;
+        });
+      } on BaseEstadualException catch (e) {
+        setState(() {
+          captchaError = e.message;
+        });
+      } catch (_) {
+        setState(() {
+          captchaError = 'Erro ao carregar captcha.';
+        });
+      } finally {
+        setState(() {
+          isLoadingCaptcha = false;
+        });
+      }
+    }
+
+    Future<void> pickDate({
+      required bool isStart,
+      required StateSetter setState,
+    }) async {
+      final initialDate =
+          isStart ? startDate ?? DateTime.now() : endDate ?? DateTime.now();
       final firstDate = DateTime(DateTime.now().year - 5);
       final lastDate = DateTime.now();
 
@@ -1972,23 +2152,18 @@ class _HomePageState extends State<HomePage> {
 
       if (picked == null) return;
 
-      if (isStart) {
-        startDate = picked;
-        startDateController.text = _formatDate(picked);
-        if (endDate != null && picked.isAfter(endDate!)) {
-          dateRangeValid = false;
+      setState(() {
+        if (isStart) {
+          startDate = picked;
+          startDateController.text = _formatDate(picked);
         } else {
-          dateRangeValid = endDate != null;
+          endDate = picked;
+          endDateController.text = _formatDate(picked);
         }
-      } else {
-        endDate = picked;
-        endDateController.text = _formatDate(picked);
-        if (startDate != null && picked.isBefore(startDate!)) {
-          dateRangeValid = false;
-        } else {
-          dateRangeValid = startDate != null;
-        }
-      }
+      });
+
+      // Trigger validation updates.
+      formKey.currentState?.validate();
     }
 
     final result = await showDialog<_RenainfRequest>(
@@ -2002,154 +2177,332 @@ class _HomePageState extends State<HomePage> {
           ),
           child: StatefulBuilder(
             builder: (context, setState) {
+              if (!initialized) {
+                initialized = true;
+                Future.microtask(() => refreshCaptcha(setState));
+              }
+
+              Uint8List? captchaBytes;
+              if (captchaBase64 != null && captchaBase64!.isNotEmpty) {
+                try {
+                  captchaBytes = base64Decode(captchaBase64!);
+                } catch (_) {
+                  captchaError ??= 'Captcha recebido em formato inválido.';
+                }
+              }
+
               final plateText = plateController.text.trim().toUpperCase();
+              final captchaText = captchaController.text.trim().toUpperCase();
               final plateValid =
                   plateText.isNotEmpty && _isValidPlate(plateText);
+              final datesValid = startDate != null &&
+                  endDate != null &&
+                  !startDate!.isAfter(endDate!);
+              final captchaLoaded =
+                  captchaBase64 != null && captchaBase64!.isNotEmpty;
 
-              final readyToSubmit =
-                  plateValid && startDate != null && endDate != null && dateRangeValid;
+              final readyToSubmit = plateValid &&
+                  datesValid &&
+                  selectedStatusValue != null &&
+                  selectedUf != null &&
+                  captchaLoaded &&
+                  captchaText.isNotEmpty &&
+                  !isLoadingCaptcha;
 
-              return Padding(
-                padding: const EdgeInsets.fromLTRB(20, 20, 20, 24),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    Row(
-                      children: [
-                        Text(
-                          'RENAINF',
-                          style: Theme.of(context).textTheme.titleMedium
-                              ?.copyWith(fontWeight: FontWeight.w700),
-                        ),
-                        const Spacer(),
-                        IconButton(
-                          onPressed: () {
-                            FocusManager.instance.primaryFocus?.unfocus();
-                            Navigator.of(dialogContext).pop();
-                          },
-                          icon: const Icon(Icons.close),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 12),
-                    TextField(
-                      controller: plateController,
-                      decoration: InputDecoration(
-                        labelText: 'Placa',
-                        errorText: plateText.isNotEmpty && !plateValid
-                            ? 'Placa inválida'
-                            : null,
-                      ),
-                      inputFormatters: [
-                        const _UpperCaseTextFormatter(),
-                        FilteringTextInputFormatter.allow(
-                          RegExp('[A-Za-z0-9]'),
-                        ),
-                        LengthLimitingTextInputFormatter(7),
-                      ],
-                      textCapitalization: TextCapitalization.characters,
-                      onChanged: (_) => setState(() {}),
-                    ),
-                    const SizedBox(height: 12),
-                    DropdownButtonFormField<String>(
-                      decoration: const InputDecoration(
-                        labelText: 'Status da multa',
-                      ),
-                      value: selectedStatus,
-                      items: statusOptions
-                          .map(
-                            (status) => DropdownMenuItem(
-                              value: status,
-                              child: Text(status),
-                            ),
-                          )
-                          .toList(),
-                      onChanged: (value) {
-                        setState(() {
-                          selectedStatus = value;
-                        });
-                      },
-                    ),
-                    const SizedBox(height: 12),
-                    Row(
-                      children: [
-                        Expanded(
-                          child: GestureDetector(
-                            onTap: () async {
+              return Form(
+                key: formKey,
+                autovalidateMode: AutovalidateMode.onUserInteraction,
+                child: SingleChildScrollView(
+                  padding: const EdgeInsets.fromLTRB(20, 20, 20, 24),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      Row(
+                        children: [
+                          Text(
+                            'RENAINF',
+                            style: Theme.of(context).textTheme.titleMedium
+                                ?.copyWith(fontWeight: FontWeight.w700),
+                          ),
+                          const Spacer(),
+                          IconButton(
+                            onPressed: () {
                               FocusManager.instance.primaryFocus?.unfocus();
-                              await pickDate(isStart: true);
-                              setState(() {});
+                              Navigator.of(dialogContext).pop();
                             },
-                            child: AbsorbPointer(
-                              child: TextField(
-                                controller: startDateController,
-                                readOnly: true,
-                                decoration: InputDecoration(
-                                  labelText: 'Data inicial',
-                                  errorText: dateRangeValid ? null : '',
-                                ),
-                              ),
-                            ),
+                            icon: const Icon(Icons.close),
                           ),
-                        ),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: GestureDetector(
-                            onTap: () async {
-                              FocusManager.instance.primaryFocus?.unfocus();
-                              await pickDate(isStart: false);
-                              setState(() {});
-                            },
-                            child: AbsorbPointer(
-                              child: TextField(
-                                controller: endDateController,
-                                readOnly: true,
-                                decoration: InputDecoration(
-                                  labelText: 'Data final',
-                                  errorText: dateRangeValid ? null : '',
-                                ),
-                              ),
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                    if (!dateRangeValid)
-                      Padding(
-                        padding: const EdgeInsets.only(top: 8),
-                        child: Text(
-                          'A data final deve ser posterior à data inicial.',
-                          style: TextStyle(
-                            color: Theme.of(context).colorScheme.error,
-                            fontSize: 12,
-                          ),
-                        ),
+                        ],
                       ),
-                    const SizedBox(height: 24),
-                    FilledButton(
-                      onPressed: readyToSubmit
-                          ? () {
-                              FocusManager.instance.primaryFocus?.unfocus();
-                              Navigator.of(dialogContext).pop(
-                                _RenainfRequest(
-                                  plate: plateText,
-                                  status: selectedStatus ?? 'Todas',
-                                  startDate: startDate!,
-                                  endDate: endDate!,
-                                ),
-                              );
-                            }
-                          : null,
-                      style: FilledButton.styleFrom(
-                        minimumSize: const Size.fromHeight(52),
-                        shape: RoundedRectangleBorder(
+                      const SizedBox(height: 12),
+                      TextFormField(
+                        controller: plateController,
+                        decoration: const InputDecoration(
+                          labelText: 'Placa',
+                        ),
+                        inputFormatters: [
+                          const _UpperCaseTextFormatter(),
+                          FilteringTextInputFormatter.allow(
+                            RegExp('[A-Za-z0-9]'),
+                          ),
+                          LengthLimitingTextInputFormatter(7),
+                        ],
+                        textCapitalization: TextCapitalization.characters,
+                        validator: (value) {
+                          final text = value?.trim().toUpperCase() ?? '';
+                          if (text.isEmpty) {
+                            return 'Informe a placa';
+                          }
+                          if (!_isValidPlate(text)) {
+                            return 'Placa inválida';
+                          }
+                          return null;
+                        },
+                        onChanged: (_) => setState(() {}),
+                      ),
+                      const SizedBox(height: 12),
+                      DropdownButtonFormField<int>(
+                        value: selectedStatusValue,
+                        decoration: const InputDecoration(
+                          labelText: 'Status da multa',
+                        ),
+                        items: statusOptions
+                            .map(
+                              (status) => DropdownMenuItem<int>(
+                                value: status['value']! as int,
+                                child: Text(status['label']! as String),
+                              ),
+                            )
+                            .toList(),
+                        onChanged: (value) {
+                          if (value == null) return;
+                          setState(() {
+                            selectedStatusValue = value;
+                            selectedStatusLabel = statusOptions.firstWhere(
+                              (status) => status['value'] == value,
+                            )['label']! as String;
+                          });
+                        },
+                        validator: (value) {
+                          if (value == null) {
+                            return 'Selecione o status';
+                          }
+                          return null;
+                        },
+                      ),
+                      const SizedBox(height: 12),
+                      DropdownButtonFormField<String>(
+                        value: selectedUf,
+                        decoration: const InputDecoration(
+                          labelText: 'UF',
+                          hintText: 'Selecione a UF',
+                        ),
+                        items: _brazilUfCodes
+                            .map(
+                              (uf) => DropdownMenuItem<String>(
+                                value: uf,
+                                child: Text(uf),
+                              ),
+                            )
+                            .toList(),
+                        onChanged: (value) {
+                          setState(() {
+                            selectedUf = value;
+                          });
+                        },
+                        validator: (value) {
+                          if (value == null || value.isEmpty) {
+                            return 'Selecione a UF';
+                          }
+                          return null;
+                        },
+                      ),
+                      const SizedBox(height: 12),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: TextFormField(
+                              controller: startDateController,
+                              readOnly: true,
+                              decoration: const InputDecoration(
+                                labelText: 'Data inicial',
+                              ),
+                              validator: (_) {
+                                if (startDate == null) {
+                                  return 'Informe a data inicial';
+                                }
+                                if (endDate != null &&
+                                    startDate!.isAfter(endDate!)) {
+                                  return 'Deve ser anterior à final';
+                                }
+                                return null;
+                              },
+                              onTap: () async {
+                                FocusManager.instance.primaryFocus?.unfocus();
+                                await pickDate(
+                                  isStart: true,
+                                  setState: setState,
+                                );
+                              },
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: TextFormField(
+                              controller: endDateController,
+                              readOnly: true,
+                              decoration: const InputDecoration(
+                                labelText: 'Data final',
+                              ),
+                              validator: (_) {
+                                if (endDate == null) {
+                                  return 'Informe a data final';
+                                }
+                                if (startDate != null &&
+                                    endDate!.isBefore(startDate!)) {
+                                  return 'Deve ser posterior à inicial';
+                                }
+                                return null;
+                              },
+                              onTap: () async {
+                                FocusManager.instance.primaryFocus?.unfocus();
+                                await pickDate(
+                                  isStart: false,
+                                  setState: setState,
+                                );
+                              },
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 20),
+                      Container(
+                        decoration: BoxDecoration(
+                          color: Colors.white,
                           borderRadius: BorderRadius.circular(16),
+                          border: Border.all(
+                            color: Theme.of(context)
+                                .colorScheme
+                                .outline
+                                .withOpacity(0.2),
+                          ),
+                        ),
+                        padding: const EdgeInsets.all(16),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
+                            Row(
+                              children: [
+                                Text(
+                                  'Captcha',
+                                  style: Theme.of(context)
+                                      .textTheme
+                                      .titleSmall
+                                      ?.copyWith(fontWeight: FontWeight.w600),
+                                ),
+                                const Spacer(),
+                                TextButton.icon(
+                                  onPressed: isLoadingCaptcha
+                                      ? null
+                                      : () => refreshCaptcha(setState),
+                                  icon: const Icon(Icons.refresh),
+                                  label: const Text('Atualizar'),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 12),
+                            if (isLoadingCaptcha)
+                              const Center(
+                                child: Padding(
+                                  padding: EdgeInsets.symmetric(vertical: 16),
+                                  child: CircularProgressIndicator(),
+                                ),
+                              )
+                            else if (captchaError != null)
+                              Padding(
+                                padding:
+                                    const EdgeInsets.symmetric(vertical: 8),
+                                child: Text(
+                                  captchaError!,
+                                  style: TextStyle(
+                                    color: Theme.of(context).colorScheme.error,
+                                  ),
+                                ),
+                              )
+                            else if (captchaBytes != null)
+                              Center(
+                                child: ClipRRect(
+                                  borderRadius: BorderRadius.circular(8),
+                                  child: Image.memory(
+                                    captchaBytes,
+                                    width: 180,
+                                    height: 80,
+                                    fit: BoxFit.contain,
+                                  ),
+                                ),
+                              )
+                            else
+                              const SizedBox.shrink(),
+                            const SizedBox(height: 16),
+                            TextFormField(
+                              controller: captchaController,
+                              decoration: const InputDecoration(
+                                labelText: 'Digite o captcha',
+                              ),
+                              inputFormatters: [
+                                const _UpperCaseTextFormatter(),
+                                FilteringTextInputFormatter.allow(
+                                  RegExp('[A-Za-z0-9]'),
+                                ),
+                                LengthLimitingTextInputFormatter(10),
+                              ],
+                              textCapitalization:
+                                  TextCapitalization.characters,
+                              validator: (value) {
+                                final text = value?.trim() ?? '';
+                                if (text.isEmpty) {
+                                  return 'Informe o captcha';
+                                }
+                                return null;
+                              },
+                              onChanged: (_) => setState(() {}),
+                            ),
+                          ],
                         ),
                       ),
-                      child: const Text('Consultar'),
-                    ),
-                  ],
+                      const SizedBox(height: 24),
+                      FilledButton(
+                        onPressed: readyToSubmit
+                            ? () {
+                                if (!(formKey.currentState?.validate() ??
+                                    false)) {
+                                  return;
+                                }
+                                FocusManager.instance.primaryFocus?.unfocus();
+                                Navigator.of(dialogContext).pop(
+                                  _RenainfRequest(
+                                    plate: plateText,
+                                    statusCode: selectedStatusValue!,
+                                    statusLabel: selectedStatusLabel,
+                                    uf: selectedUf!,
+                                    captcha: captchaText,
+                                    startDate: startDate!,
+                                    endDate: endDate!,
+                                  ),
+                                );
+                              }
+                            : null,
+                        style: FilledButton.styleFrom(
+                          minimumSize: const Size.fromHeight(52),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(16),
+                          ),
+                        ),
+                        child: const Text('Consultar'),
+                      ),
+                    ],
+                  ),
                 ),
               );
             },
@@ -2162,12 +2515,12 @@ class _HomePageState extends State<HomePage> {
       plateController.dispose();
       startDateController.dispose();
       endDateController.dispose();
+      captchaController.dispose();
     });
     return result;
   }
 
   Future<_BloqueiosAtivosRequest?> _showBloqueiosAtivosDialog() async {
-    final plateController = TextEditingController();
     final chassiController = TextEditingController();
     final captchaController = TextEditingController();
 
@@ -2219,16 +2572,13 @@ class _HomePageState extends State<HomePage> {
                 Future.microtask(() => refreshCaptcha(setState));
               }
 
-              final plateText = plateController.text.trim().toUpperCase();
               final chassiText = chassiController.text.trim().toUpperCase();
 
-              final plateValid =
-                  plateText.isNotEmpty && _isValidPlate(plateText);
               final chassiValid =
                   chassiText.isNotEmpty && _isValidChassi(chassiText);
-              final captchaValid =
-                  captchaController.text.trim().isNotEmpty;
-              final isValid = (plateValid || chassiValid) &&
+              final captchaValue = captchaController.text.trim().toUpperCase();
+              final captchaValid = captchaValue.isNotEmpty;
+              final isValid = chassiValid &&
                   captchaValid &&
                   captchaBase64 != null &&
                   !isLoadingCaptcha;
@@ -2326,35 +2676,6 @@ class _HomePageState extends State<HomePage> {
                         ),
                       ),
                       const SizedBox(height: 16),
-                      TextField(
-                        controller: plateController,
-                        decoration: InputDecoration(
-                          labelText: 'Placa',
-                          errorText: plateText.isNotEmpty && !plateValid
-                              ? 'Placa inválida'
-                              : null,
-                        ),
-                        inputFormatters: [
-                          const _UpperCaseTextFormatter(),
-                          FilteringTextInputFormatter.allow(
-                            RegExp('[A-Za-z0-9]'),
-                          ),
-                          LengthLimitingTextInputFormatter(7),
-                        ],
-                        textCapitalization: TextCapitalization.characters,
-                        onChanged: (_) => setState(() {}),
-                      ),
-                      const SizedBox(height: 12),
-                      Center(
-                        child: Text(
-                          'ou',
-                          style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                                color: const Color(0xFF667085),
-                                fontWeight: FontWeight.w600,
-                              ),
-                        ),
-                      ),
-                      const SizedBox(height: 12),
                       TextField(
                         controller: chassiController,
                         decoration: InputDecoration(
@@ -2466,14 +2787,13 @@ class _HomePageState extends State<HomePage> {
                         onPressed: isValid
                             ? () {
                                 FocusManager.instance.primaryFocus?.unfocus();
-                                Navigator.of(dialogContext).pop(
+                              Navigator.of(dialogContext).pop(
                                   _BloqueiosAtivosRequest(
                                     origin: selectedSource,
-                                    captcha: captchaController.text
-                                        .trim()
-                                        .toUpperCase(),
-                                    plate: plateValid ? plateText : null,
-                                    chassi: chassiValid ? chassiText : null,
+                                    captcha: captchaValue,
+                                    chassi: chassiText,
+                                    opcaoPesquisa:
+                                        selectedSource == 'DETRAN' ? '1' : '2',
                                   ),
                                 );
                               }
@@ -2497,7 +2817,6 @@ class _HomePageState extends State<HomePage> {
     );
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      plateController.dispose();
       chassiController.dispose();
       captchaController.dispose();
     });
@@ -2769,13 +3088,19 @@ class _SimplePlateChassiRequest {
 class _RenainfRequest {
   const _RenainfRequest({
     required this.plate,
-    required this.status,
+    required this.statusCode,
+    required this.statusLabel,
+    required this.uf,
+    required this.captcha,
     required this.startDate,
     required this.endDate,
   });
 
   final String plate;
-  final String status;
+  final int statusCode;
+  final String statusLabel;
+  final String uf;
+  final String captcha;
   final DateTime startDate;
   final DateTime endDate;
 }
@@ -2784,14 +3109,14 @@ class _BloqueiosAtivosRequest {
   const _BloqueiosAtivosRequest({
     required this.origin,
     required this.captcha,
-    this.plate,
-    this.chassi,
+    required this.chassi,
+    required this.opcaoPesquisa,
   });
 
   final String origin;
   final String captcha;
-  final String? plate;
-  final String? chassi;
+  final String chassi;
+  final String opcaoPesquisa;
 }
 
 class _EcrvProcessRequest {

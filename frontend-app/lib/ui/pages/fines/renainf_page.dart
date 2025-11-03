@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import 'package:frontend_app/models/renainf_models.dart';
+
 import '../shared/common_page_header.dart';
 import '../shared/vehicle_info_content.dart';
 import 'renainf_notification_details_page.dart';
@@ -7,44 +9,39 @@ import 'renainf_notification_details_page.dart';
 class RenainfPage extends StatelessWidget {
   const RenainfPage({
     super.key,
-    required this.plate,
-    required this.status,
-    required this.startDate,
-    required this.endDate,
+    required this.result,
   });
 
-  final String plate;
-  final String status;
-  final DateTime startDate;
-  final DateTime endDate;
+  final RenainfResult result;
 
   @override
   Widget build(BuildContext context) {
-    final filteredInfractions = _mockInfractions.where((infraction) {
-      if (status == 'Todas') return true;
-      return infraction.status == status;
-    }).toList();
+    final infractions = result.statusCode == 1
+        ? result.infractions.where((infraction) => infraction.isOpen).toList()
+        : result.infractions;
 
-    final totalValue = filteredInfractions.fold<double>(
-      0,
-      (sum, infraction) => sum + infraction.amount,
-    );
-
-    final openValue = filteredInfractions
-        .where((infraction) => infraction.status == 'Em aberto')
-        .fold<double>(0, (sum, infraction) => sum + infraction.amount);
+    final totalValue = result.summary.totalValue;
+    final openValue = result.summary.openValue;
+    final lastUpdate = result.summary.lastUpdatedAt != null
+        ? _formatDateTime(result.summary.lastUpdatedAt)
+        : (result.summary.lastUpdatedLabel ?? '—');
 
     final summary = VehicleSummaryData(
-      plate: plate,
+      plate: result.plate,
       description: 'Consulta RENAINF',
       chips: [
         VehicleSummaryChip(
           label: 'Período pesquisado',
-          value: '${_formatDate(startDate)} • ${_formatDate(endDate)}',
+          value:
+              '${_formatDate(result.startDate)} • ${_formatDate(result.endDate)}',
         ),
         VehicleSummaryChip(
           label: 'Filtro de status',
-          value: status,
+          value: result.statusLabel,
+        ),
+        VehicleSummaryChip(
+          label: 'UF',
+          value: result.uf,
         ),
       ],
     );
@@ -55,7 +52,7 @@ class RenainfPage extends StatelessWidget {
         rows: [
           VehicleInfoRowData(
             leftLabel: 'Total de infrações',
-            leftValue: '${filteredInfractions.length}',
+            leftValue: '${infractions.length}',
             rightLabel: 'Valor total',
             rightValue: _formatCurrency(totalValue),
           ),
@@ -63,7 +60,7 @@ class RenainfPage extends StatelessWidget {
             leftLabel: 'Valor em aberto',
             leftValue: _formatCurrency(openValue),
             rightLabel: 'Última atualização',
-            rightValue: _formatDateTime(DateTime.now()),
+            rightValue: lastUpdate,
           ),
         ],
       ),
@@ -87,7 +84,7 @@ class RenainfPage extends StatelessWidget {
                     ),
                     const SizedBox(height: 20),
                     RenainfInfractionsSection(
-                      infractions: filteredInfractions,
+                      infractions: infractions,
                     ),
                     const SizedBox(height: 28),
                   ],
@@ -247,7 +244,10 @@ class _RenainfInfractionCard extends StatelessWidget {
                   Expanded(
                     child: _RenainfInfoTile(
                       label: 'Data e hora',
-                      value: _formatDateTime(infraction.date),
+                      value: _formatDateTime(
+                        infraction.date,
+                        fallback: infraction.dateLabel,
+                      ),
                     ),
                   ),
                   const SizedBox(width: 12),
@@ -305,100 +305,20 @@ class _RenainfInfoTile extends StatelessWidget {
   }
 }
 
-class RenainfInfraction {
-  const RenainfInfraction({
-    required this.code,
-    required this.description,
-    required this.status,
-    required this.date,
-    required this.amount,
-    required this.origin,
-    this.municipioPlaca = 'Criciúma / SC',
-    this.ufJuridica = 'SC',
-    this.modelDescription = 'Hyundai HB20 Vision',
-    this.codigoInfracao = '5550',
-    this.classificacao = 'Estacionar em local/horário proibidos pela sinalização',
-    this.dataCadastro = '07/02/2017',
-    this.dataEmissao = '24/03/2017',
-    this.valorPago = 0,
-  });
-
-  final String code;
-  final String description;
-  final String status;
-  final DateTime date;
-  final double amount;
-  final String origin;
-  final String municipioPlaca;
-  final String ufJuridica;
-  final String modelDescription;
-  final String codigoInfracao;
-  final String classificacao;
-  final String dataCadastro;
-  final String dataEmissao;
-  final double valorPago;
-}
-
-final List<RenainfInfraction> _mockInfractions = [
-  RenainfInfraction(
-    code: '746-61',
-    description:
-        'Transitar em velocidade superior à máxima permitida em até 20%.',
-    status: 'Em aberto',
-    date: DateTime(2024, 6, 14, 14, 18),
-    amount: 195.23,
-    origin: 'DER - SC',
-    municipioPlaca: 'Criciúma / SC',
-    ufJuridica: 'SC',
-    modelDescription: 'Hyundai HB20 Vision',
-    codigoInfracao: '74661',
-    classificacao: 'Velocidade superior à máxima permitida em até 20%.',
-    dataCadastro: '15/06/2024',
-    dataEmissao: '20/06/2024',
-  ),
-  RenainfInfraction(
-    code: '518-00',
-    description: 'Avançar o sinal vermelho do semáforo.',
-    status: 'Pago',
-    date: DateTime(2024, 3, 2, 9, 42),
-    amount: 230.57,
-    origin: 'CET - PR',
-    municipioPlaca: 'Joinville / SC',
-    ufJuridica: 'PR',
-    modelDescription: 'Chevrolet Onix LTZ',
-    codigoInfracao: '51800',
-    classificacao: 'Avançar o sinal vermelho do semáforo.',
-    dataCadastro: '05/03/2024',
-    dataEmissao: '12/03/2024',
-    valorPago: 230.57,
-  ),
-  RenainfInfraction(
-    code: '554-02',
-    description:
-        'Estacionar em local sinalizado com proibição ou regulamentação específica.',
-    status: 'Em recurso',
-    date: DateTime(2023, 11, 20, 18, 5),
-    amount: 130.16,
-    origin: 'SMT - RS',
-    municipioPlaca: 'Porto Alegre / RS',
-    ufJuridica: 'RS',
-    modelDescription: 'Volkswagen Gol',
-    codigoInfracao: '55402',
-    classificacao:
-        'Estacionar em local sinalizado com proibição ou regulamentação específica.',
-    dataCadastro: '25/11/2023',
-    dataEmissao: '10/12/2023',
-  ),
-];
-
-String _formatDate(DateTime date) {
+String _formatDate(DateTime? date, {String? fallback}) {
+  if (date == null) {
+    return fallback ?? '—';
+  }
   final day = date.day.toString().padLeft(2, '0');
   final month = date.month.toString().padLeft(2, '0');
-  final year = date.year.toString();
+  final year = date.year.toString().padLeft(4, '0');
   return '$day/$month/$year';
 }
 
-String _formatDateTime(DateTime dateTime) {
+String _formatDateTime(DateTime? dateTime, {String? fallback}) {
+  if (dateTime == null) {
+    return fallback ?? '—';
+  }
   final date = _formatDate(dateTime);
   final hour = dateTime.hour.toString().padLeft(2, '0');
   final minute = dateTime.minute.toString().padLeft(2, '0');
@@ -411,14 +331,15 @@ String _formatCurrency(double value) {
 }
 
 Color _statusColor(String status) {
-  switch (status) {
-    case 'Em aberto':
-      return const Color(0xFFD92D20);
-    case 'Pago':
-      return const Color(0xFF039855);
-    case 'Em recurso':
-      return const Color(0xFFF79009);
-    default:
-      return const Color(0xFF475467);
+  final normalized = status.toLowerCase();
+  if (normalized.contains('abert') || normalized.contains('cobran')) {
+    return const Color(0xFFD92D20);
   }
+  if (normalized.contains('pago') || normalized.contains('baixad')) {
+    return const Color(0xFF039855);
+  }
+  if (normalized.contains('recurso') || normalized.contains('defes')) {
+    return const Color(0xFFF79009);
+  }
+  return const Color(0xFF475467);
 }

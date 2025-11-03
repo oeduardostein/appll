@@ -1,8 +1,9 @@
 import 'package:flutter/material.dart';
 
+import 'package:frontend_app/models/renainf_models.dart';
+
 import '../shared/common_page_header.dart';
 import '../shared/vehicle_info_content.dart';
-import 'renainf_page.dart';
 
 class RenainfNotificationDetailsPage extends StatelessWidget {
   const RenainfNotificationDetailsPage({super.key, required this.infraction});
@@ -14,17 +15,25 @@ class RenainfNotificationDetailsPage extends StatelessWidget {
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
 
+    String display(String value, {String fallback = '—'}) {
+      final trimmed = value.trim();
+      if (trimmed.isEmpty || trimmed == '—') {
+        return fallback;
+      }
+      return trimmed;
+    }
+
     final summary = VehicleSummaryData(
-      plate: 'BUL8C39',
+      plate: infraction.plate,
       description: infraction.modelDescription,
       chips: [
         VehicleSummaryChip(
           label: 'Município da placa',
-          value: infraction.municipioPlaca,
+          value: display(infraction.municipioPlaca),
         ),
         VehicleSummaryChip(
           label: 'UF Jurisdição',
-          value: infraction.ufJuridica,
+          value: display(infraction.ufJuridica),
         ),
       ],
     );
@@ -47,21 +56,24 @@ class RenainfNotificationDetailsPage extends StatelessWidget {
           ),
           VehicleInfoRowData(
             leftLabel: 'Data/hora',
-            leftValue: _formatDateTime(infraction.date),
+            leftValue: _formatDateTime(
+              infraction.date,
+              fallback: infraction.dateLabel,
+            ),
             rightLabel: 'Data cadastro',
-            rightValue: infraction.dataCadastro,
+            rightValue: display(infraction.dataCadastro),
           ),
           VehicleInfoRowData(
             leftLabel: 'Local',
-            leftValue: 'Est Vercelino Onílio Lemos, 19',
+            leftValue: display(infraction.local),
             rightLabel: 'Valor da infração',
             rightValue: _formatCurrency(infraction.amount),
           ),
           VehicleInfoRowData(
             leftLabel: 'Tipo auto',
-            leftValue: 'Auto',
+            leftValue: display(infraction.tipoAuto),
             rightLabel: 'Data emissão penalidade',
-            rightValue: infraction.dataEmissao,
+            rightValue: display(infraction.dataEmissao),
           ),
         ],
       ),
@@ -70,43 +82,64 @@ class RenainfNotificationDetailsPage extends StatelessWidget {
         rows: [
           VehicleInfoRowData(
             leftLabel: 'UF pagamento',
-            leftValue: infraction.ufJuridica,
+            leftValue: display(infraction.ufPagamento),
             rightLabel: 'Data pagamento',
-            rightValue: infraction.valorPago > 0 ? '28/03/2018' : 'Não pago',
+            rightValue: display(
+              infraction.dataPagamento,
+              fallback: 'Não informado',
+            ),
           ),
           VehicleInfoRowData(
             leftLabel: 'Valor pago',
             leftValue: _formatCurrency(infraction.valorPago),
             rightLabel: 'Data registro pagamento',
-            rightValue: infraction.valorPago > 0 ? '28/03/2018' : '—',
+            rightValue: display(infraction.dataRegistroPagamento),
           ),
         ],
       ),
       VehicleInfoSectionData(
         title: 'Dados do Infrator/Condutor',
-        rows: const [
+        rows: [
           VehicleInfoRowData(
             leftLabel: 'CNH infrator',
-            leftValue: '00000000000',
+            leftValue: display(
+              infraction.cnhInfrator,
+              fallback: 'Não informado',
+            ),
             rightLabel: 'CNH condutor',
-            rightValue: '00000000000',
+            rightValue: display(
+              infraction.cnhCondutor,
+              fallback: 'Não informado',
+            ),
           ),
         ],
       ),
       VehicleInfoSectionData(
         title: 'Suspensão/Cancelamento',
-        rows: const [
+        rows: [
           VehicleInfoRowData(
             leftLabel: 'Tipo',
-            leftValue: 'Não consta',
+            leftValue: display(
+              infraction.suspensaoTipo,
+              fallback: 'Não consta',
+            ),
             rightLabel: 'Data registro',
-            rightValue: 'Não consta',
+            rightValue: display(
+              infraction.suspensaoDataRegistro,
+              fallback: 'Não consta',
+            ),
           ),
           VehicleInfoRowData(
             leftLabel: 'Origem',
-            leftValue: 'Não consta',
+            leftValue: display(
+              infraction.suspensaoOrigem,
+              fallback: 'Não consta',
+            ),
             rightLabel: 'Aceito UF jurisdição',
-            rightValue: 'Não consta',
+            rightValue: display(
+              infraction.suspensaoAceitoUf,
+              fallback: 'Não consta',
+            ),
           ),
         ],
       ),
@@ -157,7 +190,10 @@ class RenainfNotificationDetailsPage extends StatelessWidget {
                           ),
                           const SizedBox(height: 12),
                           Text(
-                            infraction.classificacao,
+                            display(
+                              infraction.classificacao,
+                              fallback: infraction.description,
+                            ),
                             style: theme.textTheme.bodyMedium?.copyWith(
                               color: theme.textTheme.bodyMedium?.color,
                             ),
@@ -177,14 +213,18 @@ class RenainfNotificationDetailsPage extends StatelessWidget {
   }
 }
 
-String _formatDateTime(DateTime dateTime) {
+String _formatDateTime(DateTime? dateTime, {String? fallback}) {
+  if (dateTime == null) {
+    return fallback ?? '—';
+  }
   final date = _formatDate(dateTime);
   final hour = dateTime.hour.toString().padLeft(2, '0');
   final minute = dateTime.minute.toString().padLeft(2, '0');
   return '$date $hour:$minute';
 }
 
-String _formatDate(DateTime date) {
+String _formatDate(DateTime? date) {
+  if (date == null) return '—';
   final day = date.day.toString().padLeft(2, '0');
   final month = date.month.toString().padLeft(2, '0');
   final year = date.year.toString();

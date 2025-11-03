@@ -32,8 +32,6 @@ class BloqueiosPage extends StatelessWidget {
     if (structured != null) {
       return _BloqueiosStructuredScreen(
         origin: origin,
-        plate: plate,
-        chassi: chassi,
         data: structured,
         formattedPayload: _formattedPayload,
       );
@@ -305,15 +303,11 @@ class _BloqueiosResultView extends StatelessWidget {
 class _BloqueiosStructuredScreen extends StatelessWidget {
   const _BloqueiosStructuredScreen({
     required this.origin,
-    required this.plate,
-    required this.chassi,
     required this.data,
     required this.formattedPayload,
   });
 
   final String origin;
-  final String? plate;
-  final String? chassi;
   final _BloqueiosStructuredPayload data;
   final String formattedPayload;
 
@@ -352,96 +346,41 @@ class _BloqueiosStructuredScreen extends StatelessWidget {
                         const SizedBox(height: 12),
                         _BloqueiosSummaryCard(
                           origin: origin,
-                          plate: plate,
-                          chassi: chassi,
                           data: data,
                         ),
-                        const SizedBox(height: 16),
-                        _BloqueiosStatusCard(bloqueios: data.bloqueios),
-                        if (data.inspecaoAmbiental != null &&
-                            data.inspecaoAmbiental!.trim().isNotEmpty) ...[
-                          const SizedBox(height: 16),
-                          _BloqueiosInfoBanner(
-                            title: 'Inspeção ambiental',
-                            description: data.inspecaoAmbiental!,
-                          ),
-                        ],
                         const SizedBox(height: 24),
                         _BloqueiosSectionCard(
-                          title: 'Veículo',
-                          children: _buildInfoRows(
-                            data.veiculo,
-                            const {
-                              'placa': 'Placa',
-                              'renavam': 'Renavam',
-                              'chassi': 'Chassi',
-                              'tipo': 'Tipo',
-                              'procedencia': 'Procedência',
-                              'combustivel': 'Combustível',
-                              'cor': 'Cor',
-                              'marca': 'Marca',
-                              'categoria': 'Categoria',
-                              'ano_fabricacao': 'Ano fabricação',
-                              'ano_modelo': 'Ano modelo',
-                              'municipio': 'Município',
-                            },
-                          ),
-                        ),
-                        if (data.proprietario != null) ...[
-                          const SizedBox(height: 16),
-                          _BloqueiosSectionCard(
-                            title: 'Proprietário',
-                            children: _buildInfoRows(
-                              data.proprietario!,
-                              const {
-                                'nome': 'Nome',
-                              },
+                          title: 'Consulta',
+                          children: [
+                            _BloqueiosInfoRow(
+                              label: 'Placa',
+                              value: data.consulta['placa'],
                             ),
-                          ),
-                        ],
-                        if (data.crvCrlvAtualizacao != null) ...[
-                          const SizedBox(height: 16),
-                          _BloqueiosSectionCard(
-                            title: 'CRV / CRLV',
-                            children: _buildInfoRows(
-                              data.crvCrlvAtualizacao!,
-                              const {
-                                'exercicio_licenciamento': 'Exercício licenciamento',
-                                'data_licenciamento': 'Data licenciamento',
-                              },
+                            _BloqueiosInfoRow(
+                              label: 'Município da placa',
+                              value: data.consulta['municipio_placa'],
                             ),
-                          ),
-                        ],
-                        if (data.comunicacaoVendas != null) ...[
-                          const SizedBox(height: 16),
-                          _BloqueiosSectionCard(
-                            title: 'Comunicação de vendas',
-                            children: [
-                              ..._buildInfoRows(
-                                data.comunicacaoVendas!,
-                                const {
-                                  'status': 'Status',
-                                  'inclusao': 'Inclusão',
-                                  'tipo_doc_comprador': 'Tipo documento comprador',
-                                  'cnpj_cpf_comprador': 'CNPJ/CPF comprador',
-                                  'origem': 'Origem',
-                                },
-                              ),
-                              if (data.comunicacaoVendasDatas != null) ...[
-                                const SizedBox(height: 12),
-                                const _BloqueiosSectionSubheading('Datas'),
-                                ..._buildInfoRows(
-                                  data.comunicacaoVendasDatas!,
-                                  const {
-                                    'venda': 'Venda',
-                                    'nota_fiscal': 'Nota fiscal',
-                                    'protocolo_detran': 'Protocolo DETRAN',
-                                  },
+                            _BloqueiosInfoRow(
+                              label: 'Chassi',
+                              value: data.consulta['chassi'],
+                            ),
+                            if (data.ocorrenciasEncontradas != null ||
+                                data.ocorrenciasExibidas != null) ...[
+                              const SizedBox(height: 12),
+                              const _BloqueiosSectionSubheading('Ocorrências'),
+                              if (data.ocorrenciasEncontradas != null)
+                                _BloqueiosInfoRow(
+                                  label: 'Encontradas',
+                                  value: data.ocorrenciasEncontradas,
                                 ),
-                              ],
+                              if (data.ocorrenciasExibidas != null)
+                                _BloqueiosInfoRow(
+                                  label: 'Exibidas',
+                                  value: data.ocorrenciasExibidas,
+                                ),
                             ],
-                          ),
-                        ],
+                          ],
+                        ),
                         const SizedBox(height: 16),
                         _BloqueiosSectionCard(
                           title: 'Fonte',
@@ -452,6 +391,30 @@ class _BloqueiosStructuredScreen extends StatelessWidget {
                               'gerado_em': 'Gerado em',
                             },
                           ),
+                        ),
+                        const SizedBox(height: 16),
+                        _BloqueiosSectionCard(
+                          title: 'Bloqueios RENAJUD',
+                          children: [
+                            if (data.renajud.isEmpty)
+                              Text(
+                                'Nenhum bloqueio RENAJUD encontrado.',
+                                style: Theme.of(context)
+                                    .textTheme
+                                    .bodyMedium
+                                    ?.copyWith(
+                                      color: Theme.of(context)
+                                          .colorScheme
+                                          .outline,
+                                    ),
+                              )
+                            else
+                              ...data.renajud
+                                  .map(
+                                    (entry) => _RenajudEntryTile(entry: entry),
+                                  )
+                                  .toList(),
+                          ],
                         ),
                         const SizedBox(height: 16),
                         Align(
@@ -585,23 +548,20 @@ class _HeaderCircleButton extends StatelessWidget {
 class _BloqueiosSummaryCard extends StatelessWidget {
   const _BloqueiosSummaryCard({
     required this.origin,
-    required this.plate,
-    required this.chassi,
     required this.data,
   });
 
   final String origin;
-  final String? plate;
-  final String? chassi;
   final _BloqueiosStructuredPayload data;
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final veiculo = data.veiculo;
-    final placa = _formatDisplayValue(veiculo['placa']);
-    final marca = _parseMarca(veiculo['marca']);
-    final municipio = _formatDisplayValue(veiculo['municipio']);
+    final placa = data.placa ?? '—';
+    final municipio = data.municipioPlaca ?? '—';
+    final chassi = data.chassi ?? '—';
+    final fonteTitulo = data.tituloFonte ?? 'Fonte não informada';
+    final geradoEm = data.geradoEm ?? '—';
 
     return Container(
       decoration: BoxDecoration(
@@ -647,7 +607,7 @@ class _BloqueiosSummaryCard extends StatelessWidget {
                     ),
                     const SizedBox(height: 4),
                     Text(
-                      placa,
+                      fonteTitulo,
                       style: theme.textTheme.titleMedium?.copyWith(
                         color: theme.colorScheme.onSurfaceVariant,
                         fontWeight: FontWeight.w600,
@@ -655,7 +615,7 @@ class _BloqueiosSummaryCard extends StatelessWidget {
                     ),
                     const SizedBox(height: 2),
                     Text(
-                      marca,
+                      'Gerado em $geradoEm',
                       style: theme.textTheme.bodyMedium?.copyWith(
                         color: theme.colorScheme.outline,
                       ),
@@ -670,35 +630,53 @@ class _BloqueiosSummaryCard extends StatelessWidget {
             children: [
               Expanded(
                 child: _SummaryInfoRow(
-                  label: 'Município',
+                  label: 'Placa',
+                  value: placa,
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: _SummaryInfoRow(
+                  label: 'Município da placa',
                   value: municipio,
                 ),
               ),
-              if (chassi != null) ...[
-                const SizedBox(width: 12),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Row(
+            children: [
+              Expanded(
+                child: _SummaryInfoRow(
+                  label: 'Chassi consultado',
+                  value: chassi,
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: _SummaryInfoRow(
+                  label: 'Ocorrências encontradas',
+                  value: data.ocorrenciasEncontradas ?? '—',
+                ),
+              ),
+            ],
+          ),
+          if (data.ocorrenciasExibidas != null) ...[
+            const SizedBox(height: 12),
+            Row(
+              children: [
                 Expanded(
                   child: _SummaryInfoRow(
-                    label: 'Chassi consultado',
-                    value: chassi!,
+                    label: 'Ocorrências exibidas',
+                    value: data.ocorrenciasExibidas!,
                   ),
                 ),
               ],
-            ],
-          ),
+            ),
+          ],
         ],
       ),
     );
-  }
-
-  static String _parseMarca(dynamic value) {
-    final text = _formatDisplayValue(value);
-    if (text == '—') return 'Marca não informada';
-    final parts = text.split(' - ');
-    if (parts.length >= 2) {
-      final joined = parts.sublist(1).join(' - ').trim();
-      return joined.isEmpty ? text : joined;
-    }
-    return text;
   }
 }
 
@@ -736,178 +714,102 @@ class _SummaryInfoRow extends StatelessWidget {
   }
 }
 
-class _BloqueiosStatusCard extends StatelessWidget {
-  const _BloqueiosStatusCard({required this.bloqueios});
 
-  final Map<String, dynamic>? bloqueios;
+class _RenajudEntryTile extends StatelessWidget {
+  const _RenajudEntryTile({required this.entry});
+
+  final Map<String, dynamic> entry;
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final entries = _buildEntries(bloqueios);
+    final dataInclusao = _formatDisplayValue(entry['data_inclusao']);
+    final horaInclusao = _formatDisplayValue(entry['hora_inclusao']);
+    final tipoRestricao = _formatDisplayValue(entry['tipo_restricao_judicial']);
+    final numeroProcesso = _formatDisplayValue(entry['numero_processo']);
+    final codigoTribunal = _formatDisplayValue(entry['codigo_tribunal']);
+    final codigoOrgao = _formatDisplayValue(entry['codigo_orgao_judicial']);
+    final nomeOrgao = _formatDisplayValue(entry['nome_orgao_judicial']);
+
+    final hasData = dataInclusao != '—';
+    final hasHora = horaInclusao != '—';
+    final dataHora = hasData
+        ? hasHora
+            ? '$dataInclusao às $horaInclusao'
+            : dataInclusao
+        : null;
 
     return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(24),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.06),
-            blurRadius: 24,
-            offset: const Offset(0, 12),
-          ),
-        ],
+        color: theme.colorScheme.surfaceVariant.withOpacity(0.2),
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(
+          color: theme.colorScheme.outlineVariant.withOpacity(0.2),
+        ),
       ),
-      padding: const EdgeInsets.all(20),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          Row(
+            children: [
+              Container(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                decoration: BoxDecoration(
+                  color: theme.colorScheme.primary.withOpacity(0.14),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Text(
+                  codigoTribunal == '—' ? 'RENAJUD' : 'RENAJUD • $codigoTribunal',
+                  style: theme.textTheme.labelSmall?.copyWith(
+                    color: theme.colorScheme.primary,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
           Text(
-            'Bloqueios ativos',
+            tipoRestricao,
             style: theme.textTheme.titleMedium?.copyWith(
               fontWeight: FontWeight.w700,
             ),
           ),
-          const SizedBox(height: 16),
-          if (entries.isEmpty)
+          if (dataHora != null) ...[
+            const SizedBox(height: 4),
             Text(
-              'Nenhum bloqueio informado.',
+              dataHora,
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: theme.colorScheme.outline,
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+          ],
+          const SizedBox(height: 12),
+          if (nomeOrgao != '—')
+            Text(
+              nomeOrgao,
               style: theme.textTheme.bodyMedium?.copyWith(
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          if (codigoOrgao != '—')
+            Text(
+              'Órgão judicial: $codigoOrgao',
+              style: theme.textTheme.bodySmall?.copyWith(
                 color: theme.colorScheme.outline,
               ),
-            )
-          else
-            Column(
-              children: entries
-                  .map(
-                    (entry) => Padding(
-                      padding: const EdgeInsets.symmetric(vertical: 6),
-                      child: Row(
-                        children: [
-                          Expanded(
-                            child: Text(
-                              entry.label,
-                              style: theme.textTheme.titleSmall?.copyWith(
-                                fontWeight: FontWeight.w600,
-                              ),
-                            ),
-                          ),
-                          _StatusBadge(
-                            value: entry.value,
-                            isWarning: entry.isWarning,
-                          ),
-                        ],
-                      ),
-                    ),
-                  )
-                  .toList(),
             ),
-        ],
-      ),
-    );
-  }
-
-  static List<_BloqueioEntry> _buildEntries(Map<String, dynamic>? raw) {
-    if (raw == null) return [];
-    final mapping = <String, String>{
-      'renajud': 'RENAJUD',
-      'judicial': 'Judicial',
-      'administrativas': 'Administrativas',
-      'tributaria': 'Tributária',
-      'furto': 'Furto',
-      'guincho': 'Guincho',
-    };
-    final List<_BloqueioEntry> entries = [];
-    for (final entry in mapping.entries) {
-      final value = _formatDisplayValue(raw[entry.key]);
-      final isWarning = value != 'Nada Consta' && value != '—';
-      entries.add(
-        _BloqueioEntry(
-          label: entry.value,
-          value: value,
-          isWarning: isWarning,
-        ),
-      );
-    }
-    return entries;
-  }
-}
-
-class _BloqueioEntry {
-  const _BloqueioEntry({
-    required this.label,
-    required this.value,
-    required this.isWarning,
-  });
-
-  final String label;
-  final String value;
-  final bool isWarning;
-}
-
-class _StatusBadge extends StatelessWidget {
-  const _StatusBadge({
-    required this.value,
-    required this.isWarning,
-  });
-
-  final String value;
-  final bool isWarning;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final Color color = isWarning ? theme.colorScheme.error : Colors.green.shade600;
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-      decoration: BoxDecoration(
-        color: color.withOpacity(0.14),
-        borderRadius: BorderRadius.circular(16),
-      ),
-      child: Text(
-        value,
-        style: theme.textTheme.labelSmall?.copyWith(
-          color: color,
-          fontWeight: FontWeight.w700,
-        ),
-      ),
-    );
-  }
-}
-
-class _BloqueiosInfoBanner extends StatelessWidget {
-  const _BloqueiosInfoBanner({
-    required this.title,
-    required this.description,
-  });
-
-  final String title;
-  final String description;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(18),
-      decoration: BoxDecoration(
-        color: theme.colorScheme.secondary.withOpacity(0.1),
-        borderRadius: BorderRadius.circular(20),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            title,
-            style: theme.textTheme.titleSmall?.copyWith(
-              fontWeight: FontWeight.w700,
+          if (numeroProcesso != '—')
+            Text(
+              'Número do processo: $numeroProcesso',
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: theme.colorScheme.outline,
+              ),
             ),
-          ),
-          const SizedBox(height: 8),
-          Text(
-            description,
-            style: theme.textTheme.bodyMedium,
-          ),
         ],
       ),
     );
@@ -1071,45 +973,59 @@ String _formatDisplayValue(dynamic value) {
 class _BloqueiosStructuredPayload {
   const _BloqueiosStructuredPayload({
     required this.fonte,
-    required this.veiculo,
-    this.proprietario,
-    this.bloqueios,
-    this.inspecaoAmbiental,
-    this.crvCrlvAtualizacao,
-    this.comunicacaoVendas,
-    this.comunicacaoVendasDatas,
+    required this.consulta,
+    this.quantidade,
+    required this.renajud,
   });
 
   final Map<String, dynamic> fonte;
-  final Map<String, dynamic> veiculo;
-  final Map<String, dynamic>? proprietario;
-  final Map<String, dynamic>? bloqueios;
-  final String? inspecaoAmbiental;
-  final Map<String, dynamic>? crvCrlvAtualizacao;
-  final Map<String, dynamic>? comunicacaoVendas;
-  final Map<String, dynamic>? comunicacaoVendasDatas;
+  final Map<String, dynamic> consulta;
+  final Map<String, dynamic>? quantidade;
+  final List<Map<String, dynamic>> renajud;
+
+  String? get placa => _formatDisplayValue(consulta['placa']) == '—'
+      ? null
+      : _formatDisplayValue(consulta['placa']);
+  String? get municipioPlaca =>
+      _formatDisplayValue(consulta['municipio_placa']) == '—'
+          ? null
+          : _formatDisplayValue(consulta['municipio_placa']);
+  String? get chassi =>
+      _formatDisplayValue(consulta['chassi']) == '—'
+          ? null
+          : _formatDisplayValue(consulta['chassi']);
+  String? get geradoEm =>
+      _formatDisplayValue(fonte['gerado_em']) == '—'
+          ? null
+          : _formatDisplayValue(fonte['gerado_em']);
+  String? get tituloFonte =>
+      _formatDisplayValue(fonte['titulo']) == '—'
+          ? null
+          : _formatDisplayValue(fonte['titulo']);
+  String? get ocorrenciasEncontradas =>
+      _formatDisplayValue(quantidade?['ocorrencias_encontradas']) == '—'
+          ? null
+          : _formatDisplayValue(quantidade?['ocorrencias_encontradas']);
+  String? get ocorrenciasExibidas =>
+      _formatDisplayValue(quantidade?['ocorrencias_exibidas']) == '—'
+          ? null
+          : _formatDisplayValue(quantidade?['ocorrencias_exibidas']);
 
   static _BloqueiosStructuredPayload? tryParse(
     Map<String, dynamic> payload,
   ) {
     final fonte = _asMap(payload['fonte']);
-    final veiculo = _asMap(payload['veiculo']);
+    final consulta = _asMap(payload['consulta']);
 
-    if (fonte == null || veiculo == null) {
+    if (fonte == null || consulta == null) {
       return null;
     }
 
-    final comunicacao = _asMap(payload['comunicacao_vendas']);
-
     return _BloqueiosStructuredPayload(
       fonte: fonte,
-      veiculo: veiculo,
-      proprietario: _asMap(payload['proprietario']),
-      bloqueios: _asMap(payload['bloqueios']),
-      inspecaoAmbiental: payload['inspecao_ambiental'] as String?,
-      crvCrlvAtualizacao: _asMap(payload['crv_crlv_atualizacao']),
-      comunicacaoVendas: comunicacao,
-      comunicacaoVendasDatas: _asMap(comunicacao?['datas']),
+      consulta: consulta,
+      quantidade: _asMap(consulta['quantidade']),
+      renajud: _asListOfMap(payload['renajud']),
     );
   }
 
@@ -1123,5 +1039,17 @@ class _BloqueiosStructuredPayload {
       );
     }
     return null;
+  }
+
+  static List<Map<String, dynamic>> _asListOfMap(dynamic value) {
+    if (value is List) {
+      return value
+          .where((element) => element is Map)
+          .map((element) => (element as Map).map(
+                (key, dynamic val) => MapEntry(key.toString(), val),
+              ))
+          .toList(growable: false);
+    }
+    return const [];
   }
 }

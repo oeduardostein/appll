@@ -166,27 +166,14 @@ class BaseEstadualService {
   Future<Map<String, dynamic>> consultarBloqueiosAtivos({
     required String origin,
     required String captcha,
-    String? placa,
-    String? chassi,
-    String? renavam,
+    required String chassi,
+    required String opcaoPesquisa,
   }) async {
-    final opcao = origin.toUpperCase() == 'RENAJUD' ? '2' : '1';
     final params = <String, String>{
-      'opcaoPesquisa': opcao,
+      'opcaoPesquisa': opcaoPesquisa,
       'captcha': captcha,
+      'chassi': chassi.trim().toUpperCase(),
     };
-
-    final sanitizedPlate = placa?.trim().toUpperCase() ?? '';
-    final sanitizedChassi = chassi?.trim().toUpperCase() ?? '';
-
-    params['placa'] = sanitizedPlate;
-    if (sanitizedChassi.isNotEmpty) {
-      params['chassi'] = sanitizedChassi;
-    }
-
-    if (renavam != null && renavam.trim().isNotEmpty) {
-      params['renavam'] = renavam.trim();
-    }
 
     final uri = Uri.parse(
       'https://applldespachante.skalacode.com/api/bloqueios-ativos',
