@@ -15,7 +15,7 @@ class BloqueiosAtivosController extends Controller
 {
     /**
      * Consulta Bloqueios Ativos no e-CRVsp e retorna os dados tratados em JSON.
-     * Ex.: GET /api/bloqueios-ativos?opcaoPesquisa=1&placa=ABC1D23&captcha=AB12&renavam=1234567890
+     * Ex.: GET /api/bloqueios-ativos?opcaoPesquisa=1&chassi=ABC1D23&captcha=AB12&renavam=1234567890
      */
     public function __invoke(Request $request): Response
     {
@@ -213,7 +213,7 @@ class BloqueiosAtivosController extends Controller
         }
         if (!$chassi || !$captcha) {
             return response()->json(
-                ['message' => 'Informe placa e captcha para realizar a consulta.'],
+                ['message' => 'Informe chassi e captcha para realizar a consulta.'],
                 Response::HTTP_UNPROCESSABLE_ENTITY
             );
         }
@@ -253,8 +253,8 @@ class BloqueiosAtivosController extends Controller
         // Se a tela exigir chassi conforme a opção, ajuste aqui para atender ao formulário real.
         $form = [
             'method'          => 'pesquisar',
-            'opcaoPesquisa'   => (string)$opcao,
-            'placa'           => $chassi,
+            'opcaoPesquisa'   => $opcao,
+            'chassi'           => $chassi,
             'captchaResponse' => strtoupper($captcha),
         ];
 
