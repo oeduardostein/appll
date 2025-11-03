@@ -22,8 +22,9 @@ Route::get('captcha', CaptchaController::class);
 Route::get('base-estadual', BaseEstadualController::class);
 Route::get('another-base-estadual', AnotherBaseStateController::class);
 Route::get('bloqueios-ativos', BloqueiosAtivosController::class);
-Route::get('pesquisas', [PesquisaController::class, 'index']);
-Route::post('pesquisas', [PesquisaController::class, 'store']);
 Route::get('emissao-atpv', ImpressaoAtpvController::class);
 Route::get('emissao-crlv', ImpressaoCrlvController::class);
 Route::get('renainf', RenainfPlacaController::class);
+
+Route::get('pesquisas', [PesquisaController::class, 'index']);
+Route::post('pesquisas', [PesquisaController::class, 'store']);
