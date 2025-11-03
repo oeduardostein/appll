@@ -63,21 +63,38 @@ class RenainfPlacaController extends Controller
                 $dataHora = $m[1];
             }
 
-            // Labels conforme a tela enviada
-            $L = [
-                'Placa'                   => ['Placa'],
-                'UF_Emplacamento'         => ['UF de Emplacamento'],
-                'IndicadorExigibilidade'  => ['Indicador Exigibilidade'],
-                'QtdOcorrencias'          => ['Quantidade de Ocorrências', 'Quantidade de Ocorr\u00eancias', 'Quantidade de Ocorrencias'],
-            ];
+            // Helper: percorre fieldset e devolve mapa label => valor
+            $extractFieldsetData = function (callable $legendMatcher) use ($xp, $txt) {
+                foreach ($xp->query('//fieldset') as $fieldset) {
+                    $legendNode = $xp->query('./legend', $fieldset)->item(0);
+                    $legendText = $txt($legendNode);
+                    if (! $legendMatcher($legendText)) {
+                        continue;
+                    }
 
-            $pick = function (array $labels) use ($findValueByLabel) {
-                foreach ($labels as $lab) {
-                    $v = $findValueByLabel($lab);
-                    if ($v !== null && $v !== '') return $v;
+                    $data = [];
+                    $tds = $xp->query('.//td', $fieldset);
+                    $count = $tds->length;
+                    for ($i = 0; $i + 1 < $count; $i += 2) {
+                        $label = $txt($tds->item($i));
+                        $value = $txt($tds->item($i + 1));
+                        if ($label !== null && $label !== '') {
+                            $data[$label] = $value;
+                        }
+                    }
+                    return $data;
                 }
-                return null;
+
+                return [];
             };
+
+            $consultaInfo = $extractFieldsetData(
+                fn (?string $legend) => $legend !== null && stripos($legend, 'Dados da Consulta') !== false
+            );
+
+            $quantidadeInfo = $extractFieldsetData(
+                fn (?string $legend) => $legend !== null && stripos($legend, 'Quantidade de Ocorr') !== false
+            );
 
             // Tabela de ocorrências (#listRenainfId) — robusto a mudanças de <tbody>
             $ocorrencias = [];
@@ -92,7 +109,8 @@ class RenainfPlacaController extends Controller
                     $exigibilidade = $txt($tds->item(5));
 
                     // só adiciona linhas reais (defesa contra header duplicado etc.)
-                    if ($orgao !== 'Orgão Autuador' && $orgao !== 'Orgão Autuador' && $orgao !== null) {
+                    $normalizedOrgao = $orgao !== null ? mb_strtolower($orgao, 'UTF-8') : '';
+                    if ($normalizedOrgao !== '' && !str_contains($normalizedOrgao, 'orgão autuador')) {
                         $ocorrencias[] = [
                             'orgao_autuador' => $orgao,          // ex.: 264750
                             'auto_infracao'  => $autoInfracao,   // ex.: D500042316
@@ -104,19 +122,46 @@ class RenainfPlacaController extends Controller
                 }
             }
 
+            $consultaPlaca  = $consultaInfo['Placa'] ?? $findValueByLabel('Placa');
+            $consultaUf     = $consultaInfo['UF de Emplacamento'] ?? $findValueByLabel('UF de Emplacamento');
+            $consultaExig   = $consultaInfo['Indicador Exigibilidade'] ?? $findValueByLabel('Indicador Exigibilidade');
+
+            $quantidadeOcorrencias = null;
+            foreach ($quantidadeInfo as $label => $value) {
+                if (stripos($label, 'Quantidade') !== false) {
+                    $quantidadeOcorrencias = $value;
+                    break;
+                }
+            }
+            if ($quantidadeOcorrencias === null) {
+                $quantidadeOcorrencias = $findValueByLabel('Quantidade de Ocorrências');
+            }
+            if ($quantidadeOcorrencias === null && !empty($ocorrencias)) {
+                $quantidadeOcorrencias = (string) count($ocorrencias);
+            }
+
+            $fonteTitulo = 'eCRVsp - DETRAN - São Paulo';
+            $titleNode = $xp->query('//head/title')->item(0);
+            if ($titleNode) {
+                $maybeTitle = $txt($titleNode);
+                if (!empty($maybeTitle)) {
+                    $fonteTitulo = $maybeTitle;
+                }
+            }
+
             // JSON de saída
             $out = [
                 'fonte' => [
-                    'titulo'    => 'eCRVsp - DETRAN - São Paulo',
+                    'titulo'    => $fonteTitulo,
                     'gerado_em' => $dataHora,
                 ],
                 'consulta' => [
-                    'placa'                   => $pick($L['Placa']),
-                    'uf_emplacamento'         => $pick($L['UF_Emplacamento']),
-                    'indicador_exigibilidade' => $pick($L['IndicadorExigibilidade']),
+                    'placa'                   => $consultaPlaca,
+                    'uf_emplacamento'         => $consultaUf,
+                    'indicador_exigibilidade' => $consultaExig,
                 ],
                 'renainf' => [
-                    'quantidade_ocorrencias'  => $pick($L['QtdOcorrencias']),
+                    'quantidade_ocorrencias'  => $quantidadeOcorrencias,
                     'ocorrencias'             => $ocorrencias,
                 ],
             ];
