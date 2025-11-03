@@ -5,6 +5,7 @@ import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
+import 'package:frontend_app/models/pesquisa_models.dart';
 import 'package:frontend_app/services/auth_service.dart';
 import 'package:frontend_app/services/base_estadual_service.dart';
 import 'package:frontend_app/services/renainf_service.dart';
@@ -26,22 +27,32 @@ import 'widgets/home_header.dart';
 import 'widgets/recent_vehicle_card.dart';
 
 class HomePage extends StatefulWidget {
-  const HomePage({super.key});
+  const HomePage({
+    super.key,
+    this.authService,
+    this.pesquisaService,
+  });
 
   static const routeName = '/home';
+
+  final AuthService? authService;
+  final PesquisaService? pesquisaService;
 
   @override
   State<HomePage> createState() => _HomePageState();
 }
 
 class _HomePageState extends State<HomePage> {
-  final _authService = AuthService();
+  late final AuthService _authService;
   final _baseEstadualService = BaseEstadualService();
   late final PesquisaService _pesquisaService =
-      PesquisaService(authService: _authService);
+      widget.pesquisaService ?? PesquisaService(authService: _authService);
   final _renainfService = RenainfService();
   AuthUser? _currentUser;
   bool _isFetchingUser = false;
+  List<RecentVehicle> _recentVehicles = const [];
+  bool _isLoadingRecentVehicles = false;
+  String? _recentVehiclesError;
 
   static final List<HomeAction> _actions = [
     HomeAction(
@@ -74,19 +85,6 @@ class _HomePageState extends State<HomePage> {
       icon: Icons.assignment_turned_in_outlined,
       title: 'Emissão da ATPV-e',
       description: 'Preencher a autorização para transferência',
-    ),
-  ];
-
-  static final List<RecentVehicle> _recentVehicles = [
-    RecentVehicle(
-      plate: 'GEP-1E11',
-      summary: 'Pesquisa de débitos',
-      dateTime: DateTime(2025, 10, 6, 14, 32),
-    ),
-    RecentVehicle(
-      plate: 'GEP-1E11',
-      summary: 'Pesquisa de débitos',
-      dateTime: DateTime(2025, 10, 6, 14, 32),
     ),
   ];
 
@@ -2883,8 +2881,84 @@ class _HomePageState extends State<HomePage> {
   @override
   void initState() {
     super.initState();
+    _authService = widget.authService ?? AuthService();
     _currentUser = _authService.session?.user;
     _loadCurrentUser();
+    _loadRecentVehicles();
+  }
+
+  Future<void> _loadRecentVehicles() async {
+    if (!mounted) return;
+    if (_authService.session == null) {
+      setState(() {
+        _recentVehicles = const [];
+        _recentVehiclesError = null;
+        _isLoadingRecentVehicles = false;
+      });
+      return;
+    }
+
+    setState(() {
+      _isLoadingRecentVehicles = true;
+      _recentVehiclesError = null;
+    });
+
+    try {
+      final pesquisas = await _pesquisaService.listarRecentes();
+      if (!mounted) return;
+      setState(() {
+        _recentVehicles = pesquisas
+            .map(_mapPesquisaResumoToRecentVehicle)
+            .toList(growable: false);
+        _isLoadingRecentVehicles = false;
+      });
+    } on PesquisaException catch (e) {
+      if (!mounted) return;
+      if (e.message.contains('Sessão inválida') ||
+          e.message.contains('Não autenticado')) {
+        _handleUnauthorized();
+        return;
+      }
+      setState(() {
+        _recentVehicles = const [];
+        _isLoadingRecentVehicles = false;
+        _recentVehiclesError = e.message;
+      });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        _recentVehicles = const [];
+        _isLoadingRecentVehicles = false;
+        _recentVehiclesError =
+            'Não foi possível carregar os veículos pesquisados.';
+      });
+    }
+  }
+
+  RecentVehicle _mapPesquisaResumoToRecentVehicle(
+    PesquisaResumo resumo,
+  ) {
+    final plate = resumo.placa?.trim().toUpperCase();
+    final leading = plate?.isNotEmpty == true
+        ? plate!
+        : (resumo.chassi?.trim().toUpperCase() ?? resumo.nome);
+
+    final details = <String>[
+      resumo.nome,
+      if (resumo.renavam != null && resumo.renavam!.trim().isNotEmpty)
+        'Renavam: ${resumo.renavam}',
+      if (resumo.chassi != null && resumo.chassi!.trim().isNotEmpty)
+        'Chassi: ${resumo.chassi}',
+      if (resumo.opcaoPesquisa != null &&
+          resumo.opcaoPesquisa!.trim().isNotEmpty)
+        'Opção: ${resumo.opcaoPesquisa}',
+    ];
+
+    return RecentVehicle(
+      plate: leading,
+      summary: details.join('\n'),
+      dateTime: resumo.createdAt,
+    );
   }
 
   Future<void> _loadCurrentUser() async {
@@ -3006,12 +3080,43 @@ class _HomePageState extends State<HomePage> {
                           ),
                         ),
                         const SizedBox(height: 16),
-                        ..._recentVehicles.map(
-                          (vehicle) => Padding(
-                            padding: const EdgeInsets.only(bottom: 12),
-                            child: RecentVehicleCard(vehicle: vehicle),
+                        if (_isLoadingRecentVehicles)
+                          const Center(
+                            child: Padding(
+                              padding: EdgeInsets.symmetric(vertical: 24),
+                              child: CircularProgressIndicator(),
+                            ),
+                          )
+                        else if (_recentVehiclesError != null)
+                          Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                _recentVehiclesError!,
+                                style: theme.textTheme.bodyMedium?.copyWith(
+                                  color: theme.colorScheme.error,
+                                ),
+                              ),
+                              TextButton(
+                                onPressed: _loadRecentVehicles,
+                                child: const Text('Tentar novamente'),
+                              ),
+                            ],
+                          )
+                        else if (_recentVehicles.isEmpty)
+                          Text(
+                            'Nenhuma pesquisa recente encontrada.',
+                            style: theme.textTheme.bodyMedium?.copyWith(
+                              color: const Color(0xFF667085),
+                            ),
+                          )
+                        else
+                          ..._recentVehicles.map(
+                            (vehicle) => Padding(
+                              padding: const EdgeInsets.only(bottom: 12),
+                              child: RecentVehicleCard(vehicle: vehicle),
+                            ),
                           ),
-                        ),
                       ],
                     ),
                   ),

@@ -2,6 +2,7 @@ import 'dart:convert';
 
 import 'package:http/http.dart' as http;
 
+import '../models/pesquisa_models.dart';
 import 'auth_service.dart';
 
 class PesquisaException implements Exception {
@@ -77,6 +78,42 @@ class PesquisaService {
     throw PesquisaException(message);
   }
 
+  Future<List<PesquisaResumo>> listarRecentes() async {
+    final uri = _buildUri('/api/pesquisas');
+    final response = await _client.get(
+      uri,
+      headers: _authorizedHeaders(),
+    );
+
+    if (response.statusCode != 200) {
+      final message = _extractMessage(response.body) ??
+          'Falha ao carregar pesquisas (HTTP ${response.statusCode}).';
+      throw PesquisaException(message);
+    }
+
+    try {
+      final dynamic decoded = jsonDecode(response.body);
+      if (decoded is Map<String, dynamic>) {
+        final data = decoded['data'];
+        if (data is List) {
+          return data
+              .whereType<Map>()
+              .map(
+                (item) => PesquisaResumo.fromJson(
+                  item.map(
+                    (key, dynamic value) => MapEntry(key.toString(), value),
+                  ),
+                ),
+              )
+              .toList();
+        }
+      }
+      throw const FormatException();
+    } catch (_) {
+      throw PesquisaException('Resposta inválida ao carregar pesquisas.');
+    }
+  }
+
   String? _extractMessage(String body) {
     if (body.isEmpty) return null;
     try {
@@ -100,4 +137,3 @@ class PesquisaService {
     return null;
   }
 }
-

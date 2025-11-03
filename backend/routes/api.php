@@ -27,4 +27,5 @@ Route::get('emissao-crlv', ImpressaoCrlvController::class);
 Route::get('renainf', RenainfPlacaController::class);
 
 Route::get('pesquisas', [PesquisaController::class, 'index']);
+Route::get('pesquisas/ultimo-mes', [PesquisaController::class, 'lastMonth']);
 Route::post('pesquisas', [PesquisaController::class, 'store']);

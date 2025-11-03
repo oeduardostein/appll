@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Models\Pesquisa;
 use App\Models\User;
+use Carbon\Carbon;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
@@ -36,6 +37,39 @@ class PesquisaController extends Controller
 
         return response()->json([
             'data' => $items,
+        ]);
+    }
+
+    /**
+     * Retorna todas as pesquisas do usuário feitas nos últimos 30 dias.
+     */
+    public function lastMonth(Request $request): JsonResponse
+    {
+        $user = $this->findUserFromRequest($request);
+
+        if (! $user) {
+            return $this->unauthorizedResponse();
+        }
+
+        $startDate = Carbon::now()->subMonth();
+
+        $items = $user->pesquisas()
+            ->where('created_at', '>=', $startDate)
+            ->orderByDesc('created_at')
+            ->get([
+                'id',
+                'nome',
+                'placa',
+                'renavam',
+                'chassi',
+                'opcao_pesquisa',
+                'created_at',
+            ]);
+
+        return response()->json([
+            'data' => $items,
+            'period_start' => $startDate->toIso8601String(),
+            'period_end' => Carbon::now()->toIso8601String(),
         ]);
     }
 
@@ -107,4 +141,3 @@ class PesquisaController extends Controller
         ], 401);
     }
 }
-
