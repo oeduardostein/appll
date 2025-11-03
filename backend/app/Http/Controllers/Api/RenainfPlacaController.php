@@ -34,20 +34,29 @@ class RenainfPlacaController extends Controller
             // Busca valor ao lado de um label (<span.texto_black2>)
             $findValueByLabel = function (string $label) use ($xp, $txt) {
                 // match exato
-                $q1 = sprintf('//span[contains(@class,"texto_black2")][normalize-space()="%s"]/ancestor::td[1]/following-sibling::td[1]//*[contains(@class,"texto_menor")][1]', $label);
+                $q1 = sprintf(
+                    '//span[contains(@class,"texto_black2")][normalize-space()="%s"]/ancestor::td[1]/following-sibling::td[1]//*[contains(@class,"texto_menor")][1]',
+                    $label
+                );
                 $n1 = $xp->query($q1)->item(0);
                 if ($n1) return $txt($n1);
                 // contém (tolerante)
-                $q2 = sprintf('//span[contains(@class,"texto_black2")][contains(normalize-space(), "%s")]/ancestor::td[1]/following-sibling::td[1]//*[contains(@class,"texto_menor")][1]', $label);
+                $q2 = sprintf(
+                    '//span[contains(@class,"texto_black2")][contains(normalize-space(), "%s")]/ancestor::td[1]/following-sibling::td[1]//*[contains(@class,"texto_menor")][1]',
+                    $label
+                );
                 $n2 = $xp->query($q2)->item(0);
                 if ($n2) return $txt($n2);
                 // fallback (colspan)
-                $q3 = sprintf('//span[contains(@class,"texto_black2")][contains(normalize-space(), "%s")]/ancestor::td[1]/following-sibling::td//*[contains(@class,"texto_menor")][1]', $label);
+                $q3 = sprintf(
+                    '//span[contains(@class,"texto_black2")][contains(normalize-space(), "%s")]/ancestor::td[1]/following-sibling::td//*[contains(@class,"texto_menor")][1]',
+                    $label
+                );
                 $n3 = $xp->query($q3)->item(0);
                 return $n3 ? $txt($n3) : null;
             };
 
-            // Timestamp (ex.: 03/11/2025 16:19:19)
+            // Timestamp (ex.: 03/11/2025 16:45:48)
             $allText  = $txt($xp->query('//body')->item(0));
             $dataHora = null;
             if ($allText && preg_match('/\b(\d{2}\/\d{2}\/\d{4}\s+\d{2}:\d{2}:\d{2})\b/u', $allText, $m)) {
@@ -70,26 +79,26 @@ class RenainfPlacaController extends Controller
                 return null;
             };
 
-            // Tabela de ocorrências
+            // Tabela de ocorrências (#listRenainfId) — robusto a mudanças de <tbody>
             $ocorrencias = [];
-            $tbody = $xp->query('//*[@id="listRenainfId"]/tbody')->item(0);
-            if ($tbody) {
-                foreach ($xp->query('./tr', $tbody) as $tr) {
-                    $tds = $xp->query('./td', $tr);
-                    if ($tds->length >= 6) {
-                        // ignora col 0 (botão lupa)
-                        $orgao         = $txt($tds->item(1));
-                        $autoInfracao  = $txt($tds->item(2));
-                        $infracao      = $txt($tds->item(3));
-                        $dataInfracao  = $txt($tds->item(4));
-                        $exigibilidade = $txt($tds->item(5));
+            foreach ($xp->query('//table[@id="listRenainfId"]//tr[td]') as $tr) {
+                $tds = $xp->query('./td', $tr);
+                if ($tds->length >= 6) {
+                    // ignora col 0 (botão lupa)
+                    $orgao         = $txt($tds->item(1));
+                    $autoInfracao  = $txt($tds->item(2));
+                    $infracao      = $txt($tds->item(3));
+                    $dataInfracao  = $txt($tds->item(4));
+                    $exigibilidade = $txt($tds->item(5));
 
+                    // só adiciona linhas reais (defesa contra header duplicado etc.)
+                    if ($orgao !== 'Orgão Autuador' && $orgao !== 'Orgão Autuador' && $orgao !== null) {
                         $ocorrencias[] = [
-                            'orgao_autuador' => $orgao,          // ex.: 271070
-                            'auto_infracao'  => $autoInfracao,   // ex.: 7RA1254609
-                            'infracao'       => $infracao,       // ex.: 5746
-                            'data_infracao'  => $dataInfracao,   // ex.: 08/05/2025
-                            'exigibilidade'  => $exigibilidade,  // ex.: Não
+                            'orgao_autuador' => $orgao,          // ex.: 264750
+                            'auto_infracao'  => $autoInfracao,   // ex.: D500042316
+                            'infracao'       => $infracao,       // ex.: 7455
+                            'data_infracao'  => $dataInfracao,   // ex.: 22/04/2025
+                            'exigibilidade'  => $exigibilidade,  // ex.: Sim/Não
                         ];
                     }
                 }
@@ -127,7 +136,7 @@ class RenainfPlacaController extends Controller
         // -------- Fim parser --------
 
         // -------- Entrada --------
-        $indExigib  = $request->query('indExigib');     // "1" (Cobrança) | "2" (Todas) — conforme tela
+        $indExigib  = $request->query('indExigib');     // "1" (Cobrança) | "2" (Todas)
         $periodoIni = $request->query('periodoIni');    // dd/mm/aaaa
         $periodoFin = $request->query('periodoFin');    // dd/mm/aaaa
         $placa      = $request->query('placa');         // obrigatório
@@ -135,7 +144,7 @@ class RenainfPlacaController extends Controller
         // aceitar captchaResponse OU captcha
         $captcha    = $request->query('captchaResponse') ?: $request->query('captcha');
 
-        // Validação (UF não é obrigatório)
+        // Validação (UF não é obrigatório na tela)
         if (!$placa || !$periodoIni || !$periodoFin || $indExigib === null || !$captcha) {
             return response()->json(
                 ['message' => 'Informe placa, periodoIni, periodoFin, indExigib e captchaResponse (ou captcha).'],
