@@ -193,12 +193,9 @@ class ImpressaoCrlvController extends Controller
             'renavam'         => $renavam,
             'opcaoPesquisa'   => (string) $opcaoPesquisa,
             'captchaResponse' => strtoupper($captcha),
+            'cpf'             => trim((string) $cpf),
+            'cnpj'            => trim((string) $cnpj),
         ];
-        if ((string)$opcaoPesquisa === '1') {
-            $form['cpf'] = preg_replace('/\D+/', '', (string)$cpf);
-        } elseif ((string)$opcaoPesquisa === '2') {
-            $form['cnpj'] = preg_replace('/\D+/', '', (string)$cnpj);
-        }
         // se a tela aceitar ambos sempre, pode remover esse condicional
 
         $response = Http::withHeaders($headers)
