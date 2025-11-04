@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api;
 use DOMDocument;
 use DOMNode;
 use DOMXPath;
+use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Http\Request;
 use Illuminate\Routing\Controller;
 use Illuminate\Support\Facades\DB;
@@ -16,7 +17,7 @@ class ImpressaoCrlvController extends Controller
     public function __invoke(Request $request): Response
     {
         // ---- Parser como CLOSURE (evita "Cannot redeclare") ----
-        $parse = function (string $html): string {
+        $parse = function (string $html): array {
             if (stripos($html, 'charset=iso-8859-1') !== false || stripos($html, 'charset=iso8859-1') !== false) {
                 $html = @mb_convert_encoding($html, 'HTML-ENTITIES', 'ISO-8859-1');
             }
@@ -136,7 +137,7 @@ class ImpressaoCrlvController extends Controller
             };
             $sanitize($out);
 
-            return json_encode($out, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_PRETTY_PRINT);
+            return $out;
         };
         // ---- fim parser ----
 
@@ -215,9 +216,44 @@ class ImpressaoCrlvController extends Controller
         //     return response()->json(['message' => 'Falha ao consultar a emissão/impressão do CRLV.'], Response::HTTP_BAD_GATEWAY);
         // }
 
-        $body = $parse($response->body());
+        $data = $parse($response->body());
 
-        return response($body, Response::HTTP_OK)
-            ->header('Content-Type', 'application/json; charset=UTF-8');
+        $dadosVeiculo = $data['veiculo'] ?? [];
+        $dadosProprietario = $data['proprietario']['nome'] ?? null;
+
+        $temDadosEssenciais = ($dadosVeiculo['placa'] ?? null) && ($dadosVeiculo['renavam'] ?? null);
+
+        if (!$temDadosEssenciais) {
+            return response()->json(
+                ['message' => 'Não foi possível localizar os dados do veículo na resposta.'],
+                Response::HTTP_UNPROCESSABLE_ENTITY
+            );
+        }
+
+        $metadata = [
+            'placa'         => strtoupper($form['placa']),
+            'renavam'       => $form['renavam'],
+            'documento'     => (string)($form['cpf'] ?? $form['cnpj'] ?? ''),
+            'emitido_em'    => $data['fonte']['gerado_em'] ?? now('America/Sao_Paulo')->format('d/m/Y H:i:s'),
+            'status_texto'  => $data['status'] ?? null,
+        ];
+
+        $pdf = Pdf::loadView('pdf.crlv', [
+            'dados'     => $data,
+            'metadata'  => $metadata,
+            'usuario'   => $dadosProprietario,
+        ])->setPaper('a4', 'portrait');
+
+        $arquivo = sprintf(
+            'CRLV-%s-%s.pdf',
+            preg_replace('/[^A-Z0-9]/', '', strtoupper($form['placa'])),
+            now('America/Sao_Paulo')->format('YmdHis')
+        );
+
+        return response($pdf->output(), Response::HTTP_OK, [
+            'Content-Type'        => 'application/pdf',
+            'Content-Disposition' => 'inline; filename="'.$arquivo.'"',
+            'Cache-Control'       => 'no-store, no-cache, must-revalidate, max-age=0',
+        ]);
     }
 }

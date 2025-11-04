@@ -4,6 +4,10 @@ import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
+import 'package:open_filex/open_filex.dart';
+import 'package:path_provider/path_provider.dart';
+import 'package:universal_io/io.dart' as io;
 
 import 'package:frontend_app/models/pesquisa_models.dart';
 import 'package:frontend_app/services/auth_service.dart';
@@ -598,7 +602,7 @@ class _HomePageState extends State<HomePage> {
       final cnpj = isCpf ? '' : request.document;
       final opcao = isCpf ? '1' : '2';
 
-      final result = await _baseEstadualService.emitirCrlv(
+      final pdfBytes = await _baseEstadualService.emitirCrlv(
         placa: request.plate,
         renavam: request.renavam,
         cpf: cpf,
@@ -615,16 +619,18 @@ class _HomePageState extends State<HomePage> {
         renavam: request.renavam,
         opcaoPesquisa: opcao,
       );
-      Navigator.of(context).push(
-        MaterialPageRoute(
-          builder: (_) => BaseEstadualPage(
-            placa: request.plate,
-            renavam: request.renavam,
-            payload: result,
-            pageTitle: 'Emissão do CRLV-e',
-          ),
-        ),
-      );
+      final pdfResult = await _saveAndOpenPdf(pdfBytes, request.plate);
+      if (!mounted) return;
+      if (pdfResult.opened) {
+        _showSuccessMessage('CRLV-e emitido com sucesso.');
+      } else {
+        final fallbackMessage = pdfResult.path != null
+            ? 'CRLV-e emitido. Abra o arquivo manualmente em ${pdfResult.path}.'
+            : kIsWeb
+                ? 'CRLV-e emitido. Baixe o PDF utilizando o aplicativo móvel.'
+                : 'CRLV-e emitido, mas não foi possível abrir o PDF automaticamente.';
+        _showErrorMessage(fallbackMessage);
+      }
     } on BaseEstadualException catch (e) {
       if (!mounted) return;
       Navigator.of(context, rootNavigator: true).pop();
@@ -678,6 +684,30 @@ class _HomePageState extends State<HomePage> {
       if (!mounted) return;
       Navigator.of(context, rootNavigator: true).pop();
       _showErrorMessage('Não foi possível emitir a ATPV-e.');
+    }
+  }
+
+  Future<({bool opened, String? path})> _saveAndOpenPdf(
+    Uint8List pdfBytes,
+    String plate,
+  ) async {
+    if (kIsWeb) {
+      return (opened: false, path: null);
+    }
+
+    try {
+      final directory = await getTemporaryDirectory();
+      final sanitizedPlate = plate.replaceAll(RegExp(r'[^A-Za-z0-9]'), '').toUpperCase();
+      final timestamp = DateTime.now().millisecondsSinceEpoch;
+      final filename = 'crlv_${sanitizedPlate.isEmpty ? 'veiculo' : sanitizedPlate}_$timestamp.pdf';
+      final file = io.File('${directory.path}/$filename');
+
+      await file.writeAsBytes(pdfBytes, flush: true);
+
+      final result = await OpenFilex.open(file.path);
+      return (opened: result.type == ResultType.done, path: file.path);
+    } catch (_) {
+      return (opened: false, path: null);
     }
   }
 
@@ -2496,6 +2526,19 @@ class _HomePageState extends State<HomePage> {
     ScaffoldMessenger.of(context)
       ..clearSnackBars()
       ..showSnackBar(SnackBar(content: Text(message)));
+  }
+
+  void _showSuccessMessage(String message) {
+    if (!mounted) return;
+    final theme = Theme.of(context);
+    ScaffoldMessenger.of(context)
+      ..clearSnackBars()
+      ..showSnackBar(
+        SnackBar(
+          content: Text(message),
+          backgroundColor: theme.colorScheme.primary,
+        ),
+      );
   }
 
   String _mapBaseEstadualCaptchaError(Object error) {

@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:typed_data';
 
 import 'package:http/http.dart' as http;
 
@@ -258,7 +259,7 @@ class BaseEstadualService {
     throw BaseEstadualException('Formato de resposta da emissão inválido.');
   }
 
-  Future<Map<String, dynamic>> emitirCrlv({
+  Future<Uint8List> emitirCrlv({
     required String placa,
     required String renavam,
     required String cpf,
@@ -281,32 +282,58 @@ class BaseEstadualService {
 
     final response = await _client.get(uri);
 
-    if (response.statusCode != 200) {
-      throw BaseEstadualException(
-        'Falha ao emitir CRLV-e (HTTP ${response.statusCode}).',
-      );
+    final contentType = response.headers['content-type'] ?? '';
+    final bytes = response.bodyBytes;
+
+    final isPdf = contentType.contains('application/pdf') ||
+        contentType.contains('application/octet-stream');
+
+    if (response.statusCode == 200 && isPdf) {
+      if (bytes.isEmpty) {
+        throw BaseEstadualException('O PDF retornou vazio.');
+      }
+      return Uint8List.fromList(bytes);
     }
 
     final body = response.body.trim();
+
+    if (response.statusCode != 200) {
+      final message = _extractMessage(body) ??
+          'Falha ao emitir CRLV-e (HTTP ${response.statusCode}).';
+      throw BaseEstadualException(message);
+    }
+
     if (body.isEmpty) {
       throw BaseEstadualException('Resposta vazia da emissão.');
+    }
+
+    final message = _extractMessage(body);
+    if (message != null) {
+      throw BaseEstadualException(message);
+    }
+
+    throw BaseEstadualException('Formato de resposta da emissão inválido.');
+  }
+
+  String? _extractMessage(String? body) {
+    if (body == null || body.isEmpty) {
+      return null;
     }
 
     try {
       final decoded = jsonDecode(body);
       if (decoded is Map<String, dynamic>) {
-        return decoded;
-      }
-      if (decoded is List) {
-        return {'items': decoded};
-      }
-      if (decoded is String) {
-        return {'message': decoded};
+        final message = decoded['message'] ?? decoded['error'] ?? decoded['status'];
+        if (message is String && message.trim().isNotEmpty) {
+          return message.trim();
+        }
+      } else if (decoded is String && decoded.trim().isNotEmpty) {
+        return decoded.trim();
       }
     } catch (_) {
-      return {'message': body};
+      // ignore, content não é JSON.
     }
 
-    throw BaseEstadualException('Formato de resposta da emissão inválido.');
+    return body;
   }
 }
