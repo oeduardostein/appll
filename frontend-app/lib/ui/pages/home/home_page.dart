@@ -11,9 +11,9 @@ import 'package:frontend_app/services/base_estadual_service.dart';
 import 'package:frontend_app/services/bin_service.dart';
 import 'package:frontend_app/services/renainf_service.dart';
 import 'package:frontend_app/services/gravame_service.dart';
+import 'package:frontend_app/services/ficha_cadastral_service.dart';
 import 'package:frontend_app/services/pesquisa_service.dart';
 
-import '../atpv/atpv_form_page.dart';
 import '../base_state/base_estadual_page.dart';
 import '../base_state/base_outros_estados_page.dart';
 import '../bin/bin_result_page.dart';
@@ -22,6 +22,7 @@ import '../ecrv/ecrv_process_page.dart';
 import '../fines/renainf_page.dart';
 import '../gravame/gravame_page.dart';
 import '../shared/loading_dialog.dart';
+import '../atpv/atpv_form_page.dart';
 import '../auth/login_page.dart';
 import 'home_models.dart';
 import 'widgets/home_action_card.dart';
@@ -49,6 +50,7 @@ class _HomePageState extends State<HomePage> {
   final _baseEstadualService = BaseEstadualService();
   final _binService = BinService();
   final _gravameService = GravameService();
+  final _fichaCadastralService = FichaCadastralService();
   late final PesquisaService _pesquisaService =
       widget.pesquisaService ?? PesquisaService(authService: _authService);
   final _renainfService = RenainfService();
@@ -236,6 +238,34 @@ class _HomePageState extends State<HomePage> {
     );
   }
 
+  Future<_FichaConsultaRequest?> _showFichaCadastralConsultaDialog() {
+    return showDialog<_FichaConsultaRequest>(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) => _FichaConsultaDialog(
+        fetchCaptcha: () => _baseEstadualService.fetchCaptcha(),
+        captchaErrorResolver: _mapBaseEstadualCaptchaError,
+        plateValidator: _isValidPlate,
+      ),
+    );
+  }
+
+  Future<_FichaAndamentoRequest?> _showFichaAndamentoDialog({
+    required String numeroFicha,
+    required String anoFicha,
+  }) {
+    return showDialog<_FichaAndamentoRequest>(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) => _FichaAndamentoDialog(
+        numeroFicha: numeroFicha,
+        anoFicha: anoFicha,
+        fetchCaptcha: () => _baseEstadualService.fetchCaptcha(),
+        captchaErrorResolver: _mapBaseEstadualCaptchaError,
+      ),
+    );
+  }
+
   Future<_BaseEstadualQuery?> _showVehicleLookupDialog({
     required String title,
     required Future<String> Function() fetchCaptcha,
@@ -396,22 +426,105 @@ class _HomePageState extends State<HomePage> {
   }
 
   Future<void> _handleEcrvProcessFlow() async {
-    final request = await _showEcrvProcessDialog();
-    if (request == null || !mounted) return;
+    final consultaRequest = await _showFichaCadastralConsultaDialog();
+    if (consultaRequest == null || !mounted) return;
 
-    await _showLoadingDialog();
+    showDialog<void>(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) => const LoadingDialog(),
+    );
+
+    Map<String, dynamic> fichaResult;
+    try {
+      fichaResult = await _fichaCadastralService.consultarFicha(
+        placa: consultaRequest.plate,
+        captcha: consultaRequest.captcha,
+      );
+    } on FichaCadastralException catch (e) {
+      if (!mounted) return;
+      Navigator.of(context, rootNavigator: true).pop();
+      _showErrorMessage(e.message);
+      return;
+    } catch (_) {
+      if (!mounted) return;
+      Navigator.of(context, rootNavigator: true).pop();
+      _showErrorMessage('Não foi possível consultar a ficha cadastral.');
+      return;
+    }
+
     if (!mounted) return;
+    Navigator.of(context, rootNavigator: true).pop();
+
+    final fichaPayload = _asMap(fichaResult['payload']);
+    final fichaNormalized =
+        _asMap(fichaPayload?['normalized'])?['dados_da_ficha_cadastral'];
+    final numeroFicha = fichaNormalized?['n_da_ficha']?.toString();
+    final anoFicha = fichaNormalized?['ano_ficha']?.toString();
+    final renavamFicha = fichaNormalized?['renavam']?.toString();
+    final chassiFicha = fichaNormalized?['chassi']?.toString();
+
+    if (numeroFicha == null ||
+        numeroFicha.isEmpty ||
+        anoFicha == null ||
+        anoFicha.isEmpty) {
+      _showErrorMessage(
+        'Consulta retornou sem número/ano da ficha. Verifique os dados informados.',
+      );
+      return;
+    }
+
+    final andamentoRequest = await _showFichaAndamentoDialog(
+      numeroFicha: numeroFicha,
+      anoFicha: anoFicha,
+    );
+    if (andamentoRequest == null || !mounted) return;
+
+    showDialog<void>(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) => const LoadingDialog(),
+    );
+
+    Map<String, dynamic> andamentoResult;
+    try {
+      andamentoResult = await _fichaCadastralService.consultarAndamento(
+        numeroFicha: numeroFicha,
+        anoFicha: anoFicha,
+        captcha: andamentoRequest.captcha,
+        placa: consultaRequest.plate,
+      );
+    } on FichaCadastralException catch (e) {
+      if (!mounted) return;
+      Navigator.of(context, rootNavigator: true).pop();
+      _showErrorMessage(e.message);
+      return;
+    } catch (_) {
+      if (!mounted) return;
+      Navigator.of(context, rootNavigator: true).pop();
+      _showErrorMessage('Não foi possível consultar o andamento do processo.');
+      return;
+    }
+
+    if (!mounted) return;
+    Navigator.of(context, rootNavigator: true).pop();
+
     _registerPesquisa(
       nome: 'Processo e-CRVsp',
-      placa: request.plate,
-      chassi: request.chassi,
+      placa: consultaRequest.plate,
+      renavam: renavamFicha,
+      chassi: chassiFicha,
     );
 
     Navigator.of(context).push(
       MaterialPageRoute(
         builder: (_) => EcrvProcessPage(
-          plate: request.plate,
-          chassi: request.chassi,
+          placa: consultaRequest.plate,
+          numeroFicha: numeroFicha,
+          anoFicha: anoFicha,
+          fichaPayload: fichaPayload ?? const {},
+          andamentoPayload:
+              _asMap(andamentoResult['payload']) ?? andamentoResult,
         ),
       ),
     );
@@ -1627,140 +1740,6 @@ class _HomePageState extends State<HomePage> {
     );
   }
 
-  Future<_EcrvProcessRequest?> _showEcrvProcessDialog() async {
-    final plateController = TextEditingController();
-    final chassiController = TextEditingController();
-
-    final result = await showDialog<_EcrvProcessRequest>(
-      context: context,
-      barrierDismissible: false,
-      builder: (dialogContext) {
-        return Dialog(
-          insetPadding: const EdgeInsets.symmetric(horizontal: 24),
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(24),
-          ),
-          child: StatefulBuilder(
-            builder: (context, setState) {
-              final plateText = plateController.text.trim().toUpperCase();
-              final chassiText = chassiController.text.trim().toUpperCase();
-
-              final plateValid =
-                  plateText.isNotEmpty && _isValidPlate(plateText);
-              final chassiValid =
-                  chassiText.isNotEmpty && _isValidChassi(chassiText);
-              final isValid = plateValid || chassiValid;
-
-              return ConstrainedBox(
-                constraints: const BoxConstraints(maxHeight: 480),
-                child: SingleChildScrollView(
-                  padding: const EdgeInsets.fromLTRB(20, 20, 20, 24),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      Row(
-                        children: [
-                          Text(
-                            'Andamento do processo e-CRV',
-                            style: Theme.of(context).textTheme.titleMedium
-                                ?.copyWith(fontWeight: FontWeight.w700),
-                          ),
-                          const Spacer(),
-                          IconButton(
-                            onPressed: () {
-                              FocusManager.instance.primaryFocus?.unfocus();
-                              Navigator.of(dialogContext).pop();
-                            },
-                            icon: const Icon(Icons.close),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 16),
-                      TextField(
-                        controller: plateController,
-                        decoration: InputDecoration(
-                          labelText: 'Placa',
-                          errorText: plateText.isNotEmpty && !plateValid
-                              ? 'Placa inválida'
-                              : null,
-                        ),
-                        inputFormatters: [
-                          const _UpperCaseTextFormatter(),
-                          FilteringTextInputFormatter.allow(
-                            RegExp('[A-Za-z0-9]'),
-                          ),
-                          LengthLimitingTextInputFormatter(7),
-                        ],
-                        textCapitalization: TextCapitalization.characters,
-                        onChanged: (_) => setState(() {}),
-                      ),
-                      const SizedBox(height: 12),
-                      Center(
-                        child: Text(
-                          'ou',
-                          style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                                color: const Color(0xFF667085),
-                                fontWeight: FontWeight.w600,
-                              ),
-                        ),
-                      ),
-                      const SizedBox(height: 12),
-                      TextField(
-                        controller: chassiController,
-                        decoration: InputDecoration(
-                          labelText: 'Chassi',
-                          errorText: chassiText.isNotEmpty && !chassiValid
-                              ? 'Chassi inválido'
-                              : null,
-                        ),
-                        inputFormatters: [
-                          const _UpperCaseTextFormatter(),
-                          FilteringTextInputFormatter.allow(
-                            RegExp('[A-Za-z0-9]'),
-                          ),
-                          LengthLimitingTextInputFormatter(17),
-                        ],
-                        textCapitalization: TextCapitalization.characters,
-                        onChanged: (_) => setState(() {}),
-                      ),
-                      const SizedBox(height: 24),
-                      FilledButton(
-                        onPressed: isValid
-                            ? () {
-                                FocusManager.instance.primaryFocus?.unfocus();
-                                Navigator.of(dialogContext).pop(
-                                  _EcrvProcessRequest(
-                                    plate: plateValid ? plateText : null,
-                                    chassi: chassiValid ? chassiText : null,
-                                  ),
-                                );
-                              }
-                            : null,
-                        style: FilledButton.styleFrom(
-                          minimumSize: const Size.fromHeight(52),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(16),
-                          ),
-                        ),
-                        child: const Text('Avançar'),
-                      ),
-                    ],
-                  ),
-                ),
-              );
-            },
-          ),
-        );
-      },
-    );
-
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      plateController.dispose();
-      chassiController.dispose();
-    });
-    return result;
-  }
-
   Future<_RenainfRequest?> _showRenainfDialog() async {
     final formKey = GlobalKey<FormState>();
     final plateController = TextEditingController();
@@ -2537,6 +2516,18 @@ class _HomePageState extends State<HomePage> {
     return 'Erro ao carregar captcha.';
   }
 
+  Map<String, dynamic>? _asMap(dynamic value) {
+    if (value is Map<String, dynamic>) {
+      return value;
+    }
+    if (value is Map) {
+      return value.map(
+        (key, dynamic val) => MapEntry(key.toString(), val),
+      );
+    }
+    return null;
+  }
+
   bool _isValidPlate(String value) {
     final normalized = value.replaceAll('-', '').toUpperCase();
     if (normalized.length != 7) {
@@ -2885,10 +2876,10 @@ class _VehicleLookupDialog extends StatefulWidget {
     required this.title,
     required this.fetchCaptcha,
     required this.plateValidator,
+    this.submitLabel = "Consultar",
+    this.captchaLabel = "Informe o captcha",
     required this.renavamValidator,
     this.captchaErrorResolver,
-    this.submitLabel = 'Consultar',
-    this.captchaLabel = 'Informe o captcha',
   });
 
   final String title;
@@ -2898,7 +2889,7 @@ class _VehicleLookupDialog extends StatefulWidget {
   final String Function(Object error)? captchaErrorResolver;
   final String submitLabel;
   final String captchaLabel;
-
+    
   @override
   State<_VehicleLookupDialog> createState() => _VehicleLookupDialogState();
 }
@@ -3491,6 +3482,502 @@ class _GravameDialogState extends State<_GravameDialog> {
   }
 }
 
+class _FichaConsultaDialog extends StatefulWidget {
+  const _FichaConsultaDialog({
+    required this.fetchCaptcha,
+    required this.captchaErrorResolver,
+    required this.plateValidator,
+  });
+
+  final Future<String> Function() fetchCaptcha;
+  final String Function(Object error)? captchaErrorResolver;
+  final bool Function(String value) plateValidator;
+
+  @override
+  State<_FichaConsultaDialog> createState() => _FichaConsultaDialogState();
+}
+
+class _FichaConsultaDialogState extends State<_FichaConsultaDialog> {
+  final _formKey = GlobalKey<FormState>();
+  late final TextEditingController _plateController;
+  late final TextEditingController _captchaController;
+
+  bool _isLoadingCaptcha = false;
+  String? _captchaBase64;
+  String? _captchaError;
+
+  @override
+  void initState() {
+    super.initState();
+    _plateController = TextEditingController();
+    _captchaController = TextEditingController();
+    _refreshCaptcha();
+  }
+
+  @override
+  void dispose() {
+    _plateController.dispose();
+    _captchaController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _refreshCaptcha() async {
+    setState(() {
+      _isLoadingCaptcha = true;
+      _captchaError = null;
+      _captchaBase64 = null;
+    });
+    try {
+      final image = await widget.fetchCaptcha();
+      if (!mounted) return;
+      setState(() {
+        _captchaBase64 = image;
+      });
+    } catch (error) {
+      if (!mounted) return;
+      setState(() {
+        _captchaError = widget.captchaErrorResolver != null
+            ? widget.captchaErrorResolver!(error)
+            : 'Erro ao carregar captcha.';
+      });
+    } finally {
+      if (!mounted) return;
+      setState(() {
+        _isLoadingCaptcha = false;
+      });
+    }
+  }
+
+  void _submit() {
+    if (_isLoadingCaptcha || _captchaBase64 == null) return;
+    if (!_formKey.currentState!.validate()) return;
+
+    Navigator.of(context).pop(
+      _FichaConsultaRequest(
+        plate: _plateController.text.trim().toUpperCase(),
+        captcha: _captchaController.text.trim().toUpperCase(),
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    Uint8List? captchaBytes;
+    if (_captchaBase64 != null && _captchaBase64!.isNotEmpty) {
+      try {
+        captchaBytes = base64Decode(_captchaBase64!);
+      } catch (_) {
+        _captchaError ??= 'Captcha recebido em formato inválido.';
+      }
+    }
+
+    return Dialog(
+      insetPadding: const EdgeInsets.symmetric(horizontal: 24),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxHeight: 520),
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.fromLTRB(20, 20, 20, 24),
+          child: Form(
+            key: _formKey,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Row(
+                  children: [
+                    Text(
+                      'Ficha cadastral - passo 1',
+                      style: Theme.of(context).textTheme.titleMedium
+                          ?.copyWith(fontWeight: FontWeight.w700),
+                    ),
+                    const Spacer(),
+                    IconButton(
+                      onPressed: () => Navigator.of(context).pop(),
+                      icon: const Icon(Icons.close),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 12),
+                Text(
+                  'Digite a placa e o captcha exibido para recuperar o número da ficha.',
+                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                        color: const Color(0xFF475467),
+                      ),
+                ),
+                const SizedBox(height: 20),
+                TextFormField(
+                  controller: _plateController,
+                  decoration: const InputDecoration(
+                    labelText: 'Placa',
+                  ),
+                  inputFormatters: [
+                    const _UpperCaseTextFormatter(),
+                    FilteringTextInputFormatter.allow(RegExp('[A-Za-z0-9]')),
+                    LengthLimitingTextInputFormatter(7),
+                  ],
+                  textCapitalization: TextCapitalization.characters,
+                  validator: (value) {
+                    final text = value?.trim().toUpperCase() ?? '';
+                    if (text.isEmpty) {
+                      return 'Informe a placa';
+                    }
+                    final normalized = text.replaceAll('-', '');
+                    if (!widget.plateValidator(normalized)) {
+                      return 'Placa inválida';
+                    }
+                    return null;
+                  },
+                ),
+                const SizedBox(height: 20),
+                Container(
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(16),
+                    border: Border.all(
+                      color:
+                          Theme.of(context).colorScheme.outline.withOpacity(0.2),
+                    ),
+                  ),
+                  padding: const EdgeInsets.all(16),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      Row(
+                        children: [
+                          Text(
+                            'Captcha',
+                            style: Theme.of(context)
+                                .textTheme
+                                .titleSmall
+                                ?.copyWith(fontWeight: FontWeight.w600),
+                          ),
+                          const Spacer(),
+                          TextButton.icon(
+                            onPressed: _isLoadingCaptcha ? null : _refreshCaptcha,
+                            icon: const Icon(Icons.refresh),
+                            label: const Text('Atualizar'),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 12),
+                      if (_isLoadingCaptcha)
+                        const Center(
+                          child: Padding(
+                            padding: EdgeInsets.symmetric(vertical: 16),
+                            child: CircularProgressIndicator(),
+                          ),
+                        )
+                      else if (_captchaError != null)
+                        Padding(
+                          padding: const EdgeInsets.symmetric(vertical: 8),
+                          child: Text(
+                            _captchaError!,
+                            style: TextStyle(
+                              color: Theme.of(context).colorScheme.error,
+                            ),
+                          ),
+                        )
+                      else if (captchaBytes != null)
+                        Center(
+                          child: ClipRRect(
+                            borderRadius: BorderRadius.circular(8),
+                            child: Image.memory(
+                              captchaBytes,
+                              width: 180,
+                              height: 80,
+                              fit: BoxFit.contain,
+                            ),
+                          ),
+                        ),
+                      const SizedBox(height: 16),
+                      TextFormField(
+                        controller: _captchaController,
+                        decoration: const InputDecoration(
+                          labelText: 'Informe o captcha',
+                        ),
+                        inputFormatters: [
+                          const _UpperCaseTextFormatter(),
+                          FilteringTextInputFormatter.allow(
+                            RegExp('[A-Za-z0-9]'),
+                          ),
+                          LengthLimitingTextInputFormatter(10),
+                        ],
+                        textCapitalization: TextCapitalization.characters,
+                        validator: (value) {
+                          final text = value?.trim() ?? '';
+                          if (text.isEmpty) {
+                            return 'Informe o captcha';
+                          }
+                          return null;
+                        },
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 24),
+                FilledButton(
+                  onPressed:
+                      _isLoadingCaptcha || _captchaBase64 == null ? null : _submit,
+                  child: const Text('Avançar'),
+                ),
+                const SizedBox(height: 12),
+                TextButton(
+                  onPressed: () => Navigator.of(context).pop(),
+                  child: const Text('Cancelar'),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _FichaAndamentoDialog extends StatefulWidget {
+  const _FichaAndamentoDialog({
+    required this.numeroFicha,
+    required this.anoFicha,
+    required this.fetchCaptcha,
+    required this.captchaErrorResolver,
+  });
+
+  final String numeroFicha;
+  final String anoFicha;
+  final Future<String> Function() fetchCaptcha;
+  final String Function(Object error)? captchaErrorResolver;
+
+  @override
+  State<_FichaAndamentoDialog> createState() => _FichaAndamentoDialogState();
+}
+
+class _FichaAndamentoDialogState extends State<_FichaAndamentoDialog> {
+  final _formKey = GlobalKey<FormState>();
+  late final TextEditingController _captchaController;
+
+  bool _isLoadingCaptcha = false;
+  String? _captchaBase64;
+  String? _captchaError;
+
+  @override
+  void initState() {
+    super.initState();
+    _captchaController = TextEditingController();
+    _refreshCaptcha();
+  }
+
+  @override
+  void dispose() {
+    _captchaController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _refreshCaptcha() async {
+    setState(() {
+      _isLoadingCaptcha = true;
+      _captchaError = null;
+      _captchaBase64 = null;
+    });
+    try {
+      final image = await widget.fetchCaptcha();
+      if (!mounted) return;
+      setState(() {
+        _captchaBase64 = image;
+      });
+    } catch (error) {
+      if (!mounted) return;
+      setState(() {
+        _captchaError = widget.captchaErrorResolver != null
+            ? widget.captchaErrorResolver!(error)
+            : 'Erro ao carregar captcha.';
+      });
+    } finally {
+      if (!mounted) return;
+      setState(() {
+        _isLoadingCaptcha = false;
+      });
+    }
+  }
+
+  void _submit() {
+    if (_isLoadingCaptcha || _captchaBase64 == null) return;
+    if (!_formKey.currentState!.validate()) return;
+
+    Navigator.of(context).pop(
+      _FichaAndamentoRequest(
+        numeroFicha: widget.numeroFicha,
+        anoFicha: widget.anoFicha,
+        captcha: _captchaController.text.trim().toUpperCase(),
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    Uint8List? captchaBytes;
+    if (_captchaBase64 != null && _captchaBase64!.isNotEmpty) {
+      try {
+        captchaBytes = base64Decode(_captchaBase64!);
+      } catch (_) {
+        _captchaError ??= 'Captcha recebido em formato inválido.';
+      }
+    }
+
+    return Dialog(
+      insetPadding: const EdgeInsets.symmetric(horizontal: 24),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxHeight: 480),
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.fromLTRB(20, 20, 20, 24),
+          child: Form(
+            key: _formKey,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Row(
+                  children: [
+                    Text(
+                      'Andamento do processo - passo 2',
+                      style: Theme.of(context).textTheme.titleMedium
+                          ?.copyWith(fontWeight: FontWeight.w700),
+                    ),
+                    const Spacer(),
+                    IconButton(
+                      onPressed: () => Navigator.of(context).pop(),
+                      icon: const Icon(Icons.close),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 12),
+                Text(
+                  'Confirme os dados e preencha o novo captcha para consultar o andamento.',
+                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                        color: const Color(0xFF475467),
+                      ),
+                ),
+                const SizedBox(height: 20),
+                TextFormField(
+                  initialValue: widget.numeroFicha,
+                  decoration: const InputDecoration(
+                    labelText: 'Número da ficha',
+                  ),
+                  enabled: false,
+                ),
+                const SizedBox(height: 16),
+                TextFormField(
+                  initialValue: widget.anoFicha,
+                  decoration: const InputDecoration(
+                    labelText: 'Ano da ficha',
+                  ),
+                  enabled: false,
+                ),
+                const SizedBox(height: 20),
+                Container(
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(16),
+                    border: Border.all(
+                      color:
+                          Theme.of(context).colorScheme.outline.withOpacity(0.2),
+                    ),
+                  ),
+                  padding: const EdgeInsets.all(16),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      Row(
+                        children: [
+                          Text(
+                            'Captcha',
+                            style: Theme.of(context)
+                                .textTheme
+                                .titleSmall
+                                ?.copyWith(fontWeight: FontWeight.w600),
+                          ),
+                          const Spacer(),
+                          TextButton.icon(
+                            onPressed: _isLoadingCaptcha ? null : _refreshCaptcha,
+                            icon: const Icon(Icons.refresh),
+                            label: const Text('Atualizar'),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 12),
+                      if (_isLoadingCaptcha)
+                        const Center(
+                          child: Padding(
+                            padding: EdgeInsets.symmetric(vertical: 16),
+                            child: CircularProgressIndicator(),
+                          ),
+                        )
+                      else if (_captchaError != null)
+                        Padding(
+                          padding: const EdgeInsets.symmetric(vertical: 8),
+                          child: Text(
+                            _captchaError!,
+                            style: TextStyle(
+                              color: Theme.of(context).colorScheme.error,
+                            ),
+                          ),
+                        )
+                      else if (captchaBytes != null)
+                        Center(
+                          child: ClipRRect(
+                            borderRadius: BorderRadius.circular(8),
+                            child: Image.memory(
+                              captchaBytes,
+                              width: 180,
+                              height: 80,
+                              fit: BoxFit.contain,
+                            ),
+                          ),
+                        ),
+                      const SizedBox(height: 16),
+                      TextFormField(
+                        controller: _captchaController,
+                        decoration: const InputDecoration(
+                          labelText: 'Informe o captcha',
+                        ),
+                        inputFormatters: [
+                          const _UpperCaseTextFormatter(),
+                          FilteringTextInputFormatter.allow(
+                            RegExp('[A-Za-z0-9]'),
+                          ),
+                          LengthLimitingTextInputFormatter(10),
+                        ],
+                        textCapitalization: TextCapitalization.characters,
+                        validator: (value) {
+                          final text = value?.trim() ?? '';
+                          if (text.isEmpty) {
+                            return 'Informe o captcha';
+                          }
+                          return null;
+                        },
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 24),
+                FilledButton(
+                  onPressed:
+                      _isLoadingCaptcha || _captchaBase64 == null ? null : _submit,
+                  child: const Text('Consultar andamento'),
+                ),
+                const SizedBox(height: 12),
+                TextButton(
+                  onPressed: () => Navigator.of(context).pop(),
+                  child: const Text('Cancelar'),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 class _BaseEstadualQuery {
   const _BaseEstadualQuery({
     required this.placa,
@@ -3555,6 +4042,28 @@ class _GravameRequest {
   final String captcha;
 }
 
+class _FichaConsultaRequest {
+  const _FichaConsultaRequest({
+    required this.plate,
+    required this.captcha,
+  });
+
+  final String plate;
+  final String captcha;
+}
+
+class _FichaAndamentoRequest {
+  const _FichaAndamentoRequest({
+    required this.numeroFicha,
+    required this.anoFicha,
+    required this.captcha,
+  });
+
+  final String numeroFicha;
+  final String anoFicha;
+  final String captcha;
+}
+
 class _RenainfRequest {
   const _RenainfRequest({
     required this.plate,
@@ -3587,13 +4096,6 @@ class _BloqueiosAtivosRequest {
   final String captcha;
   final String chassi;
   final String opcaoPesquisa;
-}
-
-class _EcrvProcessRequest {
-  const _EcrvProcessRequest({this.plate, this.chassi});
-
-  final String? plate;
-  final String? chassi;
 }
 
 class _UpperCaseTextFormatter extends TextInputFormatter {
