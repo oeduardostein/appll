@@ -2,7 +2,7 @@
 
 namespace App\Http\Controllers\Api;
 
-use App\Support\DetranHtmlParser;
+use App\Support\BinHtmlParser;
 use Illuminate\Http\Request;
 use Illuminate\Routing\Controller;
 use Illuminate\Support\Facades\DB;
@@ -66,12 +66,14 @@ class BinController extends Controller
             ->asForm()
             ->post('https://www.e-crvsp.sp.gov.br/gever/GVR/pesquisa/bin/cadVeiculo.do', [
                 'method' => 'pesquisar',
+                'opcao' => '4',
+                'valor' => '',
                 'placa' => $placa,
                 'renavam' => $renavam,
                 'captchaResponse' => strtoupper($captcha),
             ]);
 
-        $parsed = DetranHtmlParser::parse($response->body());
+        $parsed = BinHtmlParser::parse($response->body());
 
         return response()->json(
             $parsed,
