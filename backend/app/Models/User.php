@@ -61,4 +61,12 @@ class User extends Authenticatable
     {
         return $this->hasMany(Pesquisa::class);
     }
+
+    /**
+     * Solicitações de emissão de ATPV vinculadas ao usuário.
+     */
+    public function atpvRequests(): HasMany
+    {
+        return $this->hasMany(AtpvRequest::class);
+    }
 }
