@@ -597,9 +597,12 @@ class _HomePageState extends State<HomePage> {
     );
 
     try {
-      final isCpf = request.document.length <= 11;
-      final cpf = isCpf ? request.document : '';
-      final cnpj = isCpf ? '' : request.document;
+      final rawDigits = request.document.replaceAll(RegExp(r'[^0-9]'), '');
+      final isCpf = rawDigits.length <= 11;
+      final formattedCpf = _formatCpf(rawDigits);
+      final formattedCnpj = _formatCnpj(rawDigits);
+      final cpf = isCpf ? (formattedCpf ?? request.document) : '';
+      final cnpj = isCpf ? '' : (formattedCnpj ?? request.document);
       final opcao = isCpf ? '1' : '2';
 
       final pdfBytes = await _baseEstadualService.emitirCrlv(
@@ -685,6 +688,18 @@ class _HomePageState extends State<HomePage> {
       Navigator.of(context, rootNavigator: true).pop();
       _showErrorMessage('Não foi possível emitir a ATPV-e.');
     }
+  }
+
+  String? _formatCpf(String value) {
+    final digits = value.replaceAll(RegExp(r'[^0-9]'), '');
+    if (digits.length != 11) return null;
+    return '${digits.substring(0, 3)}.${digits.substring(3, 6)}.${digits.substring(6, 9)}-${digits.substring(9)}';
+  }
+
+  String? _formatCnpj(String value) {
+    final digits = value.replaceAll(RegExp(r'[^0-9]'), '');
+    if (digits.length != 14) return null;
+    return '${digits.substring(0, 2)}.${digits.substring(2, 5)}.${digits.substring(5, 8)}/${digits.substring(8, 12)}-${digits.substring(12)}';
   }
 
   Future<({bool opened, String? path})> _saveAndOpenPdf(

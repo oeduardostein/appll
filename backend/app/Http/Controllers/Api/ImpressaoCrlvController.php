@@ -2,10 +2,6 @@
 
 namespace App\Http\Controllers\Api;
 
-use DOMDocument;
-use DOMNode;
-use DOMXPath;
-use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Http\Request;
 use Illuminate\Routing\Controller;
 use Illuminate\Support\Facades\DB;
@@ -16,130 +12,6 @@ class ImpressaoCrlvController extends Controller
 {
     public function __invoke(Request $request): Response
     {
-        // ---- Parser como CLOSURE (evita "Cannot redeclare") ----
-        $parse = function (string $html): array {
-            if (stripos($html, 'charset=iso-8859-1') !== false || stripos($html, 'charset=iso8859-1') !== false) {
-                $html = @mb_convert_encoding($html, 'HTML-ENTITIES', 'ISO-8859-1');
-            }
-
-            $dom = new DOMDocument();
-            libxml_use_internal_errors(true);
-            @$dom->loadHTML($html);
-            libxml_clear_errors();
-            $xp = new DOMXPath($dom);
-
-            $norm = fn($s) => preg_replace('/\s+/u', ' ', trim(html_entity_decode($s, ENT_QUOTES | ENT_HTML5, 'UTF-8')));
-            $getText = function(?DOMNode $n) use ($norm) { return $n ? $norm($n->textContent ?? '') : null; };
-
-            $findValueByLabel = function(string $label) use ($xp, $getText) {
-                $q1 = sprintf('//span[contains(@class,"texto_black2")][normalize-space()="%s"]/ancestor::td[1]/following-sibling::td[1]//span[contains(@class,"texto_menor")][1]', $label);
-                $n = $xp->query($q1)->item(0); if ($n) return $getText($n);
-
-                $q2 = sprintf('//span[contains(@class,"texto_black2")][contains(normalize-space(), "%s")]/ancestor::td[1]/following-sibling::td[1]//span[contains(@class,"texto_menor")][1]', $label);
-                $n = $xp->query($q2)->item(0); if ($n) return $getText($n);
-
-                $q3 = sprintf('//span[contains(@class,"texto_black2")][contains(normalize-space(), "%s")]/ancestor::td[1]/following-sibling::td//span[contains(@class,"texto_menor")][1]', $label);
-                $n = $xp->query($q3)->item(0); if ($n) return $getText($n);
-
-                return null;
-            };
-
-            $findInlineValue = function(string $label) use ($xp, $getText) {
-                $q = sprintf('//span[contains(@class,"texto_black2")][contains(normalize-space(), "%s")]/following::span[contains(@class,"texto_menor")][1]', $label);
-                $n = $xp->query($q)->item(0);
-                return $n ? $getText($n) : null;
-            };
-
-            $bodyText = $xp->query('//body')->item(0);
-            $allText  = $getText($bodyText);
-            $dataHora = null;
-            if ($allText && preg_match('/\b(\d{2}\/\d{2}\/\d{4}\s+\d{2}:\d{2}:\d{2})\b/u', $allText, $m)) {
-                $dataHora = $m[1];
-            }
-
-            $L = [
-                'Placa'         => ['Placa'],
-                'Municipio'     => ['Município', 'Municipio'],
-                'Renavam'       => ['Renavam'],
-                'Chassi'        => ['Chassi'],
-                'Tipo'          => ['Tipo'],
-                'Procedencia'   => ['Procedência', 'Procedencia'],
-                'Combustivel'   => ['Combustível', 'Combustivel'],
-                'Cor'           => ['Cor'],
-                'Marca'         => ['Marca'],
-                'Categoria'     => ['Categoria'],
-                'AnoFab'        => ['Ano Fabr.', 'Ano Fabr', "Ano\nFabr."],
-                'AnoModelo'     => ['Ano Modelo', "Ano\nModelo"],
-                'Proprietario'  => ['Nome do Proprietário', 'Nome do Proprietario'],
-
-                'CRV_Exercicio' => ['Exerc. Licenciamento', 'Exercício Licenciamento', 'Exerc Licenciamento'],
-                'CRV_DataLic'   => ['Licenciamento'],
-
-                'SituacaoLicenciamento' => ['Licenciamento', 'Situação Licenciamento', 'Situacao Licenciamento'],
-                'DebitosPendentes'      => ['Débito / Multas', 'Débitos', 'Debitos', 'Multas'],
-            ];
-
-            $pick = function(array $labels) use ($findValueByLabel, $findInlineValue) {
-                foreach ($labels as $lab) {
-                    $v = $findValueByLabel($lab); if ($v !== null && $v !== '') return $v;
-                    $v = $findInlineValue($lab);  if ($v !== null && $v !== '') return $v;
-                }
-                return null;
-            };
-
-            $out = [
-                'fonte' => [
-                    'titulo'    => 'eCRVsp - DETRAN - São Paulo',
-                    'gerado_em' => $dataHora,
-                ],
-                'veiculo' => [
-                    'placa'          => $pick($L['Placa']),
-                    'municipio'      => $pick($L['Municipio']),
-                    'renavam'        => $pick($L['Renavam']),
-                    'chassi'         => $pick($L['Chassi']),
-                    'tipo'           => $pick($L['Tipo']),
-                    'procedencia'    => $pick($L['Procedencia']),
-                    'combustivel'    => $pick($L['Combustivel']),
-                    'cor'            => $pick($L['Cor']),
-                    'marca'          => $pick($L['Marca']),
-                    'categoria'      => $pick($L['Categoria']),
-                    'ano_fabricacao' => $pick($L['AnoFab']),
-                    'ano_modelo'     => $pick($L['AnoModelo']),
-                ],
-                'proprietario' => [
-                    'nome' => $pick($L['Proprietario']),
-                ],
-                'crv_crlv_atualizacao' => [
-                    'exercicio_licenciamento' => $pick($L['CRV_Exercicio']),
-                    'data_licenciamento'      => $pick($L['CRV_DataLic']),
-                ],
-            ];
-
-            $lower = mb_strtolower($allText ?? '', 'UTF-8');
-            $status = null;
-            if (strpos($lower, 'licenciamento') !== false) {
-                $status = $pick($L['SituacaoLicenciamento']) ?? null;
-            }
-            if (!$status && (strpos($lower, 'débitos') !== false || strpos($lower, 'debitos') !== false || strpos($lower, 'multas') !== false)) {
-                $status = $pick($L['DebitosPendentes']) ?? null;
-            }
-            if ($status) $out['status'] = $status;
-
-            $sanitize = function (&$arr) use (&$sanitize) {
-                foreach ($arr as $k => &$v) {
-                    if (is_array($v)) { $sanitize($v); continue; }
-                    if ($v === null) continue;
-                    $v = preg_replace('/\s+/u', ' ', trim($v));
-                    if (preg_match('/^n\s*a\s*d\s*a\s*consta$/iu', preg_replace('/\s+/', '', $v))) {
-                        $v = 'Nada Consta';
-                    }
-                }
-            };
-            $sanitize($out);
-
-            return $out;
-        };
-        // ---- fim parser ----
 
         // Entradas
         $placa         = $request->query('placa');
@@ -167,7 +39,7 @@ class ImpressaoCrlvController extends Controller
 
         // Headers/Cookies
         $headers = [
-            'Accept'                    => 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7',
+            'Accept'                    => 'application/pdf,text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7',
             'Accept-Language'           => 'pt-BR,pt;q=0.9,en-US;q=0.8,en;q=0.7',
             'Cache-Control'             => 'max-age=0',
             'Connection'                => 'keep-alive',
@@ -193,9 +65,14 @@ class ImpressaoCrlvController extends Controller
             'renavam'         => $renavam,
             'opcaoPesquisa'   => (string) $opcaoPesquisa,
             'captchaResponse' => strtoupper($captcha),
-            'cpf'             => trim((string) $cpf),
-            'cnpj'            => trim((string) $cnpj),
+            'cpf'             => '',
+            'cnpj'            => '',
         ];
+        if ((string) $opcaoPesquisa === '1') {
+            $form['cpf']  = trim((string) $cpf);
+        } elseif ((string) $opcaoPesquisa === '2') {
+            $form['cnpj'] = trim((string) $cnpj);
+        }
         // se a tela aceitar ambos sempre, pode remover esse condicional
 
         $response = Http::withHeaders($headers)
@@ -208,38 +85,53 @@ class ImpressaoCrlvController extends Controller
             ->asForm()
             ->post('https://www.e-crvsp.sp.gov.br/gever/GVR/emissao/impressaoCrlv.do', $form);
 
-        // (Opcional) tratar erro HTTP:
-        // if (!$response->successful()) {
-        //     return response()->json(['message' => 'Falha ao consultar a emissão/impressão do CRLV.'], Response::HTTP_BAD_GATEWAY);
-        // }
-
-        $data = $parse($response->body());
-
-        $dadosVeiculo = $data['veiculo'] ?? [];
-        $dadosProprietario = $data['proprietario']['nome'] ?? null;
-
-        $temDadosEssenciais = ($dadosVeiculo['placa'] ?? null) && ($dadosVeiculo['renavam'] ?? null);
-
-        if (!$temDadosEssenciais) {
+        if (!$response->successful()) {
             return response()->json(
-                ['message' => 'Não foi possível localizar os dados do veículo na resposta.'],
-                Response::HTTP_UNPROCESSABLE_ENTITY
+                ['message' => 'Falha ao consultar a emissão/impressão do CRLV.'],
+                Response::HTTP_BAD_GATEWAY
             );
         }
 
-        $metadata = [
-            'placa'         => strtoupper($form['placa']),
-            'renavam'       => $form['renavam'],
-            'documento'     => (string)($form['cpf'] ?? $form['cnpj'] ?? ''),
-            'emitido_em'    => $data['fonte']['gerado_em'] ?? now('America/Sao_Paulo')->format('d/m/Y H:i:s'),
-            'status_texto'  => $data['status'] ?? null,
-        ];
+        $htmlBody = $response->body();
+        if (stripos($htmlBody, 'charset=iso-8859-1') !== false || stripos($htmlBody, 'charset=iso8859-1') !== false) {
+            $htmlBody = @mb_convert_encoding($htmlBody, 'UTF-8', 'ISO-8859-1');
+        }
+        $warnings = [];
+        if (preg_match_all('/errors\[errors\.length\]\s*=\s*["\']([^"\']+)["\'];/u', $htmlBody, $matches)) {
+            foreach ($matches[1] as $msg) {
+                $warnings[] = html_entity_decode($msg, ENT_QUOTES | ENT_HTML5, 'UTF-8');
+            }
+        }
 
-        $pdf = Pdf::loadView('pdf.crlv', [
-            'dados'     => $data,
-            'metadata'  => $metadata,
-            'usuario'   => $dadosProprietario,
-        ])->setPaper('a4', 'portrait');
+        if (!empty($warnings)) {
+            return response()->json(['message' => $warnings[0], 'detalhes' => $warnings], Response::HTTP_UNPROCESSABLE_ENTITY);
+        }
+
+        $pdfResponse = Http::withHeaders($headers)
+            ->withOptions(['verify' => false]) // REMOVER em produção
+            ->withCookies([
+                'naoExibirPublic' => 'sim',
+                'dataUsuarPublic' => 'Mon Mar 24 2025 08:14:44 GMT-0300 (Horário Padrão de Brasília)',
+                'JSESSIONID'      => $token,
+            ], $cookieDomain)
+            ->get('https://www.e-crvsp.sp.gov.br/gever/GVR/emissao/impressaoCrlv.do', [
+                'method' => 'openPdf',
+            ]);
+
+        if (!$pdfResponse->successful()) {
+            return response()->json(
+                ['message' => 'Falha ao acessar o PDF do CRLV.'],
+                Response::HTTP_BAD_GATEWAY
+            );
+        }
+
+        $contentType = $pdfResponse->header('Content-Type', '');
+        if (stripos($contentType, 'pdf') === false) {
+            return response()->json(
+                ['message' => 'Resposta inesperada ao tentar gerar o PDF do CRLV.'],
+                Response::HTTP_BAD_GATEWAY
+            );
+        }
 
         $arquivo = sprintf(
             'CRLV-%s-%s.pdf',
@@ -247,7 +139,7 @@ class ImpressaoCrlvController extends Controller
             now('America/Sao_Paulo')->format('YmdHis')
         );
 
-        return response($pdf->output(), Response::HTTP_OK, [
+        return response($pdfResponse->body(), Response::HTTP_OK, [
             'Content-Type'        => 'application/pdf',
             'Content-Disposition' => 'inline; filename="'.$arquivo.'"',
             'Cache-Control'       => 'no-store, no-cache, must-revalidate, max-age=0',
