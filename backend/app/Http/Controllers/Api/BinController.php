@@ -9,20 +9,20 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
 use Symfony\Component\HttpFoundation\Response;
 
-class BaseEstadualController extends Controller
+class BinController extends Controller
 {
     /**
-     * Consulta a base estadual utilizando o serviço externo do Detran SP.
+     * Consulta a base BIN utilizando o serviço externo do DETRAN/SP.
      */
     public function __invoke(Request $request): Response
     {
         $placa = $request->query('placa');
+        $renavam = $request->query('renavam');
         $captcha = $request->query('captcha');
-        $renavam = $request->query('renavam', '');
 
-        if (!$placa || !$captcha) {
+        if (!$placa || !$renavam || !$captcha) {
             return response()->json(
-                ['message' => 'Informe placa e captcha para realizar a consulta.'],
+                ['message' => 'Informe placa, renavam e captcha para realizar a consulta.'],
                 Response::HTTP_UNPROCESSABLE_ENTITY
             );
         }
@@ -43,7 +43,7 @@ class BaseEstadualController extends Controller
             'Connection' => 'keep-alive',
             'Content-Type' => 'application/x-www-form-urlencoded',
             'Origin' => 'https://www.e-crvsp.sp.gov.br',
-            'Referer' => 'https://www.e-crvsp.sp.gov.br/gever/GVR/pesquisa/baseEstadual.do',
+            'Referer' => 'https://www.e-crvsp.sp.gov.br/gever/GVR/pesquisa/bin/cadVeiculo.do',
             'Sec-Fetch-Dest' => 'frame',
             'Sec-Fetch-Mode' => 'navigate',
             'Sec-Fetch-Site' => 'same-origin',
@@ -64,21 +64,12 @@ class BaseEstadualController extends Controller
                 'JSESSIONID' => $token,
             ], $cookieDomain)
             ->asForm()
-            ->post('https://www.e-crvsp.sp.gov.br/gever/GVR/pesquisa/baseEstadual.do', [
+            ->post('https://www.e-crvsp.sp.gov.br/gever/GVR/pesquisa/bin/cadVeiculo.do', [
                 'method' => 'pesquisar',
                 'placa' => $placa,
                 'renavam' => $renavam,
-                'municipio' => '0',
-                'chassi' => '',
                 'captchaResponse' => strtoupper($captcha),
             ]);
-
-        // if (!$response->successful()) {
-        //     return response()->json(
-        //         ['message' => 'Falha ao consultar a base estadual externa.'],
-        //         Response::HTTP_BAD_GATEWAY
-        //     );
-        // }
 
         $parsed = DetranHtmlParser::parse($response->body());
 

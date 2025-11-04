@@ -8,6 +8,7 @@ import 'package:flutter/services.dart';
 import 'package:frontend_app/models/pesquisa_models.dart';
 import 'package:frontend_app/services/auth_service.dart';
 import 'package:frontend_app/services/base_estadual_service.dart';
+import 'package:frontend_app/services/bin_service.dart';
 import 'package:frontend_app/services/renainf_service.dart';
 import 'package:frontend_app/services/pesquisa_service.dart';
 
@@ -45,6 +46,7 @@ class HomePage extends StatefulWidget {
 class _HomePageState extends State<HomePage> {
   late final AuthService _authService;
   final _baseEstadualService = BaseEstadualService();
+  final _binService = BinService();
   late final PesquisaService _pesquisaService =
       widget.pesquisaService ?? PesquisaService(authService: _authService);
   final _renainfService = RenainfService();
@@ -202,282 +204,38 @@ class _HomePageState extends State<HomePage> {
     }
   }
 
-  Future<_BaseEstadualQuery?> _showBaseEstadualDialog() async {
-    final formKey = GlobalKey<FormState>();
-    final plateController = TextEditingController();
-    final renavamController = TextEditingController();
-    final captchaController = TextEditingController();
+  Future<_BaseEstadualQuery?> _showBaseEstadualDialog() {
+    return _showVehicleLookupDialog(
+      title: 'Consulta base estadual',
+      fetchCaptcha: () => _baseEstadualService.fetchCaptcha(),
+      captchaErrorResolver: _mapBaseEstadualCaptchaError,
+    );
+  }
 
-    String? captchaBase64;
-    String? captchaError;
-    bool isLoadingCaptcha = false;
-    bool initialized = false;
+  Future<_BaseEstadualQuery?> _showBinDialog() {
+    return _showVehicleLookupDialog(
+      title: 'Pesquisa BIN',
+      fetchCaptcha: () => _binService.fetchCaptcha(),
+      captchaErrorResolver: _mapBinCaptchaError,
+    );
+  }
 
-    Future<void> refreshCaptcha(StateSetter setState) async {
-      setState(() {
-        isLoadingCaptcha = true;
-        captchaError = null;
-      });
-      try {
-        final image = await _baseEstadualService.fetchCaptcha();
-        setState(() {
-          captchaBase64 = image;
-        });
-      } on BaseEstadualException catch (e) {
-        setState(() {
-          captchaError = e.message;
-        });
-      } catch (_) {
-        setState(() {
-          captchaError = 'Erro ao carregar captcha.';
-        });
-      } finally {
-        setState(() {
-          isLoadingCaptcha = false;
-        });
-      }
-    }
-
-    final result = await showDialog<_BaseEstadualQuery>(
+  Future<_BaseEstadualQuery?> _showVehicleLookupDialog({
+    required String title,
+    required Future<String> Function() fetchCaptcha,
+    String Function(Object error)? captchaErrorResolver,
+  }) {
+    return showDialog<_BaseEstadualQuery>(
       context: context,
       barrierDismissible: false,
-      builder: (dialogContext) {
-        return Dialog(
-          insetPadding: const EdgeInsets.symmetric(horizontal: 24),
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(24),
-          ),
-          child: StatefulBuilder(
-            builder: (context, setState) {
-              if (!initialized) {
-                initialized = true;
-                Future.microtask(() => refreshCaptcha(setState));
-              }
-
-              Uint8List? captchaBytes;
-              if (captchaBase64 != null && captchaBase64!.isNotEmpty) {
-                try {
-                  captchaBytes = base64Decode(captchaBase64!);
-                } catch (_) {
-                  captchaError ??= 'Captcha recebido em formato inválido.';
-                }
-              }
-
-              return ConstrainedBox(
-                constraints: const BoxConstraints(maxHeight: 520),
-                child: SingleChildScrollView(
-                  padding: const EdgeInsets.fromLTRB(20, 20, 20, 24),
-                  child: Form(
-                    key: formKey,
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: [
-                        Row(
-                          children: [
-                            Text(
-                              'Consulta base estadual',
-                              style: Theme.of(context).textTheme.titleMedium
-                                  ?.copyWith(fontWeight: FontWeight.w700),
-                            ),
-                            const Spacer(),
-                            IconButton(
-                              onPressed: () {
-                                Navigator.of(dialogContext).pop();
-                              },
-                              icon: const Icon(Icons.close),
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 12),
-                        TextFormField(
-                          controller: plateController,
-                          decoration: const InputDecoration(
-                            labelText: 'Placa',
-                          ),
-                          inputFormatters: [
-                            const _UpperCaseTextFormatter(),
-                            FilteringTextInputFormatter.allow(
-                              RegExp('[A-Za-z0-9]'),
-                            ),
-                            LengthLimitingTextInputFormatter(7),
-                          ],
-                          textCapitalization: TextCapitalization.characters,
-                          validator: (value) {
-                            final text = value?.trim().toUpperCase() ?? '';
-                            if (text.isEmpty) {
-                              return 'Informe a placa';
-                            }
-                            final normalized = text.replaceAll('-', '');
-                            if (!_isValidPlate(normalized)) {
-                              return 'Placa inválida';
-                            }
-                            return null;
-                          },
-                        ),
-                        const SizedBox(height: 16),
-                        TextFormField(
-                          controller: renavamController,
-                          decoration: const InputDecoration(
-                            labelText: 'Renavam',
-                          ),
-                          keyboardType: TextInputType.number,
-                          inputFormatters: [
-                            FilteringTextInputFormatter.digitsOnly,
-                            LengthLimitingTextInputFormatter(11),
-                          ],
-                          validator: (value) {
-                            final text = value?.trim() ?? '';
-                            if (text.isEmpty) {
-                              return 'Informe o renavam';
-                            }
-                            if (!_isValidRenavam(text)) {
-                              return 'Renavam inválido';
-                            }
-                            return null;
-                          },
-                        ),
-                        const SizedBox(height: 20),
-                        Container(
-                          decoration: BoxDecoration(
-                            color: Colors.white,
-                            borderRadius: BorderRadius.circular(16),
-                            border: Border.all(
-                              color: Theme.of(context)
-                                  .colorScheme
-                                  .outline
-                                  .withOpacity(0.2),
-                            ),
-                          ),
-                          padding: const EdgeInsets.all(16),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.stretch,
-                            children: [
-                              Row(
-                                children: [
-                                  Text(
-                                    'Captcha',
-                                    style: Theme.of(context)
-                                        .textTheme
-                                        .titleSmall
-                                        ?.copyWith(fontWeight: FontWeight.w600),
-                                  ),
-                                  const Spacer(),
-                                  TextButton.icon(
-                                    onPressed: isLoadingCaptcha
-                                        ? null
-                                        : () => refreshCaptcha(setState),
-                                    icon: const Icon(Icons.refresh),
-                                    label: const Text('Atualizar'),
-                                  ),
-                                ],
-                              ),
-                              const SizedBox(height: 12),
-                              if (isLoadingCaptcha)
-                                const Center(
-                                  child: Padding(
-                                    padding: EdgeInsets.symmetric(vertical: 16),
-                                    child: CircularProgressIndicator(),
-                                  ),
-                                )
-                              else if (captchaError != null)
-                                Padding(
-                                  padding:
-                                      const EdgeInsets.symmetric(vertical: 8),
-                                  child: Text(
-                                    captchaError!,
-                                    style: TextStyle(
-                                      color:
-                                          Theme.of(context).colorScheme.error,
-                                    ),
-                                  ),
-                                )
-                              else if (captchaBytes != null)
-                                Center(
-                                  child: ClipRRect(
-                                    borderRadius: BorderRadius.circular(8),
-                                    child: Image.memory(
-                                      captchaBytes,
-                                      width: 180,
-                                      height: 80,
-                                      fit: BoxFit.contain,
-                                      errorBuilder: (_, __, ___) {
-                                        return const Text(
-                                          'Não foi possível exibir o captcha.',
-                                        );
-                                      },
-                                    ),
-                                  ),
-                                ),
-                              const SizedBox(height: 16),
-                              TextFormField(
-                                controller: captchaController,
-                                decoration: const InputDecoration(
-                                  labelText: 'Informe o captcha',
-                                ),
-                                inputFormatters: [
-                                  const _UpperCaseTextFormatter(),
-                                  FilteringTextInputFormatter.allow(
-                                    RegExp('[A-Za-z0-9]'),
-                                  ),
-                                  LengthLimitingTextInputFormatter(10),
-                                ],
-                                textCapitalization:
-                                    TextCapitalization.characters,
-                                validator: (value) {
-                                  final text = value?.trim() ?? '';
-                                  if (text.isEmpty) {
-                                    return 'Informe o captcha';
-                                  }
-                                  return null;
-                                },
-                              ),
-                            ],
-                          ),
-                        ),
-                        const SizedBox(height: 24),
-                        FilledButton(
-                          onPressed: isLoadingCaptcha || captchaBase64 == null
-                              ? null
-                              : () {
-                                  if (!formKey.currentState!.validate()) {
-                                    return;
-                                  }
-                                  Navigator.of(dialogContext).pop(
-                                    _BaseEstadualQuery(
-                                      placa: plateController.text
-                                          .trim()
-                                          .toUpperCase(),
-                                      renavam: renavamController.text.trim(),
-                                      captcha:
-                                          captchaController.text.trim().toUpperCase(),
-                                    ),
-                                  );
-                                },
-                          child: const Text('Consultar'),
-                        ),
-                        const SizedBox(height: 12),
-                        TextButton(
-                          onPressed: () {
-                            Navigator.of(dialogContext).pop();
-                          },
-                          child: const Text('Cancelar'),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-              );
-            },
-          ),
-        );
-      },
+      builder: (_) => _VehicleLookupDialog(
+        title: title,
+        fetchCaptcha: fetchCaptcha,
+        captchaErrorResolver: captchaErrorResolver,
+        plateValidator: _isValidPlate,
+        renavamValidator: _isValidRenavam,
+      ),
     );
-
-    plateController.dispose();
-    renavamController.dispose();
-    captchaController.dispose();
-
-    return result;
   }
 
   Future<void> _handleBaseOutrosEstadosFlow() async {
@@ -534,7 +292,7 @@ class _HomePageState extends State<HomePage> {
   }
 
   Future<void> _handleBinFlow() async {
-    final query = await _showBaseEstadualDialog();
+    final query = await _showBinDialog();
     if (query == null || !mounted) return;
 
     showDialog<void>(
@@ -544,7 +302,7 @@ class _HomePageState extends State<HomePage> {
     );
 
     try {
-      final result = await _baseEstadualService.consultar(
+      final result = await _binService.consultar(
         placa: query.placa,
         renavam: query.renavam,
         captcha: query.captcha,
@@ -566,7 +324,7 @@ class _HomePageState extends State<HomePage> {
           ),
         ),
       );
-    } on BaseEstadualException catch (e) {
+    } on BinException catch (e) {
       if (!mounted) return;
       Navigator.of(context, rootNavigator: true).pop();
       _showErrorMessage(e.message);
@@ -2848,6 +2606,24 @@ class _HomePageState extends State<HomePage> {
       ..showSnackBar(SnackBar(content: Text(message)));
   }
 
+  String _mapBaseEstadualCaptchaError(Object error) {
+    if (error is BaseEstadualException) {
+      return error.message;
+    }
+    return 'Erro ao carregar captcha.';
+  }
+
+  String _mapBinCaptchaError(Object error) {
+    if (error is BinException) {
+      return error.message;
+    }
+    if (error is BaseEstadualException) {
+      return error.message;
+    }
+
+    return 'Erro ao carregar captcha.';
+  }
+
   bool _isValidPlate(String value) {
     final normalized = value.replaceAll('-', '').toUpperCase();
     if (normalized.length != 7) {
@@ -3185,6 +2961,299 @@ class _HomePageState extends State<HomePage> {
               ),
             ),
           ],
+        ),
+      ),
+    );
+  }
+}
+
+class _VehicleLookupDialog extends StatefulWidget {
+  const _VehicleLookupDialog({
+    required this.title,
+    required this.fetchCaptcha,
+    required this.plateValidator,
+    required this.renavamValidator,
+    this.captchaErrorResolver,
+    this.submitLabel = 'Consultar',
+    this.captchaLabel = 'Informe o captcha',
+  });
+
+  final String title;
+  final Future<String> Function() fetchCaptcha;
+  final bool Function(String value) plateValidator;
+  final bool Function(String value) renavamValidator;
+  final String Function(Object error)? captchaErrorResolver;
+  final String submitLabel;
+  final String captchaLabel;
+
+  @override
+  State<_VehicleLookupDialog> createState() => _VehicleLookupDialogState();
+}
+
+class _VehicleLookupDialogState extends State<_VehicleLookupDialog> {
+  final _formKey = GlobalKey<FormState>();
+  late final TextEditingController _plateController;
+  late final TextEditingController _renavamController;
+  late final TextEditingController _captchaController;
+
+  bool _isLoadingCaptcha = false;
+  String? _captchaBase64;
+  String? _captchaError;
+
+  @override
+  void initState() {
+    super.initState();
+    _plateController = TextEditingController();
+    _renavamController = TextEditingController();
+    _captchaController = TextEditingController();
+    _refreshCaptcha();
+  }
+
+  @override
+  void dispose() {
+    _plateController.dispose();
+    _renavamController.dispose();
+    _captchaController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _refreshCaptcha() async {
+    setState(() {
+      _isLoadingCaptcha = true;
+      _captchaError = null;
+      _captchaBase64 = null;
+    });
+    try {
+      final image = await widget.fetchCaptcha();
+      if (!mounted) return;
+      setState(() {
+        _captchaBase64 = image;
+      });
+    } catch (Object error) {
+      if (!mounted) return;
+      setState(() {
+        _captchaError = widget.captchaErrorResolver != null
+            ? widget.captchaErrorResolver!(error)
+            : 'Erro ao carregar captcha.';
+      });
+    } finally {
+      if (!mounted) return;
+      setState(() {
+        _isLoadingCaptcha = false;
+      });
+    }
+  }
+
+  void _submit() {
+    if (_isLoadingCaptcha || _captchaBase64 == null) {
+      return;
+    }
+    if (!_formKey.currentState!.validate()) {
+      return;
+    }
+    Navigator.of(context).pop(
+      _BaseEstadualQuery(
+        placa: _plateController.text.trim().toUpperCase(),
+        renavam: _renavamController.text.trim(),
+        captcha: _captchaController.text.trim().toUpperCase(),
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    Uint8List? captchaBytes;
+    if (_captchaBase64 != null && _captchaBase64!.isNotEmpty) {
+      try {
+        captchaBytes = base64Decode(_captchaBase64!);
+      } catch (_) {
+        _captchaError ??= 'Captcha recebido em formato inválido.';
+      }
+    }
+
+    return Dialog(
+      insetPadding: const EdgeInsets.symmetric(horizontal: 24),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(24),
+      ),
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxHeight: 520),
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.fromLTRB(20, 20, 20, 24),
+          child: Form(
+            key: _formKey,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Row(
+                  children: [
+                    Text(
+                      widget.title,
+                      style: Theme.of(context).textTheme.titleMedium
+                          ?.copyWith(fontWeight: FontWeight.w700),
+                    ),
+                    const Spacer(),
+                    IconButton(
+                      onPressed: () => Navigator.of(context).pop(),
+                      icon: const Icon(Icons.close),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 12),
+                TextFormField(
+                  controller: _plateController,
+                  decoration: const InputDecoration(
+                    labelText: 'Placa',
+                  ),
+                  inputFormatters: [
+                    const _UpperCaseTextFormatter(),
+                    FilteringTextInputFormatter.allow(
+                      RegExp('[A-Za-z0-9]'),
+                    ),
+                    LengthLimitingTextInputFormatter(7),
+                  ],
+                  textCapitalization: TextCapitalization.characters,
+                  validator: (value) {
+                    final text = value?.trim().toUpperCase() ?? '';
+                    if (text.isEmpty) {
+                      return 'Informe a placa';
+                    }
+                    final normalized = text.replaceAll('-', '');
+                    if (!widget.plateValidator(normalized)) {
+                      return 'Placa inválida';
+                    }
+                    return null;
+                  },
+                ),
+                const SizedBox(height: 16),
+                TextFormField(
+                  controller: _renavamController,
+                  decoration: const InputDecoration(
+                    labelText: 'Renavam',
+                  ),
+                  keyboardType: TextInputType.number,
+                  inputFormatters: [
+                    FilteringTextInputFormatter.digitsOnly,
+                    LengthLimitingTextInputFormatter(11),
+                  ],
+                  validator: (value) {
+                    final text = value?.trim() ?? '';
+                    if (text.isEmpty) {
+                      return 'Informe o renavam';
+                    }
+                    if (!widget.renavamValidator(text)) {
+                      return 'Renavam inválido';
+                    }
+                    return null;
+                  },
+                ),
+                const SizedBox(height: 20),
+                Container(
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(16),
+                    border: Border.all(
+                      color: Theme.of(context)
+                          .colorScheme
+                          .outline
+                          .withOpacity(0.2),
+                    ),
+                  ),
+                  padding: const EdgeInsets.all(16),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      Row(
+                        children: [
+                          Text(
+                            'Captcha',
+                            style: Theme.of(context)
+                                .textTheme
+                                .titleSmall
+                                ?.copyWith(fontWeight: FontWeight.w600),
+                          ),
+                          const Spacer(),
+                          TextButton.icon(
+                            onPressed: _isLoadingCaptcha ? null : _refreshCaptcha,
+                            icon: const Icon(Icons.refresh),
+                            label: const Text('Atualizar'),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 12),
+                      if (_isLoadingCaptcha)
+                        const Center(
+                          child: Padding(
+                            padding: EdgeInsets.symmetric(vertical: 16),
+                            child: CircularProgressIndicator(),
+                          ),
+                        )
+                      else if (_captchaError != null)
+                        Padding(
+                          padding: const EdgeInsets.symmetric(vertical: 8),
+                          child: Text(
+                            _captchaError!,
+                            style: TextStyle(
+                              color: Theme.of(context).colorScheme.error,
+                            ),
+                          ),
+                     )
+                    else if (captchaBytes != null)
+                      Center(
+                        child: ClipRRect(
+                          borderRadius: BorderRadius.circular(8),
+                          child: Image.memory(
+                            captchaBytes,
+                            width: 180,
+                            height: 80,
+                            fit: BoxFit.contain,
+                            errorBuilder: (_, __, ___) {
+                              return const Text(
+                                'Não foi possível exibir o captcha.',
+                              );
+                            },
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+                      TextFormField(
+                        controller: _captchaController,
+                        decoration: InputDecoration(
+                          labelText: widget.captchaLabel,
+                        ),
+                        inputFormatters: [
+                          const _UpperCaseTextFormatter(),
+                          FilteringTextInputFormatter.allow(
+                            RegExp('[A-Za-z0-9]'),
+                          ),
+                          LengthLimitingTextInputFormatter(10),
+                        ],
+                        textCapitalization: TextCapitalization.characters,
+                        validator: (value) {
+                          final text = value?.trim() ?? '';
+                          if (text.isEmpty) {
+                            return 'Informe o captcha';
+                          }
+                          return null;
+                        },
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 24),
+                FilledButton(
+                  onPressed:
+                      _isLoadingCaptcha || _captchaBase64 == null ? null : _submit,
+                  child: Text(widget.submitLabel),
+                ),
+                const SizedBox(height: 12),
+                TextButton(
+                  onPressed: () => Navigator.of(context).pop(),
+                  child: const Text('Cancelar'),
+                ),
+              ],
+            ),
+          ),
         ),
       ),
     );
