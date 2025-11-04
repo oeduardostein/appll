@@ -75,6 +75,16 @@ class FichaCadastralController extends Controller
 
         $andamentoParsed = BinHtmlParser::parse($andamentoResponse['body']);
 
+        if (
+            empty($andamentoParsed['sections']) &&
+            ($message = $this->detectHtmlMessage($andamentoResponse['body'])) !== null
+        ) {
+            return response()->json(
+                ['message' => $message],
+                Response::HTTP_BAD_GATEWAY
+            );
+        }
+
         return response()->json(
             [
                 'placa' => $placa,
@@ -150,7 +160,7 @@ class FichaCadastralController extends Controller
                 'method' => 'pesquisar',
                 'modulo' => 'andamento',
                 'urlVoltar' => '',
-                'placa' => $placa,
+                'placa' => '',
                 'numFicha' => $numeroFicha,
                 'anoFicha' => $anoFicha,
                 'captchaResponse' => $captcha,
@@ -206,6 +216,26 @@ class FichaCadastralController extends Controller
         if (is_array($decoded) && isset($decoded['message'])) {
             $message = trim((string) $decoded['message']);
             return $message === '' ? null : $message;
+        }
+
+        return null;
+    }
+
+    private function detectHtmlMessage(string $html): ?string
+    {
+        if (preg_match_all("/errors\\[[^\\]]*\\]\\s*=\\s*'([^']+)'/u", $html, $matches) && !empty($matches[1])) {
+            $messages = array_map(static fn ($msg) => html_entity_decode($msg, ENT_QUOTES | ENT_HTML5, 'UTF-8'), $matches[1]);
+            $message = trim(implode(' ', $messages));
+            if ($message !== '') {
+                return $message;
+            }
+        }
+
+        if (preg_match("/alert\\s*\\(\\s*'([^']+)'\\s*\\)/u", $html, $matches)) {
+            $message = trim(html_entity_decode($matches[1], ENT_QUOTES | ENT_HTML5, 'UTF-8'));
+            if ($message !== '') {
+                return $message;
+            }
         }
 
         return null;
