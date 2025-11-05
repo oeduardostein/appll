@@ -14,6 +14,11 @@
             'active' => request()->routeIs('admin.clients.*'),
         ],
         [
+            'label' => 'Gestão de créditos',
+            'route' => route('admin.payments.index'),
+            'active' => request()->routeIs('admin.payments.*'),
+        ],
+        [
             'label' => 'Relatórios',
             'route' => route('admin.reports.index'),
             'active' => request()->routeIs('admin.reports.*'),
