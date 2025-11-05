@@ -143,6 +143,80 @@
             color: var(--text-muted);
             font-size: 15px;
         }
+
+        .credit-management__modal-backdrop {
+            position: fixed;
+            inset: 0;
+            background: rgba(12, 21, 45, 0.42);
+            display: none;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+            z-index: 70;
+        }
+
+        .credit-management__modal-backdrop.is-visible {
+            display: flex;
+        }
+
+        .credit-management__modal {
+            background: #fff;
+            border-radius: 20px;
+            box-shadow:
+                0 20px 60px rgba(15, 23, 42, 0.18),
+                0 1px 0 rgba(255, 255, 255, 0.7);
+            max-width: 420px;
+            width: 100%;
+            padding: 28px 28px 24px;
+            display: flex;
+            flex-direction: column;
+            gap: 18px;
+        }
+
+        .credit-management__modal h2 {
+            margin: 0;
+            font-size: 20px;
+            font-weight: 700;
+            color: var(--text-strong);
+        }
+
+        .credit-management__modal p {
+            margin: 0;
+            font-size: 15px;
+            color: var(--text-muted);
+            line-height: 1.6;
+        }
+
+        .credit-management__modal-actions {
+            display: flex;
+            gap: 12px;
+            justify-content: flex-end;
+        }
+
+        .credit-management__modal-button {
+            border-radius: 12px;
+            border: 1px solid transparent;
+            padding: 10px 18px;
+            font-weight: 600;
+            font-size: 14px;
+            cursor: pointer;
+            transition: transform 160ms ease, box-shadow 160ms ease;
+        }
+
+        .credit-management__modal-button:hover {
+            transform: translateY(-1px);
+        }
+
+        .credit-management__modal-button--secondary {
+            background: #f7f9fc;
+            color: var(--text-default);
+            border-color: #d7deeb;
+        }
+
+        .credit-management__modal-button--danger {
+            background: #fee2e2;
+            color: #b91c1c;
+        }
     </style>
 
     @if (session('status'))
@@ -229,10 +303,14 @@
 
                                     <form method="POST"
                                         action="{{ route('admin.payments.deactivate', ['user' => $user->id]) }}"
-                                        onsubmit="return confirm('Tem certeza que deseja inativar este usuário?');">
+                                        id="deactivate-form-{{ $user->id }}">
                                         @csrf
                                         <input type="hidden" name="month" value="{{ $selectedMonthKey }}">
-                                        <button type="submit" class="credit-management__button credit-management__button--danger">
+                                        <button type="button"
+                                            class="credit-management__button credit-management__button--danger"
+                                            data-action="open-deactivate"
+                                            data-form="deactivate-form-{{ $user->id }}"
+                                            data-user-name="{{ $user->name }}">
                                             Inativar
                                         </button>
                                     </form>
@@ -254,4 +332,76 @@
             </tbody>
         </table>
     </div>
+
+    <div class="credit-management__modal-backdrop" data-modal="deactivate-confirm">
+        <div class="credit-management__modal" role="dialog" aria-modal="true" aria-labelledby="deactivate-modal-title">
+            <h2 id="deactivate-modal-title">Inativar usuário</h2>
+            <p data-modal-text>Tem certeza que deseja inativar este usuário?</p>
+            <div class="credit-management__modal-actions">
+                <button type="button"
+                    class="credit-management__modal-button credit-management__modal-button--secondary"
+                    data-action="cancel-deactivate">
+                    Cancelar
+                </button>
+                <button type="button"
+                    class="credit-management__modal-button credit-management__modal-button--danger"
+                    data-action="confirm-deactivate">
+                    Inativar
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        (() => {
+            const modalBackdrop = document.querySelector('[data-modal="deactivate-confirm"]');
+            if (!modalBackdrop) return;
+
+            const modalText = modalBackdrop.querySelector('[data-modal-text]');
+            let pendingForm = null;
+
+            const openModal = (form, userName) => {
+                pendingForm = form;
+                if (modalText) {
+                    modalText.textContent = `Tem certeza que deseja inativar ${userName}? Essa ação impede o acesso ao aplicativo até nova ativação.`;
+                }
+                modalBackdrop.classList.add('is-visible');
+            };
+
+            const closeModal = () => {
+                pendingForm = null;
+                modalBackdrop.classList.remove('is-visible');
+            };
+
+            document.querySelectorAll('[data-action="open-deactivate"]').forEach((button) => {
+                button.addEventListener('click', () => {
+                    const formId = button.getAttribute('data-form');
+                    const userName = button.getAttribute('data-user-name') ?? 'este usuário';
+                    const form = formId ? document.getElementById(formId) : null;
+                    if (!form) return;
+                    openModal(form, userName);
+                });
+            });
+
+            modalBackdrop.addEventListener('click', (event) => {
+                if (event.target === modalBackdrop) {
+                    closeModal();
+                }
+            });
+
+            modalBackdrop.querySelector('[data-action="cancel-deactivate"]')?.addEventListener('click', closeModal);
+            modalBackdrop.querySelector('[data-action="confirm-deactivate"]')?.addEventListener('click', () => {
+                if (pendingForm) {
+                    pendingForm.submit();
+                }
+                closeModal();
+            });
+
+            document.addEventListener('keydown', (event) => {
+                if (event.key === 'Escape' && modalBackdrop.classList.contains('is-visible')) {
+                    closeModal();
+                }
+            });
+        })();
+    </script>
 @endsection
