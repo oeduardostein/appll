@@ -7,9 +7,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Validator;
-use Illuminate\Support\Str;
-use Illuminate\Database\Eloquent\ModelNotFoundException;
-use App\Models\Usuario; // ajuste se o namespace/modelo for diferente
+use App\Models\User;
 
 class PasswordResetController extends Controller
 {
