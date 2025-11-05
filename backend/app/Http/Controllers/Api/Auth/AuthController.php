@@ -59,6 +59,16 @@ class AuthController extends Controller
             ], 422);
         }
 
+        if (! $user->is_active) {
+            return response()->json([
+                'status' => 'error',
+                'message' => 'Sua conta está inativa. Entre em contato com o suporte.',
+                'errors' => [
+                    'identifier' => ['Conta inativa.'],
+                ],
+            ], 403);
+        }
+
         $token = $this->issueToken($user);
 
         return response()->json([
