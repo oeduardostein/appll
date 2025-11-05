@@ -416,18 +416,6 @@ class _BloqueiosStructuredScreen extends StatelessWidget {
                                   .toList(),
                           ],
                         ),
-                        const SizedBox(height: 16),
-                        Align(
-                          alignment: Alignment.centerRight,
-                          child: TextButton.icon(
-                            onPressed: () => _showRawResultDialog(
-                              context,
-                              formattedPayload,
-                            ),
-                            icon: const Icon(Icons.code),
-                            label: const Text('Ver resposta completa'),
-                          ),
-                        ),
                       ],
                     ),
                   ),
@@ -437,39 +425,6 @@ class _BloqueiosStructuredScreen extends StatelessWidget {
           ],
         ),
       ),
-    );
-  }
-
-  void _showRawResultDialog(BuildContext context, String payload) {
-    showDialog<void>(
-      context: context,
-      builder: (dialogContext) {
-        return AlertDialog(
-          title: const Text('Resposta completa'),
-          content: SizedBox(
-            width: double.maxFinite,
-            child: Scrollbar(
-              thumbVisibility: true,
-              child: SingleChildScrollView(
-                child: SelectableText(
-                  payload,
-                  style: const TextStyle(
-                    fontFamily: 'monospace',
-                    fontSize: 13,
-                    height: 1.4,
-                  ),
-                ),
-              ),
-            ),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.of(dialogContext).pop(),
-              child: const Text('Fechar'),
-            ),
-          ],
-        );
-      },
     );
   }
 }

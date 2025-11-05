@@ -367,15 +367,6 @@ class _BaseEstadualStructuredScreen extends StatelessWidget {
                             },
                           ),
                         ),
-                        const SizedBox(height: 16),
-                        Align(
-                          alignment: Alignment.centerRight,
-                          child: TextButton.icon(
-                            onPressed: () => _showRawDataDialog(context),
-                            icon: const Icon(Icons.code),
-                            label: const Text('Ver resposta completa'),
-                          ),
-                        ),
                       ],
                     ),
                   ),
@@ -386,18 +377,6 @@ class _BaseEstadualStructuredScreen extends StatelessWidget {
         ),
       ),
     );
-  }
-
-  Future<void> _copyToClipboard(BuildContext context) async {
-    await Clipboard.setData(ClipboardData(text: formattedPayload));
-    if (!context.mounted) return;
-    ScaffoldMessenger.of(context)
-      ..clearSnackBars()
-      ..showSnackBar(
-        const SnackBar(
-          content: Text('Dados copiados para a área de transferência.'),
-        ),
-      );
   }
 
   void _openVehiclePage(BuildContext context) {
@@ -440,38 +419,6 @@ class _BaseEstadualStructuredScreen extends StatelessWidget {
     );
   }
 
-  void _showRawDataDialog(BuildContext context) {
-    showDialog<void>(
-      context: context,
-      builder: (dialogContext) {
-        return AlertDialog(
-          title: const Text('Resposta completa'),
-          content: SizedBox(
-            width: double.maxFinite,
-            child: Scrollbar(
-              thumbVisibility: true,
-              child: SingleChildScrollView(
-                child: SelectableText(
-                  formattedPayload,
-                  style: const TextStyle(
-                    fontFamily: 'monospace',
-                    fontSize: 13,
-                    height: 1.4,
-                  ),
-                ),
-              ),
-            ),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.of(dialogContext).pop(),
-              child: const Text('Fechar'),
-            ),
-          ],
-        );
-      },
-    );
-  }
 }
 
 class _BlueHeader extends StatelessWidget {
