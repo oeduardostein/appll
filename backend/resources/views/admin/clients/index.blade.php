@@ -439,7 +439,7 @@
                     </th>
                     <th>Nome do Usuário</th>
                     <th>Status</th>
-                    <th>Créditos disponíveis</th>
+                    <th>Créditos utilizados</th>
                     <th>Data do último acesso</th>
                     <th style="width: 120px;"></th>
                 </tr>
@@ -490,13 +490,6 @@
                         </div>
                     </div>
 
-                    <div class="admin-field admin-field--inline">
-                        <label for="filter-credits-min">Faixa de créditos</label>
-                        <div>
-                            <input id="filter-credits-min" name="credits_min" type="number" min="0" placeholder="Mínimo" />
-                            <input id="filter-credits-max" name="credits_max" type="number" min="0" placeholder="Máximo" />
-                        </div>
-                    </div>
                 </div>
 
                 <div class="form-feedback" data-form-error="filters"></div>
@@ -549,11 +542,6 @@
                     </select>
                 </div>
 
-                <div class="admin-field">
-                    <label for="create-user-credits">Créditos disponíveis</label>
-                    <input id="create-user-credits" name="credits" type="number" min="0" step="1" value="0" />
-                </div>
-
                 <p class="admin-modal__hint">
                     O usuário receberá um e-mail com as credenciais cadastradas.
                 </p>
@@ -600,11 +588,6 @@
                         <option value="1">Ativo</option>
                         <option value="0">Inativo</option>
                     </select>
-                </div>
-
-                <div class="admin-field">
-                    <label for="edit-user-credits">Créditos disponíveis</label>
-                    <input id="edit-user-credits" name="credits" type="number" min="0" step="1" />
                 </div>
 
                 <p class="admin-modal__hint">
@@ -732,7 +715,7 @@
                 <span class="status-pill" data-user-status>Ativo</span>
             </td>
             <td>
-                <span data-user-credits>0 créditos</span>
+                <span data-user-credits-used>0 créditos utilizados</span>
             </td>
             <td>
                 <span data-user-last-login>—</span>
@@ -776,8 +759,6 @@
                 status: 'all',
                 created_from: '',
                 created_to: '',
-                credits_min: '',
-                credits_max: '',
             };
 
             const state = {
@@ -954,19 +935,6 @@
                     summaryParts.push(`Período: ${fromLabel} a ${toLabel}`);
                 }
 
-                if (state.filters.credits_min !== '' || state.filters.credits_max !== '') {
-                    const min = state.filters.credits_min !== '' ? Number(state.filters.credits_min) : null;
-                    const max = state.filters.credits_max !== '' ? Number(state.filters.credits_max) : null;
-
-                    if (min !== null && max !== null) {
-                        summaryParts.push(`Créditos: ${min} a ${max}`);
-                    } else if (min !== null) {
-                        summaryParts.push(`Créditos: ≥ ${min}`);
-                    } else if (max !== null) {
-                        summaryParts.push(`Créditos: ≤ ${max}`);
-                    }
-                }
-
                 if (summaryParts.length === 0) {
                     elements.filterSummary.textContent = 'Sem filtros aplicados';
                     elements.filterSummary.classList.remove('is-active');
@@ -993,8 +961,6 @@
                 setValue('[name="status"]', state.filters.status ?? 'all');
                 setValue('[name="created_from"]', state.filters.created_from ?? '');
                 setValue('[name="created_to"]', state.filters.created_to ?? '');
-                setValue('[name="credits_min"]', state.filters.credits_min ?? '');
-                setValue('[name="credits_max"]', state.filters.credits_max ?? '');
             }
 
             function resetFilters(apply = false) {
@@ -1076,9 +1042,11 @@
                     statusElement.classList.toggle('inactive', !user.is_active);
                 }
 
-                const creditsElement = row.querySelector('[data-user-credits]');
+                const creditsElement = row.querySelector('[data-user-credits-used]');
                 if (creditsElement) {
-                    creditsElement.textContent = user.credits_label ?? `${user.credits ?? 0} créditos`;
+                    creditsElement.textContent =
+                        user.credits_used_label ??
+                        `${user.credits_used ?? 0} créditos utilizados`;
                 }
 
                 const lastLoginElement = row.querySelector('[data-user-last-login]');
@@ -1230,7 +1198,6 @@
 
             function resetCreateForm() {
                 elements.createForm.reset();
-                elements.createForm.querySelector('[name="credits"]').value = 0;
                 setFormError('create', '');
             }
 
@@ -1244,7 +1211,6 @@
                 elements.editForm.querySelector('[name="name"]').value = user.name ?? '';
                 elements.editForm.querySelector('[name="email"]').value = user.email ?? '';
                 elements.editForm.querySelector('[name="is_active"]').value = user.is_active ? '1' : '0';
-                elements.editForm.querySelector('[name="credits"]').value = user.credits ?? 0;
                 const passwordField = elements.editForm.querySelector('[name="password"]');
                 if (passwordField) {
                     passwordField.value = '';
@@ -1296,7 +1262,6 @@
                     email: String(formData.get('email') ?? '').trim(),
                     password: String(formData.get('password') ?? ''),
                     is_active: formData.get('is_active') === '1',
-                    credits: Number(formData.get('credits') ?? 0),
                 };
 
                 setSubmitting(elements.createForm, true);
@@ -1333,7 +1298,6 @@
                     name: String(formData.get('name') ?? '').trim(),
                     email: String(formData.get('email') ?? '').trim(),
                     is_active: formData.get('is_active') === '1',
-                    credits: Number(formData.get('credits') ?? 0),
                 };
 
                 const password = String(formData.get('password') ?? '');
@@ -1542,24 +1506,9 @@
                 const statusRaw = String(formData.get('status') ?? 'all').toLowerCase();
                 const createdFrom = String(formData.get('created_from') ?? '').trim();
                 const createdTo = String(formData.get('created_to') ?? '').trim();
-                const creditsMinRaw = String(formData.get('credits_min') ?? '').trim();
-                const creditsMaxRaw = String(formData.get('credits_max') ?? '').trim();
 
                 if (createdFrom && createdTo && createdFrom > createdTo) {
                     setFormError('filters', 'A data inicial não pode ser maior que a final.');
-                    return;
-                }
-
-                const minValue = creditsMinRaw === '' ? null : Number(creditsMinRaw);
-                const maxValue = creditsMaxRaw === '' ? null : Number(creditsMaxRaw);
-
-                if ((creditsMinRaw !== '' && Number.isNaN(minValue)) || (creditsMaxRaw !== '' && Number.isNaN(maxValue))) {
-                    setFormError('filters', 'Informe valores numéricos válidos para créditos.');
-                    return;
-                }
-
-                if (minValue !== null && maxValue !== null && minValue > maxValue) {
-                    setFormError('filters', 'O mínimo de créditos não pode ser maior que o máximo.');
                     return;
                 }
 
@@ -1567,8 +1516,6 @@
                     status: ['active', 'inactive'].includes(statusRaw) ? statusRaw : 'all',
                     created_from: createdFrom,
                     created_to: createdTo,
-                    credits_min: minValue !== null ? String(minValue) : '',
-                    credits_max: maxValue !== null ? String(maxValue) : '',
                 };
 
                 state.filters = nextFilters;

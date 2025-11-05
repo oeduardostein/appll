@@ -29,14 +29,6 @@ class UserController extends Controller
             $usersQuery->where('is_active', $appliedFilters['status'] === 'active');
         }
 
-        if ($appliedFilters['credits_min'] !== '') {
-            $usersQuery->where('credits', '>=', (int) $appliedFilters['credits_min']);
-        }
-
-        if ($appliedFilters['credits_max'] !== '') {
-            $usersQuery->where('credits', '<=', (int) $appliedFilters['credits_max']);
-        }
-
         if ($appliedFilters['created_from'] !== '') {
             $usersQuery->whereDate('created_at', '>=', Carbon::parse($appliedFilters['created_from'])->startOfDay());
         }
@@ -56,6 +48,7 @@ class UserController extends Controller
         $stats = $this->buildStats(clone $usersQuery);
 
         $users = $usersQuery
+            ->withCount(['pesquisas as credits_used'])
             ->latest('created_at')
             ->paginate($perPage);
 
@@ -83,12 +76,11 @@ class UserController extends Controller
             'email' => ['required', 'email', 'max:255', 'unique:users,email'],
             'password' => ['required', 'string', 'min:8'],
             'is_active' => ['required', 'boolean'],
-            'credits' => ['required', 'integer', 'min:0'],
             'last_login_at' => ['nullable', 'date'],
         ]);
 
         $user = new User();
-        $user->fill(Arr::only($validated, ['name', 'email', 'is_active', 'credits', 'last_login_at']));
+        $user->fill(Arr::only($validated, ['name', 'email', 'is_active', 'last_login_at']));
         $user->password = $validated['password'];
         $user->save();
 
@@ -104,11 +96,10 @@ class UserController extends Controller
             'email' => ['required', 'email', 'max:255', Rule::unique('users', 'email')->ignore($user->id)],
             'password' => ['nullable', 'string', 'min:8'],
             'is_active' => ['required', 'boolean'],
-            'credits' => ['required', 'integer', 'min:0'],
             'last_login_at' => ['nullable', 'date'],
         ]);
 
-        $payload = Arr::only($validated, ['name', 'email', 'is_active', 'credits', 'last_login_at']);
+        $payload = Arr::only($validated, ['name', 'email', 'is_active', 'last_login_at']);
 
         $user->fill($payload);
 
@@ -215,9 +206,7 @@ class UserController extends Controller
      * @return array{
      *     status: string,
      *     created_from: string,
-     *     created_to: string,
-     *     credits_min: string,
-     *     credits_max: string
+     *     created_to: string
      * }
      */
     private function resolveFilters(Request $request): array
@@ -229,8 +218,6 @@ class UserController extends Controller
             'status' => $status,
             'created_from' => $this->normalizeDate($request->query('created_from')),
             'created_to' => $this->normalizeDate($request->query('created_to')),
-            'credits_min' => $this->normalizeInteger($request->query('credits_min')),
-            'credits_max' => $this->normalizeInteger($request->query('credits_max')),
         ];
     }
 
@@ -245,24 +232,5 @@ class UserController extends Controller
         } catch (\Throwable $e) {
             return '';
         }
-    }
-
-    private function normalizeInteger(mixed $value): string
-    {
-        if ($value === null || $value === '') {
-            return '';
-        }
-
-        if (is_string($value)) {
-            $value = trim($value);
-        }
-
-        $int = filter_var($value, FILTER_VALIDATE_INT);
-
-        if ($int === false) {
-            return '';
-        }
-
-        return (string) $int;
     }
 }

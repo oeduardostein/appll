@@ -15,6 +15,7 @@ class ClientController extends Controller
         $perPage = 10;
 
         $users = User::query()
+            ->withCount(['pesquisas as credits_used'])
             ->latest('created_at')
             ->paginate($perPage);
 

@@ -2,6 +2,7 @@
 
 namespace Tests\Feature\Admin;
 
+use App\Models\Pesquisa;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Carbon;
@@ -43,8 +44,6 @@ class UserListingTest extends TestCase
         $response->assertJsonCount(3, 'data');
         $response->assertJsonPath('meta.pagination.total', 3);
         $response->assertJsonPath('meta.filters.status', 'all');
-        $response->assertJsonPath('meta.filters.credits_min', '');
-        $response->assertJsonPath('meta.filters.credits_max', '');
     }
 
     public function test_it_filters_users_by_status_and_search(): void
@@ -53,14 +52,12 @@ class UserListingTest extends TestCase
             'name' => 'Alice Active',
             'email' => 'alice@example.com',
             'is_active' => true,
-            'credits' => 10,
         ]);
 
         $target = User::factory()->create([
             'name' => 'Bob Inactive',
             'email' => 'bob@example.com',
             'is_active' => false,
-            'credits' => 20,
         ]);
 
         $response = $this->getAdminUsers([
@@ -74,38 +71,6 @@ class UserListingTest extends TestCase
         $response->assertJsonPath('meta.filters.status', 'inactive');
         $response->assertJsonPath('meta.stats.active', 0);
         $response->assertJsonPath('meta.stats.inactive', 1);
-    }
-
-    public function test_it_filters_users_by_credit_range(): void
-    {
-        User::factory()->create([
-            'name' => 'Credit Low',
-            'email' => 'credits-low@example.com',
-            'credits' => 5,
-        ]);
-
-        $match = User::factory()->create([
-            'name' => 'Credit Mid',
-            'email' => 'credits-mid@example.com',
-            'credits' => 15,
-        ]);
-
-        User::factory()->create([
-            'name' => 'Credit High',
-            'email' => 'credits-high@example.com',
-            'credits' => 30,
-        ]);
-
-        $response = $this->getAdminUsers([
-            'credits_min' => 10,
-            'credits_max' => 20,
-        ]);
-
-        $response->assertOk();
-        $response->assertJsonCount(1, 'data');
-        $response->assertJsonPath('data.0.id', $match->id);
-        $response->assertJsonPath('meta.filters.credits_min', '10');
-        $response->assertJsonPath('meta.filters.credits_max', '20');
     }
 
     public function test_it_filters_users_by_created_date_range(): void
@@ -141,18 +106,47 @@ class UserListingTest extends TestCase
 
         $response = $this->getAdminUsers([
             'status' => 'unknown',
-            'credits_min' => 'abc',
-            'credits_max' => '9.5',
             'created_from' => 'invalid-date',
             'created_to' => '2024-13-01',
         ]);
 
         $response->assertOk();
         $response->assertJsonPath('meta.filters.status', 'all');
-        $response->assertJsonPath('meta.filters.credits_min', '');
-        $response->assertJsonPath('meta.filters.credits_max', '');
         $response->assertJsonPath('meta.filters.created_from', '');
         $response->assertJsonPath('meta.filters.created_to', '');
+    }
+
+    public function test_it_returns_total_credits_used_from_pesquisas(): void
+    {
+        $user = User::factory()->create([
+            'name' => 'Consumidor de Créditos',
+            'email' => 'consumidor@example.com',
+        ]);
+
+        Pesquisa::query()->create([
+            'user_id' => $user->id,
+            'nome' => 'Consulta 1',
+            'placa' => 'AAA1A11',
+            'renavam' => '12345678901',
+            'chassi' => '1HGBH41JXMN109186',
+            'opcao_pesquisa' => 'placa',
+        ]);
+
+        Pesquisa::query()->create([
+            'user_id' => $user->id,
+            'nome' => 'Consulta 2',
+            'placa' => 'BBB2B22',
+            'renavam' => '10987654321',
+            'chassi' => '1HGCM82633A004352',
+            'opcao_pesquisa' => 'renavam',
+        ]);
+
+        $response = $this->getAdminUsers();
+
+        $response->assertOk();
+        $response->assertJsonPath('data.0.id', $user->id);
+        $response->assertJsonPath('data.0.credits_used', 2);
+        $response->assertJsonPath('data.0.credits_used_label', '2 créditos utilizados');
     }
 
     public function test_it_limits_per_page_between_one_and_fifty(): void
