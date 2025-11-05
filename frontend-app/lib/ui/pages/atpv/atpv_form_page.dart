@@ -1,4 +1,3 @@
-import 'dart:convert';
 import 'dart:typed_data';
 
 import 'package:flutter/foundation.dart' show kIsWeb;
@@ -63,7 +62,7 @@ class _AtpvFormPageState extends State<AtpvFormPage> {
   String? _lastCaptchaUsed;
 
   Map<String, dynamic>? _consultaPayload;
-  List<Map<String, dynamic>> _consultaTables = const [];
+  List<Map<String, dynamic>> _consultaComunicacoes = const [];
   Map<String, dynamic>? _successResult;
 
   @override
@@ -153,7 +152,7 @@ class _AtpvFormPageState extends State<AtpvFormPage> {
       _isConsulting = true;
       _consultaFeedback = null;
       _consultaPayload = null;
-      _consultaTables = const [];
+      _consultaComunicacoes = const [];
     });
 
     try {
@@ -163,22 +162,16 @@ class _AtpvFormPageState extends State<AtpvFormPage> {
         captcha: captcha,
       );
 
-      final tables = result['tabelas'];
-
       setState(() {
         _consultaPayload = result;
-        if (tables is List) {
-          _consultaTables = tables
-              .whereType<Map>()
-              .map(
-                (item) => item.map(
-                  (key, dynamic value) => MapEntry(key.toString(), value),
-                ),
-              )
-              .toList(growable: false);
-        } else {
-          _consultaTables = const [];
-        }
+        _consultaComunicacoes = (result['comunicacao_vendas'] is List)
+            ? (result['comunicacao_vendas'] as List)
+                .whereType<Map>()
+                .map((item) => item.map(
+                      (key, value) => MapEntry(key.toString(), value),
+                    ))
+                .toList(growable: false)
+            : const [];
         _consultaFeedback = 'Consulta realizada com sucesso.';
         _lastCaptchaUsed = captcha;
         _termsAccepted = false;
@@ -402,7 +395,6 @@ class _AtpvFormPageState extends State<AtpvFormPage> {
 
   void _prefillFromConsulta() {
     final payload = _consultaPayload;
-    final tables = _consultaTables;
 
     if (payload != null) {
       final veiculo = payload['veiculo'];
@@ -416,63 +408,37 @@ class _AtpvFormPageState extends State<AtpvFormPage> {
       if (proprietario is Map<String, dynamic>) {
         final nome = proprietario['nome']?.toString();
         if (nome != null && nome.trim().isNotEmpty &&
-            _ownerDocumentController.text.trim().isEmpty) {
-          // Keep owner name in placeholder (not shown as field).
+            _buyerNameController.text.trim().isEmpty) {
+          _buyerNameController.text = nome.trim();
         }
       }
     }
 
-    _setIfEmpty(
-      _ownerDocumentController,
-      _findValueInTables(tables, ['propriet', 'cpf']),
-    );
-    _setIfEmpty(
-      _ownerEmailController,
-      _findValueInTables(tables, ['propriet', 'email']),
-    );
-    _setIfEmpty(
-      _saleValueController,
-      _findValueInTables(tables, ['valor', 'venda']),
-    );
-    _setIfEmpty(
-      _buyerDocumentController,
-      _findValueInTables(tables, ['cpf', 'cnpj', 'comprador']),
-    );
-    _setIfEmpty(
-      _buyerNameController,
-      _findValueInTables(tables, ['nome', 'comprador']),
-    );
-    _setIfEmpty(
-      _buyerEmailController,
-      _findValueInTables(tables, ['email', 'comprador']),
-    );
-    _setIfEmpty(
-      _buyerCepController,
-      _findValueInTables(tables, ['cep']),
-    );
-    _setIfEmpty(
-      _buyerCityController,
-      _findValueInTables(tables, ['munic', 'cidade', 'comprador']),
-    );
-    _setIfEmpty(
-      _buyerNeighborhoodController,
-      _findValueInTables(tables, ['bairro']),
-    );
-    _setIfEmpty(
-      _buyerStreetController,
-      _findValueInTables(tables, ['logradouro', 'endereco']),
-    );
-    _setIfEmpty(
-      _buyerNumberController,
-      _findValueInTables(tables, ['numero']),
-    );
-    _setIfEmpty(
-      _buyerComplementController,
-      _findValueInTables(tables, ['complemento']),
-    );
-    final uf = _findValueInTables(tables, ['uf', 'estado']);
-    if (uf != null && uf.trim().isNotEmpty && _buyerStateController.text.trim().isEmpty) {
-      _buyerStateController.text = uf.trim().toUpperCase();
+    if (_consultaComunicacoes.isNotEmpty) {
+      final primeiraComunicacao = _consultaComunicacoes.first;
+      final comprador = primeiraComunicacao['comprador'];
+      final intencao = primeiraComunicacao['intencao'];
+
+      if (comprador is Map<String, dynamic>) {
+        _setIfEmpty(_buyerDocumentController, comprador['documento']?.toString());
+        _setIfEmpty(_buyerNameController, comprador['nome']?.toString());
+        _setIfEmpty(_buyerEmailController, comprador['email']?.toString());
+        _setIfEmpty(_buyerCepController, comprador['cep']?.toString());
+        _setIfEmpty(_buyerCityController, comprador['municipio']?.toString());
+        _setIfEmpty(_buyerNeighborhoodController, comprador['bairro']?.toString());
+        _setIfEmpty(_buyerStreetController, comprador['logradouro']?.toString());
+        _setIfEmpty(_buyerNumberController, comprador['numero']?.toString());
+        _setIfEmpty(_buyerComplementController, comprador['complemento']?.toString());
+      }
+
+      if (intencao is Map<String, dynamic>) {
+        final uf = intencao['uf']?.toString();
+        if (uf != null && uf.trim().isNotEmpty &&
+            _buyerStateController.text.trim().isEmpty) {
+          _buyerStateController.text = uf.trim().toUpperCase();
+        }
+        _setIfEmpty(_saleValueController, intencao['valor_venda']?.toString());
+      }
     }
   }
 
@@ -483,29 +449,6 @@ class _AtpvFormPageState extends State<AtpvFormPage> {
     if (controller.text.trim().isEmpty) {
       controller.text = trimmed;
     }
-  }
-
-  String? _findValueInTables(
-    List<Map<String, dynamic>> tables,
-    List<String> keywords,
-  ) {
-    for (final table in tables) {
-      final rows = table['rows'];
-      if (rows is! List) continue;
-      for (final row in rows) {
-        if (row is! Map) continue;
-        final rawLabel = row['label']?.toString().toLowerCase() ?? '';
-        final rawValue = row['value']?.toString();
-        if (rawLabel.isEmpty || rawValue == null) continue;
-        for (final keyword in keywords) {
-          if (rawLabel.contains(keyword.toLowerCase())) {
-            final trimmed = rawValue.trim();
-            if (trimmed.isNotEmpty) return trimmed;
-          }
-        }
-      }
-    }
-    return null;
   }
 
   @override
@@ -591,7 +534,7 @@ class _AtpvFormPageState extends State<AtpvFormPage> {
               ),
             ),
           ),
-          if (_consultaPayload != null || _consultaTables.isNotEmpty) ...[
+          if (_consultaPayload != null) ...[
             const SizedBox(height: 24),
             _buildConsultaResultSection(),
           ],
@@ -912,6 +855,109 @@ class _AtpvFormPageState extends State<AtpvFormPage> {
     );
   }
 
+  Widget _buildCommunicationCard(Map<String, dynamic> data) {
+    final theme = Theme.of(context);
+    final comprador = data['comprador'] as Map<String, dynamic>? ?? const {};
+    final intencao = data['intencao'] as Map<String, dynamic>? ?? const {};
+
+    final entriesComprador = <MapEntry<String, String>>[];
+    void addComprador(String label, dynamic value) {
+      final text = value?.toString().trim();
+      if (text != null && text.isNotEmpty) {
+        entriesComprador.add(MapEntry(label, text));
+      }
+    }
+
+    addComprador('CPF/CNPJ', comprador['documento']);
+    addComprador('Nome', comprador['nome']);
+    addComprador('E-mail', comprador['email']);
+    addComprador('UF', comprador['uf']);
+    addComprador('Município', comprador['municipio']);
+    addComprador('Bairro', comprador['bairro']);
+    addComprador('Logradouro', comprador['logradouro']);
+    addComprador('Número', comprador['numero']);
+    addComprador('Complemento', comprador['complemento']);
+
+    final entriesIntencao = <MapEntry<String, String>>[];
+    void addIntencao(String label, dynamic value) {
+      final text = value?.toString().trim();
+      if (text != null && text.isNotEmpty) {
+        entriesIntencao.add(MapEntry(label, text));
+      }
+    }
+
+    addIntencao('UF', intencao['uf']);
+    addIntencao('Estado da intenção', intencao['estado']);
+    addIntencao('Data/Hora', intencao['data_hora']);
+    addIntencao('Data/Hora atualização', intencao['data_hora_atualizacao']);
+    addIntencao('Valor da venda', intencao['valor_venda']);
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 16),
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        border: Border.all(color: Colors.grey.shade300),
+        borderRadius: BorderRadius.circular(16),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Text(
+            'Dados do comprador',
+            style: theme.textTheme.bodyMedium?.copyWith(
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+          const SizedBox(height: 12),
+          if (entriesComprador.isNotEmpty)
+            ...entriesComprador.map(
+              (entry) => Padding(
+                padding: const EdgeInsets.only(bottom: 12),
+                child: _buildSummaryRow(
+                  context,
+                  label: entry.key,
+                  value: entry.value,
+                ),
+              ),
+            )
+          else
+            Text(
+              'Nenhum dado disponível.',
+              style: theme.textTheme.bodyMedium?.copyWith(
+                color: Colors.grey.shade600,
+              ),
+            ),
+          const SizedBox(height: 16),
+          Text(
+            'Dados da intenção de venda',
+            style: theme.textTheme.bodyMedium?.copyWith(
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+          const SizedBox(height: 12),
+          if (entriesIntencao.isNotEmpty)
+            ...entriesIntencao.map(
+              (entry) => Padding(
+                padding: const EdgeInsets.only(bottom: 12),
+                child: _buildSummaryRow(
+                  context,
+                  label: entry.key,
+                  value: entry.value,
+                ),
+              ),
+            )
+          else
+            Text(
+              'Nenhum dado disponível.',
+              style: theme.textTheme.bodyMedium?.copyWith(
+                color: Colors.grey.shade600,
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+
   Widget _buildSection({
     required String title,
     required Widget child,
@@ -1055,8 +1101,19 @@ class _AtpvFormPageState extends State<AtpvFormPage> {
 
     final veiculo = _consultaPayload?['veiculo'] as Map<String, dynamic>?;
     final proprietario = _consultaPayload?['proprietario'] as Map<String, dynamic>?;
+    final consultaInfo = _consultaPayload?['consulta'] as Map<String, dynamic>?
+        ?? const <String, dynamic>{};
 
     final displayEntries = <MapEntry<String, String>>[];
+    final consultaPlaca = consultaInfo['placa']?.toString();
+    final consultaRenavam = consultaInfo['renavam']?.toString();
+    if (consultaPlaca != null && consultaPlaca.trim().isNotEmpty) {
+      displayEntries.add(MapEntry('Placa informada', consultaPlaca.trim()));
+    }
+    if (consultaRenavam != null && consultaRenavam.trim().isNotEmpty) {
+      displayEntries.add(MapEntry('Renavam informado', consultaRenavam.trim()));
+    }
+
     if (veiculo != null) {
       final placa = veiculo['placa']?.toString();
       final renavam = veiculo['renavam']?.toString();
@@ -1108,53 +1165,22 @@ class _AtpvFormPageState extends State<AtpvFormPage> {
                     )
                     .toList(),
               ),
-            if (_consultaTables.isNotEmpty) ...[
+            const SizedBox(height: 16),
+            if (_consultaComunicacoes.isNotEmpty) ...[
+              Text(
+                'Comunicações de venda',
+                style: theme.textTheme.titleSmall?.copyWith(
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
               const SizedBox(height: 12),
-              ExpansionTile(
-                tilePadding: EdgeInsets.zero,
-                title: const Text('Detalhes completos'),
-                children: _consultaTables.map((table) {
-                  final rows = table['rows'];
-                  if (rows is! List) {
-                    return const SizedBox.shrink();
-                  }
-                  return Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: rows.whereType<Map>().map((row) {
-                      final label = row['label']?.toString() ?? '';
-                      final value = row['value']?.toString() ?? '';
-                      if (label.isEmpty && value.isEmpty) {
-                        return const SizedBox.shrink();
-                      }
-                      return Padding(
-                        padding: const EdgeInsets.symmetric(vertical: 6),
-                        child: Row(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Expanded(
-                              flex: 2,
-                              child: Text(
-                                label,
-                                style: theme.textTheme.bodySmall?.copyWith(
-                                  color: Colors.grey.shade600,
-                                  fontWeight: FontWeight.w600,
-                                ),
-                              ),
-                            ),
-                            const SizedBox(width: 12),
-                            Expanded(
-                              flex: 3,
-                              child: Text(
-                                value.trim(),
-                                style: theme.textTheme.bodyMedium,
-                              ),
-                            ),
-                          ],
-                        ),
-                      );
-                    }).toList(),
-                  );
-                }).toList(),
+              ..._consultaComunicacoes.map(_buildCommunicationCard).toList(),
+            ] else ...[
+              Text(
+                'Nenhuma comunicação de venda encontrada para os dados informados.',
+                style: theme.textTheme.bodyMedium?.copyWith(
+                  color: Colors.grey.shade600,
+                ),
               ),
             ],
           ],

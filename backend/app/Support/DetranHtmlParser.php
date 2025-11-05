@@ -77,6 +77,65 @@ class DetranHtmlParser
             return $node ? $getText($node) : null;
         };
 
+        $extractFieldsetData = static function (?DOMNode $context) use ($xp, $getText) {
+            if (! $context) {
+                return [];
+            }
+
+            $data = [];
+            $cells = $xp->query('.//td', $context);
+            foreach ($cells as $cell) {
+                $labelNode = $xp->query('.//span[contains(@class,"texto_black2")]', $cell)->item(0);
+                $valueNode = $xp->query('.//span[contains(@class,"texto_menor")]', $cell)->item(0);
+
+                $label = $labelNode ? $getText($labelNode) : null;
+                $value = $valueNode ? $getText($valueNode) : null;
+
+                if ($label === null || $label === '' || $value === null || $value === '') {
+                    continue;
+                }
+
+                $data[$label] = $value;
+            }
+
+            return $data;
+        };
+
+        $communications = [];
+        $communicationFieldsets = $xp->query('//fieldset[legend/font[contains(normalize-space(.), "Comunicação Venda")]]');
+
+        foreach ($communicationFieldsets as $fieldset) {
+            $buyerFieldset = $xp->query('.//fieldset[legend/font[contains(normalize-space(.), "Dados do Comprador")]]', $fieldset)->item(0);
+            $intentionFieldset = $xp->query('.//fieldset[legend/font[contains(normalize-space(.), "Dados da Intenção de Venda")]]', $fieldset)->item(0);
+
+            $buyerData = $extractFieldsetData($buyerFieldset);
+            $intentionData = $extractFieldsetData($intentionFieldset);
+
+            $communications[] = [
+                'comprador' => [
+                    'documento'   => $buyerData['CPF/CNPJ'] ?? ($buyerData['CPF / CNPJ'] ?? null),
+                    'nome'        => $buyerData['Nome'] ?? ($buyerData['Nome do Comprador'] ?? null),
+                    'email'       => $buyerData['E-mail'] ?? ($buyerData['Email'] ?? null),
+                    'uf'          => $buyerData['UF'] ?? null,
+                    'municipio'   => $buyerData['Município'] ?? ($buyerData['Municipio'] ?? null),
+                    'bairro'      => $buyerData['Bairro'] ?? null,
+                    'logradouro'  => $buyerData['Logradouro'] ?? null,
+                    'numero'      => $buyerData['Número'] ?? ($buyerData['Numero'] ?? null),
+                    'complemento' => $buyerData['Complemento'] ?? null,
+                    'cep'         => $buyerData['CEP'] ?? null,
+                ],
+                'intencao' => [
+                    'uf'                   => $intentionData['UF'] ?? null,
+                    'estado'               => $intentionData['Estado Intenção Venda']
+                        ?? ($intentionData['Estado Intencao Venda'] ?? null),
+                    'data_hora'            => $intentionData['Data/Hora'] ?? null,
+                    'data_hora_atualizacao' => $intentionData['Data/Hora Atualização']
+                        ?? ($intentionData['Data/Hora Atualizacao'] ?? null),
+                    'valor_venda'          => $intentionData['Valor da venda'] ?? null,
+                ],
+            ];
+        }
+
         $bodyText = $xp->query('//body')->item(0);
         $allText = $getText($bodyText);
         $dataHora = null;
@@ -211,18 +270,16 @@ class DetranHtmlParser
                 'exercicio_licenciamento' => $pick($labels['CRV_Exercicio']),
                 'data_licenciamento'      => $pick($labels['CRV_DataLic']),
             ],
-            'comunicacao_vendas' => [
-                'status'             => $pick($labels['CV_Comunicacao']),
-                'inclusao'           => $pick($labels['CV_Inclusao']),
-                'tipo_doc_comprador' => $pick($labels['CV_TipoDocComprador']),
-                'cnpj_cpf_comprador' => $pick($labels['CV_CnpjCpfComprador']),
-                'origem'             => $pick($labels['CV_Origem']),
-                'datas'              => [
-                    'venda'            => $pick($labels['CV_DataVenda']),
-                    'nota_fiscal'      => $pick($labels['CV_NotaFiscal']),
-                    'protocolo_detran' => $pick($labels['CV_ProtocoloDetran']),
-                ],
-            ],
+            'comunicacao_vendas' => array_values(array_filter($communications, static function ($item) {
+                if (! is_array($item)) {
+                    return false;
+                }
+
+                $comprador = $item['comprador'] ?? [];
+                $intencao = $item['intencao'] ?? [];
+
+                return (is_array($comprador) && array_filter($comprador)) || (is_array($intencao) && array_filter($intencao));
+            })),
         ];
 
         $sanitize = static function (&$value) use (&$sanitize) {

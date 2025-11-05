@@ -84,7 +84,6 @@ class ConsultaIntencaoVendaController extends Controller
         }
 
         $parsed = DetranHtmlParser::parse($body);
-        $tables = $this->extractTables($body);
 
         $responseBody = array_merge(
             [
@@ -94,10 +93,7 @@ class ConsultaIntencaoVendaController extends Controller
                     'codigo_estado_intencao_venda' => '0',
                 ],
             ],
-            $parsed,
-            [
-                'tabelas' => $tables,
-            ]
+            $parsed
         );
 
         return response()->json(
@@ -125,68 +121,5 @@ class ConsultaIntencaoVendaController extends Controller
         }
 
         return $errors;
-    }
-
-    /**
-     * @return array<int, array<string, mixed>>
-     */
-    private function extractTables(string $html): array
-    {
-        if ($html === '') {
-            return [];
-        }
-
-        $dom = new \DOMDocument();
-        libxml_use_internal_errors(true);
-        @$dom->loadHTML($html);
-        libxml_clear_errors();
-        $xpath = new \DOMXPath($dom);
-
-        $tables = [];
-        $tableNodes = $xpath->query('//table');
-
-        foreach ($tableNodes as $index => $tableNode) {
-            $rows = [];
-            $rowNodes = $xpath->query('.//tr', $tableNode);
-
-            foreach ($rowNodes as $rowNode) {
-                $cells = $xpath->query('./th|./td', $rowNode);
-                if ($cells->length === 0) {
-                    continue;
-                }
-
-                if ($cells->length === 1) {
-                    $value = trim($cells->item(0)?->textContent ?? '');
-                    if ($value !== '') {
-                        $rows[] = [
-                            'label' => null,
-                            'value' => $value,
-                        ];
-                    }
-                    continue;
-                }
-
-                $label = trim($cells->item(0)?->textContent ?? '');
-                $value = trim($cells->item(1)?->textContent ?? '');
-
-                if ($label === '' && $value === '') {
-                    continue;
-                }
-
-                $rows[] = [
-                    'label' => $label !== '' ? preg_replace('/\s+/u', ' ', $label) : null,
-                    'value' => $value !== '' ? preg_replace('/\s+/u', ' ', $value) : null,
-                ];
-            }
-
-            if (! empty($rows)) {
-                $tables[] = [
-                    'index' => $index,
-                    'rows' => $rows,
-                ];
-            }
-        }
-
-        return $tables;
     }
 }
