@@ -14,6 +14,7 @@ use App\Http\Controllers\Api\FichaCadastralConsultaController;
 use App\Http\Controllers\Api\FichaCadastralAndamentoController;
 use App\Http\Controllers\Api\PesquisaController;
 use App\Http\Controllers\Api\ImpressaoCrlvController;
+use App\Http\Controllers\Api\PasswordResetController;
 use App\Http\Controllers\Api\RenainfPlacaController;
 use Illuminate\Support\Facades\Route;
 
@@ -41,3 +42,6 @@ Route::get('renainf', RenainfPlacaController::class);
 Route::get('pesquisas', [PesquisaController::class, 'index']);
 Route::get('pesquisas/ultimo-mes', [PesquisaController::class, 'lastMonth']);
 Route::post('pesquisas', [PesquisaController::class, 'store']);
+
+Route::post('/password/forgot', [PasswordResetController::class, 'requestCode']);
+Route::post('/password/reset',  [PasswordResetController::class, 'resetPassword']);

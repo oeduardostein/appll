@@ -1,5 +1,8 @@
 import 'package:flutter/material.dart';
 
+import 'package:frontend_app/services/auth_service.dart';
+import 'package:frontend_app/services/password_reset_service.dart';
+
 import '../shared/loading_dialog.dart';
 import 'login_page.dart';
 import 'widgets/auth_back_button.dart';
@@ -21,6 +24,7 @@ class _ForgotPasswordResetPageState extends State<ForgotPasswordResetPage> {
   final _codeController = TextEditingController();
   final _passwordController = TextEditingController();
   final _confirmPasswordController = TextEditingController();
+  final _passwordResetService = PasswordResetService();
   bool _obscurePassword = true;
   bool _obscureConfirmPassword = true;
 
@@ -42,15 +46,40 @@ class _ForgotPasswordResetPageState extends State<ForgotPasswordResetPage> {
       builder: (_) => const LoadingDialog(),
     );
 
-    await Future.delayed(const Duration(seconds: 2));
-    if (!mounted) return;
-    Navigator.of(context, rootNavigator: true).pop();
-    if (!mounted) return;
+    try {
+      final message = await _passwordResetService.resetPassword(
+        email: widget.email,
+        code: _codeController.text.trim(),
+        password: _passwordController.text,
+        passwordConfirmation: _confirmPasswordController.text,
+      );
+      if (!mounted) return;
+      Navigator.of(context, rootNavigator: true).pop();
+      if (!mounted) return;
+      _showSnackBar(message);
+      Navigator.of(context).pushNamedAndRemoveUntil(
+        LoginPage.routeName,
+        (route) => false,
+      );
+    } on AuthException catch (e) {
+      if (!mounted) return;
+      Navigator.of(context, rootNavigator: true).pop();
+      if (!mounted) return;
+      _showSnackBar(e.message);
+    } catch (_) {
+      if (!mounted) return;
+      Navigator.of(context, rootNavigator: true).pop();
+      if (!mounted) return;
+      _showSnackBar('Não foi possível redefinir a senha. Tente novamente.');
+    }
+  }
 
-    Navigator.of(context).pushNamedAndRemoveUntil(
-      LoginPage.routeName,
-      (route) => false,
-    );
+  void _showSnackBar(String message) {
+    ScaffoldMessenger.of(context)
+      ..clearSnackBars()
+      ..showSnackBar(
+        SnackBar(content: Text(message)),
+      );
   }
 
   @override
@@ -130,8 +159,8 @@ class _ForgotPasswordResetPageState extends State<ForgotPasswordResetPage> {
                               if (value == null || value.isEmpty) {
                                 return 'Informe uma nova senha';
                               }
-                              if (value.length < 6) {
-                                return 'A senha deve ter pelo menos 6 caracteres';
+                              if (value.length < 8) {
+                                return 'A senha deve ter pelo menos 8 caracteres';
                               }
                               return null;
                             },

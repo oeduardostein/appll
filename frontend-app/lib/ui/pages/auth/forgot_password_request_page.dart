@@ -1,5 +1,8 @@
 import 'package:flutter/material.dart';
 
+import 'package:frontend_app/services/auth_service.dart';
+import 'package:frontend_app/services/password_reset_service.dart';
+
 import '../shared/loading_dialog.dart';
 import 'forgot_password_reset_page.dart';
 import 'widgets/auth_back_button.dart';
@@ -19,6 +22,7 @@ class ForgotPasswordRequestPage extends StatefulWidget {
 class _ForgotPasswordRequestPageState extends State<ForgotPasswordRequestPage> {
   final _formKey = GlobalKey<FormState>();
   final _emailController = TextEditingController();
+  final _passwordResetService = PasswordResetService();
 
   @override
   void dispose() {
@@ -48,16 +52,36 @@ class _ForgotPasswordRequestPageState extends State<ForgotPasswordRequestPage> {
       builder: (_) => const LoadingDialog(),
     );
 
-    await Future.delayed(const Duration(seconds: 2));
-    if (!mounted) return;
-    Navigator.of(context, rootNavigator: true).pop();
-    if (!mounted) return;
+    try {
+      final message = await _passwordResetService.requestCode(email: email);
+      if (!mounted) return;
+      Navigator.of(context, rootNavigator: true).pop();
+      if (!mounted) return;
+      _showSnackBar(message);
+      Navigator.of(context).push(
+        MaterialPageRoute(
+          builder: (_) => ForgotPasswordResetPage(email: email),
+        ),
+      );
+    } on AuthException catch (e) {
+      if (!mounted) return;
+      Navigator.of(context, rootNavigator: true).pop();
+      if (!mounted) return;
+      _showSnackBar(e.message);
+    } catch (_) {
+      if (!mounted) return;
+      Navigator.of(context, rootNavigator: true).pop();
+      if (!mounted) return;
+      _showSnackBar('Não foi possível enviar o código. Tente novamente.');
+    }
+  }
 
-    Navigator.of(context).push(
-      MaterialPageRoute(
-        builder: (_) => ForgotPasswordResetPage(email: email),
-      ),
-    );
+  void _showSnackBar(String message) {
+    ScaffoldMessenger.of(context)
+      ..clearSnackBars()
+      ..showSnackBar(
+        SnackBar(content: Text(message)),
+      );
   }
 
   @override

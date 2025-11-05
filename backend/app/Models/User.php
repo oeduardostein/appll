@@ -24,6 +24,7 @@ class User extends Authenticatable
         'is_active',
         'credits',
         'last_login_at',
+        'codigo',
     ];
 
     /**

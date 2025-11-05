@@ -17,17 +17,24 @@ class AtpvFormPage extends StatefulWidget {
     super.key,
     this.initialPlate,
     this.initialRenavam,
+    this.initialCaptchaValue,
+    this.initialCaptchaBytes,
+    this.initialConsultaPayload,
+    this.initialConsultaComunicacoes,
   });
 
   final String? initialPlate;
   final String? initialRenavam;
+  final String? initialCaptchaValue;
+  final Uint8List? initialCaptchaBytes;
+  final Map<String, dynamic>? initialConsultaPayload;
+  final List<Map<String, dynamic>>? initialConsultaComunicacoes;
 
   @override
   State<AtpvFormPage> createState() => _AtpvFormPageState();
 }
 
 class _AtpvFormPageState extends State<AtpvFormPage> {
-  final _consultaFormKey = GlobalKey<FormState>();
   final _emissaoFormKey = GlobalKey<FormState>();
 
   late final TextEditingController _plateController;
@@ -55,11 +62,9 @@ class _AtpvFormPageState extends State<AtpvFormPage> {
 
   bool _termsAccepted = false;
   bool _loadingCaptcha = false;
-  bool _isConsulting = false;
   bool _isSubmitting = false;
   Uint8List? _captchaBytes;
   String? _captchaError;
-  String? _consultaFeedback;
   String? _submissionError;
   String? _lastCaptchaUsed;
 
@@ -72,7 +77,21 @@ class _AtpvFormPageState extends State<AtpvFormPage> {
     super.initState();
     _plateController = TextEditingController(text: widget.initialPlate ?? '');
     _renavamController = TextEditingController(text: widget.initialRenavam ?? '');
-    WidgetsBinding.instance.addPostFrameCallback((_) => _refreshCaptcha());
+    if (widget.initialCaptchaValue != null &&
+        widget.initialCaptchaValue!.trim().isNotEmpty) {
+      _captchaController.text = widget.initialCaptchaValue!.trim();
+      _lastCaptchaUsed = widget.initialCaptchaValue!.trim();
+    }
+    _captchaBytes = widget.initialCaptchaBytes;
+    _consultaPayload = widget.initialConsultaPayload;
+    _consultaComunicacoes =
+        widget.initialConsultaComunicacoes ?? const <Map<String, dynamic>>[];
+    if (_consultaPayload != null) {
+      _prefillFromConsulta();
+    }
+    if (_captchaBytes == null) {
+      WidgetsBinding.instance.addPostFrameCallback((_) => _refreshCaptcha());
+    }
   }
 
   @override
@@ -132,67 +151,6 @@ class _AtpvFormPageState extends State<AtpvFormPage> {
     } finally {
       setState(() {
         _loadingCaptcha = false;
-      });
-    }
-  }
-
-  Future<void> _consultarIntencaoVenda() async {
-    final form = _consultaFormKey.currentState;
-    if (form == null) return;
-
-    if (!form.validate()) {
-      return;
-    }
-
-    final placa = _plateController.text.trim().toUpperCase();
-    final renavam = _renavamController.text.trim();
-    final captcha = _captchaController.text.trim().toUpperCase();
-
-    FocusScope.of(context).unfocus();
-
-    setState(() {
-      _isConsulting = true;
-      _consultaFeedback = null;
-      _consultaPayload = null;
-      _consultaComunicacoes = const [];
-    });
-
-    try {
-      final result = await _atpvService.consultarIntencaoVenda(
-        renavam: renavam,
-        placa: placa,
-        captcha: captcha,
-      );
-
-      setState(() {
-        _consultaPayload = result;
-        _consultaComunicacoes = (result['comunicacao_vendas'] is List)
-            ? (result['comunicacao_vendas'] as List)
-                .whereType<Map>()
-                .map((item) => item.map(
-                      (key, value) => MapEntry(key.toString(), value),
-                    ))
-                .toList(growable: false)
-            : const [];
-        _consultaFeedback = 'Consulta realizada com sucesso.';
-        _lastCaptchaUsed = captcha;
-        _termsAccepted = false;
-      });
-
-      _prefillFromConsulta();
-    } on AtpvException catch (e) {
-      setState(() {
-        _consultaFeedback = e.message;
-      });
-      _showErrorAlert(e.message);
-    } catch (_) {
-      setState(() {
-        _consultaFeedback = 'Falha ao consultar intenção de venda.';
-      });
-      _showErrorAlert('Falha ao consultar intenção de venda.');
-    } finally {
-      setState(() {
-        _isConsulting = false;
       });
     }
   }
@@ -484,70 +442,11 @@ class _AtpvFormPageState extends State<AtpvFormPage> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          _buildSection(
-            title: 'Consulta de intenção de venda',
-            child: Form(
-              key: _consultaFormKey,
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  _buildTextField(
-                    label: 'Placa',
-                    controller: _plateController,
-                    textCapitalization: TextCapitalization.characters,
-                    inputFormatters: [
-                      const UpperCaseTextFormatter(),
-                      FilteringTextInputFormatter.allow(RegExp('[A-Za-z0-9]')),
-                      LengthLimitingTextInputFormatter(7),
-                    ],
-                  ),
-                  const SizedBox(height: 16),
-                  _buildTextField(
-                    label: 'Renavam',
-                    controller: _renavamController,
-                    keyboardType: TextInputType.number,
-                    inputFormatters: [
-                      FilteringTextInputFormatter.digitsOnly,
-                      LengthLimitingTextInputFormatter(11),
-                    ],
-                  ),
-                  const SizedBox(height: 16),
-                  _buildCaptchaSection(),
-                  const SizedBox(height: 16),
-                  FilledButton.icon(
-                    onPressed: _isConsulting ? null : _consultarIntencaoVenda,
-                    icon: _isConsulting
-                        ? const SizedBox(
-                            width: 18,
-                            height: 18,
-                            child: CircularProgressIndicator(strokeWidth: 2),
-                          )
-                        : const Icon(Icons.search),
-                    label: Text(_isConsulting ? 'Consultando...' : 'Consultar intenção de venda'),
-                  ),
-                  if (_consultaFeedback != null) ...[
-                    const SizedBox(height: 12),
-                    Text(
-                      _consultaFeedback!,
-                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                            color: (_consultaPayload != null && _consultaFeedback!.contains('sucesso'))
-                                ? Colors.green.shade700
-                                : Colors.red.shade700,
-                          ),
-                    ),
-                  ],
-                ],
-              ),
-            ),
-          ),
           if (_consultaPayload != null) ...[
-            const SizedBox(height: 24),
             _buildConsultaResultSection(),
-          ],
-          if (_consultaPayload != null) ...[
             const SizedBox(height: 24),
-            _buildEmissionFormSection(context),
           ],
+          _buildEmissionFormSection(context),
         ],
       ),
     );
@@ -561,6 +460,29 @@ class _AtpvFormPageState extends State<AtpvFormPage> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
+            _buildTextField(
+              label: 'Placa',
+              controller: _plateController,
+              textCapitalization: TextCapitalization.characters,
+              inputFormatters: [
+                const UpperCaseTextFormatter(),
+                FilteringTextInputFormatter.allow(RegExp('[A-Za-z0-9]')),
+                LengthLimitingTextInputFormatter(7),
+              ],
+            ),
+            const SizedBox(height: 16),
+            _buildTextField(
+              label: 'Renavam',
+              controller: _renavamController,
+              keyboardType: TextInputType.number,
+              inputFormatters: [
+                FilteringTextInputFormatter.digitsOnly,
+                LengthLimitingTextInputFormatter(11),
+              ],
+            ),
+            const SizedBox(height: 16),
+            _buildCaptchaSection(),
+            const SizedBox(height: 16),
             _buildTextField(
               label: 'Chassi',
               controller: _chassiController,
