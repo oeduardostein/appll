@@ -173,15 +173,19 @@ class CreditManagementController extends Controller
     private function buildMonthOptions(): array
     {
         $currentMonth = now()->startOfMonth();
+        $locale = app()->getLocale() ?: 'pt_BR';
 
         return collect(range(0, 11))
             ->map(static function (int $offset) use ($currentMonth) {
                 return $currentMonth->clone()->subMonths($offset);
             })
-            ->map(static function (Carbon $month) {
+            ->map(static function (Carbon $month) use ($locale) {
+                $rawLabel = $month->clone()->locale($locale)->isoFormat('MMMM [de] YYYY');
+                $label = Str::ucfirst(Str::lower($rawLabel));
+
                 return [
                     'key' => $month->format('Y-m'),
-                    'label' => ucfirst($month->translatedFormat('F \\d\\e Y')),
+                    'label' => $label,
                 ];
             })
             ->all();

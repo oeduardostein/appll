@@ -20,6 +20,7 @@ Route::prefix('admin')->name('admin.')->group(function () {
     Route::middleware('admin.auth')->group(function () {
         Route::get('/clientes', [ClientController::class, 'index'])->name('clients.index');
         Route::get('/relatorios', [ReportController::class, 'index'])->name('reports.index');
+        Route::get('/relatorios/exportar', [ReportController::class, 'export'])->name('reports.export');
         Route::get('/configuracoes', [SettingsController::class, 'show'])->name('settings.index');
         Route::post('/configuracoes/password', [SettingsController::class, 'updatePassword'])->name('settings.password');
         Route::post('/configuracoes/api-key', [SettingsController::class, 'updateApiKey'])->name('settings.api-key');
