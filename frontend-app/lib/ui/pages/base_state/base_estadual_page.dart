@@ -336,7 +336,6 @@ class _BaseEstadualStructuredScreen extends StatelessWidget {
                 _BlueHeader(
                   title: title,
                   onBack: () => Navigator.of(context).pop(),
-                  onShare: () => _copyToClipboard(context),
                 ),
                 Expanded(
                   child: SingleChildScrollView(
