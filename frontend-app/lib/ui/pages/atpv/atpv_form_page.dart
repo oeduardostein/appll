@@ -31,11 +31,6 @@ class _AtpvFormPageState extends State<AtpvFormPage> {
 
   late final TextEditingController _plateController;
   late final TextEditingController _renavamController;
-  final TextEditingController _numeroAtpvController = TextEditingController();
-  final TextEditingController _dataInicioController = TextEditingController();
-  final TextEditingController _horaInicioController = TextEditingController();
-  final TextEditingController _dataFimController = TextEditingController();
-  final TextEditingController _horaFimController = TextEditingController();
   final TextEditingController _captchaController = TextEditingController();
 
   final TextEditingController _chassiController = TextEditingController();
@@ -53,7 +48,6 @@ class _AtpvFormPageState extends State<AtpvFormPage> {
   final TextEditingController _buyerNeighborhoodController = TextEditingController();
   final TextEditingController _buyerStreetController = TextEditingController();
   final TextEditingController _buyerStateController = TextEditingController();
-  final TextEditingController _estadoIntencaoController = TextEditingController(text: 'SP');
 
   final BaseEstadualService _baseEstadualService = BaseEstadualService();
   final AtpvService _atpvService = AtpvService();
@@ -84,11 +78,6 @@ class _AtpvFormPageState extends State<AtpvFormPage> {
   void dispose() {
     _plateController.dispose();
     _renavamController.dispose();
-    _numeroAtpvController.dispose();
-    _dataInicioController.dispose();
-    _horaInicioController.dispose();
-    _dataFimController.dispose();
-    _horaFimController.dispose();
     _captchaController.dispose();
     _chassiController.dispose();
     _ownerDocumentController.dispose();
@@ -105,7 +94,6 @@ class _AtpvFormPageState extends State<AtpvFormPage> {
     _buyerNeighborhoodController.dispose();
     _buyerStreetController.dispose();
     _buyerStateController.dispose();
-    _estadoIntencaoController.dispose();
     super.dispose();
   }
 
@@ -157,13 +145,7 @@ class _AtpvFormPageState extends State<AtpvFormPage> {
 
     final placa = _plateController.text.trim().toUpperCase();
     final renavam = _renavamController.text.trim();
-    final numeroAtpv = _numeroAtpvController.text.trim();
-    if (placa.isEmpty && renavam.isEmpty && numeroAtpv.isEmpty) {
-      setState(() {
-        _consultaFeedback = 'Informe ao menos placa, renavam ou número da ATPV.';
-      });
-      return;
-    }
+    final captcha = _captchaController.text.trim().toUpperCase();
 
     FocusScope.of(context).unfocus();
 
@@ -176,31 +158,15 @@ class _AtpvFormPageState extends State<AtpvFormPage> {
 
     try {
       final result = await _atpvService.consultarIntencaoVenda(
-        renavam: renavam.isEmpty ? null : renavam,
-        placa: placa.isEmpty ? null : placa,
-        estadoIntencaoVenda: _estadoIntencaoController.text.trim(),
-        numeroAtpv: numeroAtpv.isEmpty ? null : numeroAtpv,
-        dataInicio: _dataInicioController.text.trim().isEmpty
-            ? null
-            : _dataInicioController.text.trim(),
-        horaInicio: _horaInicioController.text.trim().isEmpty
-            ? null
-            : _horaInicioController.text.trim(),
-        dataFim: _dataFimController.text.trim().isEmpty
-            ? null
-            : _dataFimController.text.trim(),
-        horaFim: _horaFimController.text.trim().isEmpty
-            ? null
-            : _horaFimController.text.trim(),
-        captcha: _captchaController.text.trim().toUpperCase(),
+        renavam: renavam,
+        placa: placa,
+        captcha: captcha,
       );
 
-      final payload = result['payload'];
-      final tables = result['tables'];
+      final tables = result['tabelas'];
 
       setState(() {
-        _consultaPayload =
-            payload is Map<String, dynamic> ? payload : null;
+        _consultaPayload = result;
         if (tables is List) {
           _consultaTables = tables
               .whereType<Map>()
@@ -214,7 +180,8 @@ class _AtpvFormPageState extends State<AtpvFormPage> {
           _consultaTables = const [];
         }
         _consultaFeedback = 'Consulta realizada com sucesso.';
-        _lastCaptchaUsed = _captchaController.text.trim();
+        _lastCaptchaUsed = captcha;
+        _termsAccepted = false;
       });
 
       _prefillFromConsulta();
@@ -596,62 +563,6 @@ class _AtpvFormPageState extends State<AtpvFormPage> {
                     ],
                   ),
                   const SizedBox(height: 16),
-                  _buildTextField(
-                    label: 'Estado da intenção de venda',
-                    controller: _estadoIntencaoController,
-                    readOnly: true,
-                  ),
-                  const SizedBox(height: 16),
-                  _buildTextField(
-                    label: 'Número da ATPV',
-                    controller: _numeroAtpvController,
-                    requiredField: false,
-                  ),
-                  const SizedBox(height: 16),
-                  Row(
-                    children: [
-                      Expanded(
-                        child: _buildTextField(
-                          label: 'Data início (dd/mm/aaaa)',
-                          controller: _dataInicioController,
-                          keyboardType: TextInputType.datetime,
-                          requiredField: false,
-                        ),
-                      ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: _buildTextField(
-                          label: 'Hora início (hh:mm)',
-                          controller: _horaInicioController,
-                          keyboardType: TextInputType.datetime,
-                          requiredField: false,
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 16),
-                  Row(
-                    children: [
-                      Expanded(
-                        child: _buildTextField(
-                          label: 'Data fim (dd/mm/aaaa)',
-                          controller: _dataFimController,
-                          keyboardType: TextInputType.datetime,
-                          requiredField: false,
-                        ),
-                      ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: _buildTextField(
-                          label: 'Hora fim (hh:mm)',
-                          controller: _horaFimController,
-                          keyboardType: TextInputType.datetime,
-                          requiredField: false,
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 16),
                   _buildCaptchaSection(),
                   const SizedBox(height: 16),
                   FilledButton.icon(
@@ -684,195 +595,201 @@ class _AtpvFormPageState extends State<AtpvFormPage> {
             const SizedBox(height: 24),
             _buildConsultaResultSection(),
           ],
-          const SizedBox(height: 24),
-          _buildSection(
-            title: 'Dados para emissão da ATPV-e',
-            child: Form(
-              key: _emissaoFormKey,
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  _buildTextField(
-                    label: 'Chassi',
-                    controller: _chassiController,
-                    requiredField: false,
-                  ),
-                  const SizedBox(height: 16),
-                  _buildTextField(
-                    label: 'CPF/CNPJ do proprietário atual',
-                    controller: _ownerDocumentController,
-                    requiredField: false,
-                  ),
-                  const SizedBox(height: 16),
-                  _buildTextField(
-                    label: 'E-mail do proprietário atual',
-                    controller: _ownerEmailController,
-                    keyboardType: TextInputType.emailAddress,
-                    requiredField: false,
-                  ),
-                  const SizedBox(height: 16),
-                  _buildTextField(
-                    label: 'Valor da venda',
-                    controller: _saleValueController,
-                    keyboardType: TextInputType.number,
-                    requiredField: false,
-                  ),
-                  const SizedBox(height: 16),
-                  _buildTextField(
-                    label: 'Hodômetro',
-                    controller: _odometerController,
-                    keyboardType: TextInputType.number,
-                    requiredField: false,
-                  ),
-                  const SizedBox(height: 16),
-                  _buildTextField(
-                    label: 'CPF/CNPJ do comprador',
-                    controller: _buyerDocumentController,
-                    validator: (value) {
-                      final text = value?.trim() ?? '';
-                      if (text.isEmpty) {
-                        return 'Informe o CPF ou CNPJ do comprador.';
-                      }
-                      if (text.length < 11) {
-                        return 'Documento do comprador inválido.';
-                      }
-                      return null;
-                    },
-                  ),
-                  const SizedBox(height: 16),
-                  _buildTextField(
-                    label: 'Nome completo do comprador',
-                    controller: _buyerNameController,
-                    validator: (value) {
-                      if (value == null || value.trim().isEmpty) {
-                        return 'Informe o nome do comprador.';
-                      }
-                      return null;
-                    },
-                  ),
-                  const SizedBox(height: 16),
-                  _buildTextField(
-                    label: 'E-mail do comprador',
-                    controller: _buyerEmailController,
-                    keyboardType: TextInputType.emailAddress,
-                    requiredField: false,
-                  ),
-                  const SizedBox(height: 16),
-                  Row(
-                    children: [
-                      Expanded(
-                        child: _buildTextField(
-                          label: 'CEP',
-                      controller: _buyerCepController,
-                      keyboardType: TextInputType.number,
-                      requiredField: false,
-                      inputFormatters: [
-                        FilteringTextInputFormatter.allow(RegExp('[0-9]')),
-                        LengthLimitingTextInputFormatter(8),
-                          ],
-                        ),
-                      ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: _buildTextField(
-                          label: 'Número',
-                          controller: _buyerNumberController,
-                          keyboardType: TextInputType.number,
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 16),
-                  _buildTextField(
-                    label: 'Complemento',
-                    controller: _buyerComplementController,
-                    requiredField: false,
-                  ),
-                  const SizedBox(height: 16),
-                  _buildTextField(
-                    label: 'Município',
-                    controller: _buyerCityController,
-                    validator: (value) {
-                      if (value == null || value.trim().isEmpty) {
-                        return 'Informe o município do comprador.';
-                      }
-                      return null;
-                    },
-                  ),
-                  const SizedBox(height: 16),
-                  _buildTextField(
-                    label: 'Bairro',
-                    controller: _buyerNeighborhoodController,
-                    validator: (value) {
-                      if (value == null || value.trim().isEmpty) {
-                        return 'Informe o bairro.';
-                      }
-                      return null;
-                    },
-                  ),
-                  const SizedBox(height: 16),
-                  _buildTextField(
-                    label: 'Logradouro',
-                    controller: _buyerStreetController,
-                    validator: (value) {
-                      if (value == null || value.trim().isEmpty) {
-                        return 'Informe o logradouro.';
-                      }
-                      return null;
-                    },
-                  ),
-                  const SizedBox(height: 16),
-                  _buildTextField(
-                    label: 'UF',
-                    controller: _buyerStateController,
-                    textCapitalization: TextCapitalization.characters,
-                    inputFormatters: [
-                      const UpperCaseTextFormatter(),
-                      LengthLimitingTextInputFormatter(2),
-                    ],
-                    validator: (value) {
-                      final text = value?.trim().toUpperCase() ?? '';
-                      if (text.length != 2) {
-                        return 'Informe a UF com duas letras.';
-                      }
-                      return null;
-                    },
-                  ),
-                  const SizedBox(height: 24),
-                  CheckboxListTile(
-                    contentPadding: EdgeInsets.zero,
-                    title: const Text('Confirmo que as informações estão corretas.'),
-                    value: _termsAccepted,
-                    onChanged: (value) => setState(() {
-                      _termsAccepted = value ?? false;
-                    }),
-                  ),
-                  const SizedBox(height: 12),
-                  FilledButton(
-                    onPressed: _isSubmitting ? null : _submitEmission,
-                    child: _isSubmitting
-                        ? const SizedBox(
-                            height: 18,
-                            width: 18,
-                            child: CircularProgressIndicator(strokeWidth: 2),
-                          )
-                        : const Text('Emitir ATPV-e'),
-                  ),
-                  if (_submissionError != null) ...[
-                    const SizedBox(height: 12),
-                    Text(
-                      _submissionError!,
-                      style: Theme.of(context)
-                          .textTheme
-                          .bodyMedium
-                          ?.copyWith(color: Colors.red.shade700),
-                    ),
-                  ],
-                ],
-              ),
-            ),
-          ),
+          if (_consultaPayload != null) ...[
+            const SizedBox(height: 24),
+            _buildEmissionFormSection(context),
+          ],
         ],
+      ),
+    );
+  }
+
+  Widget _buildEmissionFormSection(BuildContext context) {
+    return _buildSection(
+      title: 'Dados para emissão da ATPV-e',
+      child: Form(
+        key: _emissaoFormKey,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            _buildTextField(
+              label: 'Chassi',
+              controller: _chassiController,
+              requiredField: false,
+            ),
+            const SizedBox(height: 16),
+            _buildTextField(
+              label: 'CPF/CNPJ do proprietário atual',
+              controller: _ownerDocumentController,
+              requiredField: false,
+            ),
+            const SizedBox(height: 16),
+            _buildTextField(
+              label: 'E-mail do proprietário atual',
+              controller: _ownerEmailController,
+              keyboardType: TextInputType.emailAddress,
+              requiredField: false,
+            ),
+            const SizedBox(height: 16),
+            _buildTextField(
+              label: 'Valor da venda',
+              controller: _saleValueController,
+              keyboardType: TextInputType.number,
+              requiredField: false,
+            ),
+            const SizedBox(height: 16),
+            _buildTextField(
+              label: 'Hodômetro',
+              controller: _odometerController,
+              keyboardType: TextInputType.number,
+              requiredField: false,
+            ),
+            const SizedBox(height: 16),
+            _buildTextField(
+              label: 'CPF/CNPJ do comprador',
+              controller: _buyerDocumentController,
+              validator: (value) {
+                final text = value?.trim() ?? '';
+                if (text.isEmpty) {
+                  return 'Informe o CPF ou CNPJ do comprador.';
+                }
+                if (text.length < 11) {
+                  return 'Documento do comprador inválido.';
+                }
+                return null;
+              },
+            ),
+            const SizedBox(height: 16),
+            _buildTextField(
+              label: 'Nome completo do comprador',
+              controller: _buyerNameController,
+              validator: (value) {
+                if (value == null || value.trim().isEmpty) {
+                  return 'Informe o nome do comprador.';
+                }
+                return null;
+              },
+            ),
+            const SizedBox(height: 16),
+            _buildTextField(
+              label: 'E-mail do comprador',
+              controller: _buyerEmailController,
+              keyboardType: TextInputType.emailAddress,
+              requiredField: false,
+            ),
+            const SizedBox(height: 16),
+            Row(
+              children: [
+                Expanded(
+                  child: _buildTextField(
+                    label: 'CEP',
+                    controller: _buyerCepController,
+                    keyboardType: TextInputType.number,
+                    requiredField: false,
+                    inputFormatters: [
+                      FilteringTextInputFormatter.allow(RegExp('[0-9]')),
+                      LengthLimitingTextInputFormatter(8),
+                    ],
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: _buildTextField(
+                    label: 'Número',
+                    controller: _buyerNumberController,
+                    keyboardType: TextInputType.number,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 16),
+            _buildTextField(
+              label: 'Complemento',
+              controller: _buyerComplementController,
+              requiredField: false,
+            ),
+            const SizedBox(height: 16),
+            _buildTextField(
+              label: 'Município',
+              controller: _buyerCityController,
+              validator: (value) {
+                if (value == null || value.trim().isEmpty) {
+                  return 'Informe o município do comprador.';
+                }
+                return null;
+              },
+            ),
+            const SizedBox(height: 16),
+            _buildTextField(
+              label: 'Bairro',
+              controller: _buyerNeighborhoodController,
+              validator: (value) {
+                if (value == null || value.trim().isEmpty) {
+                  return 'Informe o bairro.';
+                }
+                return null;
+              },
+            ),
+            const SizedBox(height: 16),
+            _buildTextField(
+              label: 'Logradouro',
+              controller: _buyerStreetController,
+              validator: (value) {
+                if (value == null || value.trim().isEmpty) {
+                  return 'Informe o logradouro.';
+                }
+                return null;
+              },
+            ),
+            const SizedBox(height: 16),
+            _buildTextField(
+              label: 'UF',
+              controller: _buyerStateController,
+              textCapitalization: TextCapitalization.characters,
+              inputFormatters: [
+                const UpperCaseTextFormatter(),
+                LengthLimitingTextInputFormatter(2),
+              ],
+              validator: (value) {
+                final text = value?.trim().toUpperCase() ?? '';
+                if (text.length != 2) {
+                  return 'Informe a UF com duas letras.';
+                }
+                return null;
+              },
+            ),
+            const SizedBox(height: 24),
+            CheckboxListTile(
+              contentPadding: EdgeInsets.zero,
+              title: const Text('Confirmo que as informações estão corretas.'),
+              value: _termsAccepted,
+              onChanged: (value) => setState(() {
+                _termsAccepted = value ?? false;
+              }),
+            ),
+            const SizedBox(height: 12),
+            FilledButton(
+              onPressed: _isSubmitting ? null : _submitEmission,
+              child: _isSubmitting
+                  ? const SizedBox(
+                      height: 18,
+                      width: 18,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                  : const Text('Emitir ATPV-e'),
+            ),
+            if (_submissionError != null) ...[
+              const SizedBox(height: 12),
+              Text(
+                _submissionError!,
+                style: Theme.of(context)
+                    .textTheme
+                    .bodyMedium
+                    ?.copyWith(color: Colors.red.shade700),
+              ),
+            ],
+          ],
+        ),
       ),
     );
   }

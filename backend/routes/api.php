@@ -32,7 +32,7 @@ Route::get('bloqueios-ativos', BloqueiosAtivosController::class);
 Route::get('gravame', GravamePesquisaController::class);
 Route::get('ficha-cadastral/consulta', FichaCadastralConsultaController::class);
 Route::get('ficha-cadastral/andamento', FichaCadastralAndamentoController::class);
-Route::get('intencao-venda', ConsultaIntencaoVendaController::class);
+Route::post('intencao-venda', ConsultaIntencaoVendaController::class);
 Route::post('emissao-atpv', EmitirAtpvController::class);
 Route::get('emissao-atpv/pdf', AtpvPdfController::class);
 Route::get('emissao-crlv', ImpressaoCrlvController::class);

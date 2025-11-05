@@ -58,42 +58,45 @@ class AtpvService {
   }
 
   Future<Map<String, dynamic>> consultarIntencaoVenda({
-    String? renavam,
-    String? placa,
-    String? estadoIntencaoVenda,
-    String? numeroAtpv,
-    String? dataInicio,
-    String? horaInicio,
-    String? dataFim,
-    String? horaFim,
+    required String renavam,
+    required String placa,
     required String captcha,
   }) async {
-    final params = <String, String>{
-      if (renavam != null && renavam.isNotEmpty) 'renavam': renavam,
-      if (placa != null && placa.isNotEmpty) 'placa': placa,
-      if (estadoIntencaoVenda != null && estadoIntencaoVenda.isNotEmpty)
-        'estado_intencao_venda': estadoIntencaoVenda,
-      if (numeroAtpv != null && numeroAtpv.isNotEmpty) 'numero_atpv': numeroAtpv,
-      if (dataInicio != null && dataInicio.isNotEmpty) 'data_inicio': dataInicio,
-      if (horaInicio != null && horaInicio.isNotEmpty) 'hora_inicio': horaInicio,
-      if (dataFim != null && dataFim.isNotEmpty) 'data_fim': dataFim,
-      if (horaFim != null && horaFim.isNotEmpty) 'hora_fim': horaFim,
-      'captcha': captcha,
-    };
+    final sanitizedRenavam = renavam.trim();
+    final sanitizedPlaca = placa.trim().toUpperCase();
+    final sanitizedCaptcha = captcha.trim().toUpperCase();
 
-    final uri = _buildUri('/api/intencao-venda').replace(
-      queryParameters: params,
+    if (sanitizedRenavam.isEmpty ||
+        sanitizedPlaca.isEmpty ||
+        sanitizedCaptcha.isEmpty) {
+      throw AtpvException('Informe placa, renavam e captcha para consultar.');
+    }
+
+    final uri = _buildUri('/api/intencao-venda');
+    final payload = jsonEncode({
+      'renavam': sanitizedRenavam,
+      'placa': sanitizedPlaca,
+      'captcha': sanitizedCaptcha,
+      'estado_intencao_venda': '0',
+    });
+
+    final response = await _client.post(
+      uri,
+      headers: {
+        'Content-Type': 'application/json',
+        'Accept': 'application/json',
+      },
+      body: payload,
     );
 
-    final response = await _client.get(uri);
+    final body = response.body.trim();
 
     if (response.statusCode != 200) {
-      final message = _extractMessage(response.body) ??
+      final message = _extractMessage(body) ??
           'Falha ao consultar intenção de venda (HTTP ${response.statusCode}).';
       throw AtpvException(message);
     }
 
-    final body = response.body.trim();
     if (body.isEmpty) {
       throw AtpvException('Resposta vazia da consulta.');
     }

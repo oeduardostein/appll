@@ -14,23 +14,10 @@ class ConsultaIntencaoVendaController extends Controller
     public function __invoke(Request $request): Response
     {
         $data = $request->validate([
-            'renavam' => ['nullable', 'string', 'max:20'],
-            'placa' => ['nullable', 'string', 'max:10'],
-            'estado_intencao_venda' => ['nullable', 'string', 'max:40'],
-            'numero_atpv' => ['nullable', 'string', 'max:40'],
-            'data_inicio' => ['nullable', 'string', 'max:10'],
-            'hora_inicio' => ['nullable', 'string', 'max:8'],
-            'data_fim' => ['nullable', 'string', 'max:10'],
-            'hora_fim' => ['nullable', 'string', 'max:8'],
+            'renavam' => ['required', 'string', 'max:20'],
+            'placa' => ['required', 'string', 'max:10'],
             'captcha' => ['required', 'string', 'max:12'],
         ]);
-
-        if (empty($data['renavam']) && empty($data['placa']) && empty($data['numero_atpv'])) {
-            return response()->json(
-                ['message' => 'Informe pelo menos renavam, placa ou número da ATPV.'],
-                Response::HTTP_UNPROCESSABLE_ENTITY
-            );
-        }
 
         $token = DB::table('admin_settings')->where('id', 1)->value('value');
 
@@ -60,17 +47,21 @@ class ConsultaIntencaoVendaController extends Controller
             'sec-ch-ua-platform' => '"macOS"',
         ];
 
+        $renavam = trim($data['renavam']);
+        $placa = strtoupper(trim($data['placa']));
+        $captcha = strtoupper(trim($data['captcha']));
+
         $form = [
             'method' => 'pesquisar',
-            'renavam' => $data['renavam'] ?? '',
-            'placa' => strtoupper($data['placa'] ?? ''),
-            'codigoEstadoIntencaoVenda' => $data['estado_intencao_venda'] ?? '',
-            'numeroAtpv' => $data['numero_atpv'] ?? '',
-            'dataInicioPesqSTR' => $data['data_inicio'] ?? '',
-            'horaInicioPesq' => $data['hora_inicio'] ?? '',
-            'dataFimPesqSTR' => $data['data_fim'] ?? '',
-            'horaFimPesq' => $data['hora_fim'] ?? '',
-            'captcha' => strtoupper($data['captcha']),
+            'renavam' => $renavam,
+            'placa' => $placa,
+            'codigoEstadoIntencaoVenda' => '0',
+            'numeroAtpv' => '',
+            'dataInicioPesqSTR' => '',
+            'horaInicioPesq' => '',
+            'dataFimPesqSTR' => '',
+            'horaFimPesq' => '',
+            'captcha' => $captcha,
         ];
 
         $response = Http::withHeaders($headers)
@@ -95,21 +86,22 @@ class ConsultaIntencaoVendaController extends Controller
         $parsed = DetranHtmlParser::parse($body);
         $tables = $this->extractTables($body);
 
-        return response()->json(
+        $responseBody = array_merge(
             [
-                'filters' => [
-                    'renavam' => $form['renavam'],
-                    'placa' => $form['placa'],
-                    'estado_intencao_venda' => $form['codigoEstadoIntencaoVenda'],
-                    'numero_atpv' => $form['numeroAtpv'],
-                    'data_inicio' => $form['dataInicioPesqSTR'],
-                    'hora_inicio' => $form['horaInicioPesq'],
-                    'data_fim' => $form['dataFimPesqSTR'],
-                    'hora_fim' => $form['horaFimPesq'],
+                'consulta' => [
+                    'renavam' => $renavam,
+                    'placa' => $placa,
+                    'codigo_estado_intencao_venda' => '0',
                 ],
-                'payload' => $parsed,
-                'tables' => $tables,
             ],
+            $parsed,
+            [
+                'tabelas' => $tables,
+            ]
+        );
+
+        return response()->json(
+            $responseBody,
             Response::HTTP_OK,
             [],
             JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_PRETTY_PRINT

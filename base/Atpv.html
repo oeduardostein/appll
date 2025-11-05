@@ -1,12 +1,5 @@
 
 
-
-
-
-
-
-	
-
 	<!--  TILES: CONTEUDO  -->
 	
 
@@ -176,20 +169,27 @@ function backToOrig(){
 
 <!-- JAVASCRIPTS EXTRAS -->
 
-		<script type="text/javascript"
-			src="/GVR/js/app/impressaoCrlv/pesquisa.js"></script>
+		<script type="text/javascript" src="/GVR/js/jquery-1.9.1.js"></script>
+		<script type="text/javascript" src="/GVR/js/app/emissao/intencaoVenda/consultar/pesquisa.js"></script>
 		<script type="text/javascript" language="Javascript1.1"> 
 
 <!-- Begin 
 
     var bCancel = false; 
 
-    function validateImpressaoCrlvForm(form) { 
+    function validateConsultarIntencaoVendaForm(form) { 
         if (bCancel) { 
             return true; 
         } else { 
-            return true; 
+            var formValidationResult; 
+            formValidationResult = validateRequired(form); 
+            return (formValidationResult == 1); 
         } 
+    } 
+
+    function ConsultarIntencaoVendaForm_required () { 
+     this.a0 = new Array("placa", "A Placa é de preenchimento obrigatório.", new Function ("varName", " return this[varName];"));
+     this.a1 = new Array("renavam", "O Renavam é de preenchimento obrigatório.", new Function ("varName", " return this[varName];"));
     } 
 
 
@@ -197,13 +197,11 @@ function backToOrig(){
 </script>
 
 
-		
 		<script type="text/javascript">
-			function validateForm(){
-				return validateImpressaoCrlvForm(document.forms['ImpressaoCrlvForm']) && fieldsValidate(document.forms['ImpressaoCrlvForm']);
-			}
+		function validateForm(){
+			return validateConsultarIntencaoVendaForm(document.forms['ConsultarIntencaoVendaForm']) && fieldsValidate(document.forms['ConsultarIntencaoVendaForm']);
+		}
 		</script>
-
 	
 <!-- FIM JAVASCRIPTS EXTRAS -->
 
@@ -233,17 +231,6 @@ function showErrorsHere(){
 </script>
 
 <!--  JavaScript colocados pela Aplicacao -->
-
-	
-	<script type="text/javascript">
-	function callAppFunctions(){
-		if (!temErros) {
-			openPdf();;
-
-
-		}	
-	}
-	</script>
 
 
 <!-- chamada no UNLOAD de cada pagina -->
@@ -375,142 +362,141 @@ noBack();
 		<div class="col-sm-9">
 			
 
-		<form name="ImpressaoCrlvForm" method="post" action="/gever/GVR/emissao/impressaoCrlv.do">
+		<form name="ConsultarIntencaoVendaForm" method="post" action="/gever/GVR/emissao/consultarIntencaoVenda.do">
 
-			<input type="hidden" name="method" value="pesquisar">
-
-			<table width="100%" height="100%" border="0" cellspacing="0"
-				cellpadding="0">
+			<table width="100%" height="100%" border="0" cellspacing="0" cellpadding="0" class="texto">
 				<tr>
-					<td class="tab_cant_sup_esq">&nbsp;</td>
-					<td class="tab_sup_fund">Imprimir CRLV-e</td>
-					<td class="tab_cant_sup_dir">&nbsp;</td>
-				</tr>
-				<tr>
-					<td class="tab_cant_sup_esq2"></td>
-					<td></td>
-					<td class="tab_cant_sup_dir2"></td>
+					<td class="tab_cant_sup_esq" valign="bottom">&nbsp;</td>
+					<td class="tab_sup_fund">Consultar Intenção de Venda</td>
+					<td class="tab_cant_sup_dir" valign="bottom">&nbsp;</td>
 				</tr>
 				<tr height="100%">
 					<td class="tab_bar_esq"></td>
-					<td class="texto" valign="top">
-					<table width="100%" border="0" cellspacing="0" cellpadding="0">
-						<tr>
-							<td>
-							<fieldset>
-							<table width="100%" border="0" cellspacing="8" cellpadding="0">
-							
-								<tr>
-									<td>
-										<span class="texto_menor">Placa</span><br/>
-										<input type="text" name="placa" maxlength="7" size="7" value="BXB9B65" onkeyup="saltaCampo(event,this,'alphanumeric',7)" onkeypress="return(validaConteudo(event,this,'alphanumeric'))" onblur="formatCamp(this,'alphanumeric')" onfocus="removeCaracs(this,'alphanumeric')" id="placa" class="campos_upper">&nbsp; <span
-											class="asteristico_obrig">*</span>							
-									</td>
-								</tr>
-								<tr>
-									<td>
-										<span class="texto_menor">Renavam</span><br>
-										<input type="text" name="renavam" maxlength="11" size="20" value="1329791280" onkeyup="saltaCampo(event,this,'numeric',11)" onkeypress="return(validaConteudo(event,this,'numeric'))" onblur="formatCamp(this,'numeric')" onfocus="removeCaracs(this,'numeric')" id="renavam" class="campos"> &nbsp; <span
-											class="asteristico_obrig">*</span>
-									</td>
-								</tr>
-								<tr>
-									<td>
-										<span class="texto_menor">CPF/CNPJ Proprietário</span><br>						
-										<input type="radio" name="opcaoPesquisa" value="1" onclick="atualizarTipoPesquisa()" id="opcaoPesquisa">CPF
-										&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; 
-										<input type="radio" name="opcaoPesquisa" value="2" checked="checked" onclick="atualizarTipoPesquisa()" id="opcaoPesquisa">CNPJ<br>
-										<div id="divCpf">
-											<input type="text" name="cpf" maxlength="14" size="14" value="" onkeyup="saltaCampo(event,this,'cpf',11)" onkeypress="return(validaConteudo(event,this,'cpf'))" onblur="formatCamp(this,'cpf')" onfocus="removeCaracs(this,'cpf')" class="campos"> &nbsp; <span
-												class="asteristico_obrig">*</span>
-										</div>
-										<div id="divCnpj">
-											<input type="text" name="cnpj" maxlength="18" size="18" value="00.434.116/0009-96" onkeyup="saltaCampo(event, this, 'cnpj', 14)" onkeypress="return(validaConteudo(event,this,'cnpj'))" onblur="formatCamp(this,'cnpj')" onfocus="removeCaracs(this,'cnpj')" class="campos"> &nbsp; <span
-												class="asteristico_obrig">*</span>
-										</div>
-									</td>
-								</tr>
-								
-									<tr>
-										<td colspan="2" width="100%">
-
-
-
-
-
-
-
-
-
-
-
-	<table border="0" cellpadding="0" cellspacing="0">
-		<tr>
-			<td width="150"><br>
-				<img src="/gever/jcaptcha?id=1762280309503" border="1" style="border-color: #999" id="captchaIMG" />
-			</td>
-			<td width="200" valign="bottom" style="vertical-align: bottom; padding-left: 15px;">
-				<a href="#" onclick="updateCaptcha();"><img
-				src="/GVR/imagens/refresh.png" border="0" style="vertical-align: bottom;"
-				title="Não consegue ler a imagem? clique aqui." /></a>
-			</td>
-		</tr>
-		<tr>
-			<td colspan="2" class="texto_menor">Digite as letras e números exibidos na figura acima.&nbsp;<span class="asteristico_obrig">*</span></td>
-		</tr>
-		<tr>
-			<td colspan="2"><input type="text" name="captchaResponse" maxlength="10" size="15" value="" onkeyup="saltaCampo(event,this,'uppercase')" onkeypress="return(validaConteudo(event,this,'uppercase'))" onblur="formatCamp(this,'uppercase')" onfocus="removeCaracs(this,'uppercase')" id="captchaResponse" class="campos_upper"></td>
-		</tr>
-	</table>
-
-
-<script>
-function updateCaptcha(){
-	var myImg = document.getElementById('captchaIMG');
-	myImg.src = "/gever/jcaptcha?id="+ Math.floor(Math.random()*1000);
-	var myField = document.getElementById('captchaResponse');
-	myField.focus();	
-}
-</script>
-</td>
-									</tr>
-								
-							</table>
-							</fieldset>
-							</td>
-						</tr>
-						<tr>
-							<td width="100%" colspan="2">
-								<span class="asteristico_obrig">* Campos de preenchimento obrigatório</span>
-							</td>
-						</tr>
-						<tr>
-							<td colspan="3">&nbsp;</td>
-						</tr>
-					</table>
-					<table width="100%" border="0" cellspacing="2" cellpadding="2">
-						<tr>
-							<td class="texto_form">&nbsp;</td>
-						</tr>
-					</table>
+					<td class="texto" valign="top"><!-- AQUI VAI O CONTEUDO DA CELULA -->
+					
+					
+						<table width="100%" border="0" cellspacing="0" cellpadding="0">
+							<tr>
+								<td>
+									<fieldset>
+										<legend align="left">
+											<font color="#999999" class="fonte_legend">Comunicação Venda</font>
+										</legend>
+										<fieldset style="margin-top:0px !important">
+											<legend align="left">
+												<font color="#999999" class="fonte_legend">Dados do Comprador</font>
+											</legend>
+											<table width="100%" border="0" cellspacing="8" cellpadding="0">
+												<tr>
+													<td width="50%">
+														<span class="texto_black2">CPF/CNPJ</span><br>
+														<span class="texto_menor">425.211.748-82</span>															
+													</td>
+													<td width="50%">
+														<span class="texto_black2">UF</span><br>
+														<span class="texto_menor">BR</span>																
+													</td>
+												</tr>
+											</table>
+										</fieldset>
+										<fieldset style="margin-top:0px !important">
+											<legend align="left">
+												<font color="#999999" class="fonte_legend">Dados da Intenção de Venda</font>
+											</legend>
+											<table width="100%" border="0" cellspacing="8" cellpadding="0">
+												<tr>
+													<td width="50%">
+														<span class="texto_black2">UF</span><br>
+														<span class="texto_menor">BR</span>															
+													</td>
+													<td width="50%">
+														<span class="texto_black2">Estado Intenção Venda</span><br>
+														<span class="texto_menor">Consumida</span>															
+													</td>
+												</tr>
+												<tr>
+													<td><br>
+														<span class="texto_black2">Data/Hora</span><br>
+														<span class="texto_menor">05-12-2023 15:20</span>															
+													</td>
+													<td><br>
+														<span class="texto_black2">Data/Hora Atualização</span><br>
+														<span class="texto_menor">15-12-2023 12:36</span>																
+													</td>
+												</tr>
+											</table>
+										</fieldset>
+									</fieldset>
+								</td>
+							</tr>
+						</table>
+					
+						<table width="100%" border="0" cellspacing="0" cellpadding="0">
+							<tr>
+								<td>
+									<fieldset>
+										<legend align="left">
+											<font color="#999999" class="fonte_legend">Comunicação Venda</font>
+										</legend>
+										<fieldset style="margin-top:0px !important">
+											<legend align="left">
+												<font color="#999999" class="fonte_legend">Dados do Comprador</font>
+											</legend>
+											<table width="100%" border="0" cellspacing="8" cellpadding="0">
+												<tr>
+													<td width="50%">
+														<span class="texto_black2">CPF/CNPJ</span><br>
+														<span class="texto_menor">50.568.249/0001-76</span>															
+													</td>
+													<td width="50%">
+														<span class="texto_black2">UF</span><br>
+														<span class="texto_menor">SP</span>																
+													</td>
+												</tr>
+											</table>
+										</fieldset>
+										<fieldset style="margin-top:0px !important">
+											<legend align="left">
+												<font color="#999999" class="fonte_legend">Dados da Intenção de Venda</font>
+											</legend>
+											<table width="100%" border="0" cellspacing="8" cellpadding="0">
+												<tr>
+													<td width="50%">
+														<span class="texto_black2">UF</span><br>
+														<span class="texto_menor">SP</span>															
+													</td>
+													<td width="50%">
+														<span class="texto_black2">Estado Intenção Venda</span><br>
+														<span class="texto_menor">Registrada</span>															
+													</td>
+												</tr>
+												<tr>
+													<td><br>
+														<span class="texto_black2">Data/Hora</span><br>
+														<span class="texto_menor">04-11-2025 16:57</span>															
+													</td>
+													<td><br>
+														<span class="texto_black2">Data/Hora Atualização</span><br>
+														<span class="texto_menor">04-11-2025 16:57</span>																
+													</td>
+												</tr>
+											</table>
+										</fieldset>
+									</fieldset>
+								</td>
+							</tr>
+						</table>
+					
 					<!-- BOTOES -->
 					<table width="100%" border="0" cellspacing="0" cellpadding="0">
 						<tr align="right">
-							<td><a href="#" onclick="cancelar();" class="bt_cancelar">CANCELAR</a>
-							<a href="#" onclick="pesquisar();" class="bt_imprimir">IMPRIMIR</a>
-							</td>
+							<td><a href="#" onclick="voltar();" class="bt_voltar">VOLTAR</a></td>
+							<td><a href="#" onclick="cancelar();" class="bt_cancelar">SAIR</a></td>
 						</tr>
 					</table>
 					<!--FIM CONTEUDO DA CELULA --></td>
-					<td class="tab_bar_dir"></td>
-				</tr>
-				<tr>
-					<td class="tab_cant_inf_esq"></td>
-					<td class="tab_inf_fund"></td>
-					<td class="tab_cant_inf_dir"></td>
 				</tr>
 			</table>
-
 		</form>
 	
 		</div>
@@ -572,7 +558,7 @@ function updateCaptcha(){
 	<!-- Seta a variavel global com a Data do Servidor -->
 	
 	<SCRIPT type="text/javascript">
-	if(top.setSysDate) top.setSysDate("04/11/2025");
+	if(top.setSysDate) top.setSysDate("05/11/2025");
 		//data/hora sistema:
 	
 		
