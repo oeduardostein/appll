@@ -19,7 +19,7 @@ class AnotherBaseStateController extends Controller
     public function __invoke(Request $request): Response
     {
         // --- Função de parsing (igual à base do seu controller atual) ---
-        function parseDetranHtmlToJson(string $html): string {
+        function parseDetranHtmlToArray(string $html): array {
             // 1) Garantir UTF-8 (a página declara ISO-8859-1)
             if (stripos($html, 'charset=iso-8859-1') !== false || stripos($html, 'charset=iso8859-1') !== false) {
                 $html = @mb_convert_encoding($html, 'HTML-ENTITIES', 'ISO-8859-1');
@@ -236,7 +236,7 @@ class AnotherBaseStateController extends Controller
             };
             $sanitize($out);
 
-            return json_encode($out, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_PRETTY_PRINT);
+            return $out;
         }
 
         // --- Entrada via query string ---
@@ -295,20 +295,87 @@ class AnotherBaseStateController extends Controller
                 'uf'              => strtoupper($uf),
                 'captchaResponse' => strtoupper($captcha),
             ]);
+        if (!$response->successful()) {
+            return response()->json(
+                ['message' => 'Falha ao consultar a base externa (Outros Estados).'],
+                Response::HTTP_BAD_GATEWAY
+            );
+        }
 
-        // Você pode reativar este bloco se quiser validar HTTP != 200
-        // if (!$response->successful()) {
-        //     return response()->json(
-        //         ['message' => 'Falha ao consultar a base externa (Outros Estados).'],
-        //         Response::HTTP_BAD_GATEWAY
-        //     );
-        // }
+        $body = $response->body();
 
-        // --- Parsear HTML -> JSON padronizado ---
-        $body = parseDetranHtmlToJson($response->body());
+        $errors = $this->extractErrors($body);
+        if (!empty($errors)) {
+            return response()->json(
+                [
+                    'message' => $errors[0],
+                    'details' => $errors,
+                ],
+                Response::HTTP_UNPROCESSABLE_ENTITY
+            );
+        }
 
-        // --- Saída JSON ---
-        return response($body, Response::HTTP_OK)
-            ->header('Content-Type', 'application/json; charset=UTF-8');
+        $parsed = parseDetranHtmlToArray($body);
+
+        if (!$this->hasUsefulData($parsed)) {
+            return response()->json(
+                ['message' => 'Nenhuma informação encontrada para os dados informados.'],
+                Response::HTTP_UNPROCESSABLE_ENTITY
+            );
+        }
+
+        return response()->json(
+            $parsed,
+            Response::HTTP_OK,
+            [],
+            JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_PRETTY_PRINT
+        );
+    }
+
+    /**
+     * @return string[]
+     */
+    private function extractErrors(string $html): array
+    {
+        if (stripos($html, 'charset=iso-8859-1') !== false || stripos($html, 'charset=iso8859-1') !== false) {
+            $html = @mb_convert_encoding($html, 'UTF-8', 'ISO-8859-1');
+        }
+
+        $errors = [];
+        if (preg_match_all('/errors\[errors\.length\]\s*=\s*[\'"]([^\'"]+)[\'"]\s*;?/iu', $html, $matches)) {
+            foreach ($matches[1] as $message) {
+                $errors[] = html_entity_decode($message, ENT_QUOTES | ENT_HTML5, 'UTF-8');
+            }
+        }
+
+        return $errors;
+    }
+
+    private function hasUsefulData(array $payload): bool
+    {
+        $ignoreKeys = ['titulo', 'title', 'slug', 'label', 'gerado_em'];
+        $found = false;
+
+        array_walk_recursive($payload, static function ($value, $key) use (&$found, $ignoreKeys) {
+            if ($found) {
+                return;
+            }
+
+            if (in_array((string) $key, $ignoreKeys, true)) {
+                return;
+            }
+
+            if (is_string($value) && trim($value) !== '') {
+                $found = true;
+
+                return;
+            }
+
+            if (is_numeric($value)) {
+                $found = true;
+            }
+        });
+
+        return $found;
     }
 }

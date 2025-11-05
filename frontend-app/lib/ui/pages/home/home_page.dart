@@ -17,6 +17,7 @@ import 'package:frontend_app/services/renainf_service.dart';
 import 'package:frontend_app/services/gravame_service.dart';
 import 'package:frontend_app/services/ficha_cadastral_service.dart';
 import 'package:frontend_app/services/pesquisa_service.dart';
+import 'package:frontend_app/ui/widgets/app_error_dialog.dart';
 
 import '../base_state/base_estadual_page.dart';
 import '../base_state/base_outros_estados_page.dart';
@@ -2229,9 +2230,13 @@ class _HomePageState extends State<HomePage> {
 
   void _showErrorMessage(String message) {
     if (!mounted) return;
-    ScaffoldMessenger.of(context)
-      ..clearSnackBars()
-      ..showSnackBar(SnackBar(content: Text(message)));
+    unawaited(
+      AppErrorDialog.show(
+        context,
+        message: message,
+        title: 'Algo deu errado',
+      ),
+    );
   }
 
   void _showSuccessMessage(String message) {

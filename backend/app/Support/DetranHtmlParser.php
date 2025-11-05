@@ -17,8 +17,12 @@ class DetranHtmlParser
      */
     public static function parse(string $html): array
     {
+        $encoding = @mb_detect_encoding($html, ['UTF-8', 'ISO-8859-1', 'Windows-1252'], true) ?: 'UTF-8';
+
+        $html = @mb_convert_encoding($html, 'HTML-ENTITIES', $encoding);
+
         if (stripos($html, 'charset=iso-8859-1') !== false || stripos($html, 'charset=iso8859-1') !== false) {
-            $html = @mb_convert_encoding($html, 'HTML-ENTITIES', 'ISO-8859-1');
+            $html = str_ireplace(['charset=iso-8859-1', 'charset=iso8859-1'], 'charset=utf-8', $html);
         }
 
         $dom = new DOMDocument();
@@ -76,15 +80,41 @@ class DetranHtmlParser
 
             return $node ? $getText($node) : null;
         };
+        $normalizeString = static function (?string $value): string {
+            if ($value === null) {
+                return '';
+            }
 
-        $extractFieldsetData = static function (?DOMNode $context) use ($xp, $getText) {
+            $value = preg_replace('/\s+/u', ' ', trim($value)) ?? '';
+
+            $map = [
+                'Á' => 'A', 'À' => 'A', 'Â' => 'A', 'Ã' => 'A', 'Ä' => 'A',
+                'É' => 'E', 'Ê' => 'E', 'È' => 'E', 'Ë' => 'E',
+                'Í' => 'I', 'Ì' => 'I', 'Î' => 'I', 'Ï' => 'I',
+                'Ó' => 'O', 'Ò' => 'O', 'Ô' => 'O', 'Õ' => 'O', 'Ö' => 'O',
+                'Ú' => 'U', 'Ù' => 'U', 'Û' => 'U', 'Ü' => 'U',
+                'Ç' => 'C',
+                'á' => 'a', 'à' => 'a', 'â' => 'a', 'ã' => 'a', 'ä' => 'a',
+                'é' => 'e', 'ê' => 'e', 'è' => 'e', 'ë' => 'e',
+                'í' => 'i', 'ì' => 'i', 'î' => 'i', 'ï' => 'i',
+                'ó' => 'o', 'ò' => 'o', 'ô' => 'o', 'õ' => 'o', 'ö' => 'o',
+                'ú' => 'u', 'ù' => 'u', 'û' => 'u', 'ü' => 'u',
+                'ç' => 'c',
+            ];
+
+            $value = strtr($value, $map);
+
+            return mb_strtolower($value);
+        };
+
+        $extractFieldsetData = static function (?DOMNode $context) use ($xp, $getText): array {
             if (! $context) {
                 return [];
             }
 
             $data = [];
-            $cells = $xp->query('.//td', $context);
-            foreach ($cells as $cell) {
+            $rows = $xp->query('.//td', $context);
+            foreach ($rows as $cell) {
                 $labelNode = $xp->query('.//span[contains(@class,"texto_black2")]', $cell)->item(0);
                 $valueNode = $xp->query('.//span[contains(@class,"texto_menor")]', $cell)->item(0);
 
@@ -102,37 +132,66 @@ class DetranHtmlParser
         };
 
         $communications = [];
-        $communicationFieldsets = $xp->query('//fieldset[legend/font[contains(normalize-space(.), "Comunicação Venda")]]');
+        $fieldsetNodes = $xp->query('//fieldset');
 
-        foreach ($communicationFieldsets as $fieldset) {
-            $buyerFieldset = $xp->query('.//fieldset[legend/font[contains(normalize-space(.), "Dados do Comprador")]]', $fieldset)->item(0);
-            $intentionFieldset = $xp->query('.//fieldset[legend/font[contains(normalize-space(.), "Dados da Intenção de Venda")]]', $fieldset)->item(0);
+        foreach ($fieldsetNodes as $fieldset) {
+            $legendNode = $xp->query('./legend', $fieldset)->item(0);
+            $legendText = $legendNode ? $getText($legendNode) : null;
 
-            $buyerData = $extractFieldsetData($buyerFieldset);
-            $intentionData = $extractFieldsetData($intentionFieldset);
+            if ($normalizeString($legendText) !== 'comunicacao venda') {
+                continue;
+            }
+
+            $buyerData = [];
+            $intentionData = [];
+
+            $childFieldsets = $xp->query('./fieldset', $fieldset);
+            foreach ($childFieldsets as $childFieldset) {
+                $childLegendNode = $xp->query('./legend', $childFieldset)->item(0);
+                $childLegendText = $childLegendNode ? $getText($childLegendNode) : null;
+
+                $normalizedChildLegend = $normalizeString($childLegendText);
+
+                if ($normalizedChildLegend === 'dados do comprador') {
+                    $buyerData = $extractFieldsetData($childFieldset);
+                }
+
+                if ($normalizedChildLegend === 'dados da intencao de venda' || $normalizedChildLegend === 'dados da intenção de venda') {
+                    $intentionData = $extractFieldsetData($childFieldset);
+                }
+            }
+
+            $buyer = [
+                'documento'   => $buyerData['CPF/CNPJ'] ?? ($buyerData['CPF / CNPJ'] ?? null),
+                'nome'        => $buyerData['Nome'] ?? ($buyerData['Nome do Comprador'] ?? null),
+                'email'       => $buyerData['E-mail'] ?? ($buyerData['Email'] ?? null),
+                'uf'          => $buyerData['UF'] ?? null,
+                'municipio'   => $buyerData['Município'] ?? ($buyerData['Municipio'] ?? null),
+                'bairro'      => $buyerData['Bairro'] ?? null,
+                'logradouro'  => $buyerData['Logradouro'] ?? null,
+                'numero'      => $buyerData['Número'] ?? ($buyerData['Numero'] ?? null),
+                'complemento' => $buyerData['Complemento'] ?? null,
+                'cep'         => $buyerData['CEP'] ?? null,
+            ];
+
+            $intention = [
+                'uf'                    => $intentionData['UF'] ?? null,
+                'estado'                => $intentionData['Estado Intenção Venda']
+                    ?? ($intentionData['Estado Intencao Venda'] ?? null),
+                'data_hora'             => $intentionData['Data/Hora'] ?? null,
+                'data_hora_atualizacao' => $intentionData['Data/Hora Atualização']
+                    ?? ($intentionData['Data/Hora Atualizacao'] ?? null),
+                'valor_venda'           => $intentionData['Valor da venda']
+                    ?? ($intentionData['Valor Venda'] ?? null),
+            ];
+
+            if (! array_filter($buyer) && ! array_filter($intention)) {
+                continue;
+            }
 
             $communications[] = [
-                'comprador' => [
-                    'documento'   => $buyerData['CPF/CNPJ'] ?? ($buyerData['CPF / CNPJ'] ?? null),
-                    'nome'        => $buyerData['Nome'] ?? ($buyerData['Nome do Comprador'] ?? null),
-                    'email'       => $buyerData['E-mail'] ?? ($buyerData['Email'] ?? null),
-                    'uf'          => $buyerData['UF'] ?? null,
-                    'municipio'   => $buyerData['Município'] ?? ($buyerData['Municipio'] ?? null),
-                    'bairro'      => $buyerData['Bairro'] ?? null,
-                    'logradouro'  => $buyerData['Logradouro'] ?? null,
-                    'numero'      => $buyerData['Número'] ?? ($buyerData['Numero'] ?? null),
-                    'complemento' => $buyerData['Complemento'] ?? null,
-                    'cep'         => $buyerData['CEP'] ?? null,
-                ],
-                'intencao' => [
-                    'uf'                   => $intentionData['UF'] ?? null,
-                    'estado'               => $intentionData['Estado Intenção Venda']
-                        ?? ($intentionData['Estado Intencao Venda'] ?? null),
-                    'data_hora'            => $intentionData['Data/Hora'] ?? null,
-                    'data_hora_atualizacao' => $intentionData['Data/Hora Atualização']
-                        ?? ($intentionData['Data/Hora Atualizacao'] ?? null),
-                    'valor_venda'          => $intentionData['Valor da venda'] ?? null,
-                ],
+                'comprador' => $buyer,
+                'intencao'  => $intention,
             ];
         }
 
@@ -270,16 +329,7 @@ class DetranHtmlParser
                 'exercicio_licenciamento' => $pick($labels['CRV_Exercicio']),
                 'data_licenciamento'      => $pick($labels['CRV_DataLic']),
             ],
-            'comunicacao_vendas' => array_values(array_filter($communications, static function ($item) {
-                if (! is_array($item)) {
-                    return false;
-                }
-
-                $comprador = $item['comprador'] ?? [];
-                $intencao = $item['intencao'] ?? [];
-
-                return (is_array($comprador) && array_filter($comprador)) || (is_array($intencao) && array_filter($intencao));
-            })),
+            'comunicacao_vendas' => array_values($communications),
         ];
 
         $sanitize = static function (&$value) use (&$sanitize) {

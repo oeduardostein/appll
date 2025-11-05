@@ -81,9 +81,9 @@ class BinService {
     final response = await _client.get(uri);
 
     if (response.statusCode != 200) {
-      throw BinException(
-        'Falha ao consultar BIN (HTTP ${response.statusCode}).',
-      );
+      final message = _extractMessage(response.body) ??
+          'Falha ao consultar BIN (HTTP ${response.statusCode}).';
+      throw BinException(message);
     }
 
     final body = response.body.trim();
@@ -117,5 +117,27 @@ class BinService {
   bool _looksLikeHtml(String body) {
     final lower = body.toLowerCase();
     return lower.contains('<html') || lower.contains('<!doctype');
+  }
+
+  String? _extractMessage(String? body) {
+    if (body == null || body.isEmpty) {
+      return null;
+    }
+
+    try {
+      final decoded = jsonDecode(body);
+      if (decoded is Map<String, dynamic>) {
+        final message = decoded['message'] ?? decoded['error'] ?? decoded['status'];
+        if (message is String && message.trim().isNotEmpty) {
+          return message.trim();
+        }
+      } else if (decoded is String && decoded.trim().isNotEmpty) {
+        return decoded.trim();
+      }
+    } catch (_) {
+      // ignore
+    }
+
+    return body;
   }
 }

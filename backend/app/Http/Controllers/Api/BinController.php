@@ -73,7 +73,34 @@ class BinController extends Controller
                 'captchaResponse' => strtoupper($captcha),
             ]);
 
-        $parsed = BinHtmlParser::parse($response->body());
+        if (!$response->successful()) {
+            return response()->json(
+                ['message' => 'Falha ao consultar a base BIN externa.'],
+                Response::HTTP_BAD_GATEWAY
+            );
+        }
+
+        $body = $response->body();
+
+        $errors = $this->extractErrors($body);
+        if (!empty($errors)) {
+            return response()->json(
+                [
+                    'message' => $errors[0],
+                    'details' => $errors,
+                ],
+                Response::HTTP_UNPROCESSABLE_ENTITY
+            );
+        }
+
+        $parsed = BinHtmlParser::parse($body);
+
+        if (!$this->hasUsefulData($parsed)) {
+            return response()->json(
+                ['message' => 'Nenhuma informação encontrada para os dados informados.'],
+                Response::HTTP_UNPROCESSABLE_ENTITY
+            );
+        }
 
         return response()->json(
             $parsed,
@@ -81,5 +108,52 @@ class BinController extends Controller
             [],
             JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_PRETTY_PRINT
         );
+    }
+
+    /**
+     * @return string[]
+     */
+    private function extractErrors(string $html): array
+    {
+        if (stripos($html, 'charset=iso-8859-1') !== false || stripos($html, 'charset=iso8859-1') !== false) {
+            $html = @mb_convert_encoding($html, 'UTF-8', 'ISO-8859-1');
+        }
+
+        $errors = [];
+        if (preg_match_all('/errors\[errors\.length\]\s*=\s*[\'"]([^\'"]+)[\'"]\s*;?/iu', $html, $matches)) {
+            foreach ($matches[1] as $message) {
+                $errors[] = html_entity_decode($message, ENT_QUOTES | ENT_HTML5, 'UTF-8');
+            }
+        }
+
+        return $errors;
+    }
+
+    private function hasUsefulData(array $payload): bool
+    {
+        $ignoreKeys = ['titulo', 'title', 'slug', 'label', 'gerado_em'];
+        $found = false;
+
+        array_walk_recursive($payload, static function ($value, $key) use (&$found, $ignoreKeys) {
+            if ($found) {
+                return;
+            }
+
+            if (in_array((string) $key, $ignoreKeys, true)) {
+                return;
+            }
+
+            if (is_string($value) && trim($value) !== '') {
+                $found = true;
+
+                return;
+            }
+
+            if (is_numeric($value)) {
+                $found = true;
+            }
+        });
+
+        return $found;
     }
 }

@@ -85,6 +85,13 @@ class ConsultaIntencaoVendaController extends Controller
 
         $parsed = DetranHtmlParser::parse($body);
 
+        if (empty($parsed['comunicacao_vendas'])) {
+            return response()->json(
+                ['message' => 'Nenhuma comunicação de venda encontrada para os dados informados.'],
+                Response::HTTP_UNPROCESSABLE_ENTITY
+            );
+        }
+
         $responseBody = array_merge(
             [
                 'consulta' => [

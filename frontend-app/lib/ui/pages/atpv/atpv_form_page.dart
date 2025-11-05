@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'dart:typed_data';
 
 import 'package:flutter/foundation.dart' show kIsWeb;
@@ -9,6 +10,7 @@ import 'package:universal_io/io.dart' as io;
 
 import 'package:frontend_app/services/atpv_service.dart';
 import 'package:frontend_app/services/base_estadual_service.dart';
+import 'package:frontend_app/ui/widgets/app_error_dialog.dart';
 
 class AtpvFormPage extends StatefulWidget {
   const AtpvFormPage({
@@ -182,10 +184,12 @@ class _AtpvFormPageState extends State<AtpvFormPage> {
       setState(() {
         _consultaFeedback = e.message;
       });
+      _showErrorAlert(e.message);
     } catch (_) {
       setState(() {
         _consultaFeedback = 'Falha ao consultar intenção de venda.';
       });
+      _showErrorAlert('Falha ao consultar intenção de venda.');
     } finally {
       setState(() {
         _isConsulting = false;
@@ -276,10 +280,12 @@ class _AtpvFormPageState extends State<AtpvFormPage> {
       setState(() {
         _submissionError = e.message;
       });
+      _showErrorAlert(e.message);
     } catch (_) {
       setState(() {
         _submissionError = 'Não foi possível emitir a ATPV-e.';
       });
+      _showErrorAlert('Não foi possível emitir a ATPV-e.');
     } finally {
       setState(() {
         _isSubmitting = false;
@@ -825,6 +831,15 @@ class _AtpvFormPageState extends State<AtpvFormPage> {
           ),
         ],
       ),
+    );
+  }
+
+  Future<void> _showErrorAlert(String message) async {
+    if (!mounted) return;
+    await AppErrorDialog.show(
+      context,
+      message: message,
+      title: 'Ops, algo deu errado',
     );
   }
 

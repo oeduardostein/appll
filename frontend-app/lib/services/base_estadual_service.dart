@@ -86,9 +86,9 @@ class BaseEstadualService {
     final response = await _client.get(uri);
 
     if (response.statusCode != 200) {
-      throw BaseEstadualException(
-        'Falha ao consultar base estadual (HTTP ${response.statusCode}).',
-      );
+      final message = _extractMessage(response.body) ??
+          'Falha ao consultar base estadual (HTTP ${response.statusCode}).';
+      throw BaseEstadualException(message);
     }
 
     final body = response.body.trim();
@@ -136,9 +136,9 @@ class BaseEstadualService {
     final response = await _client.get(uri);
 
     if (response.statusCode != 200) {
-      throw BaseEstadualException(
-        'Falha ao consultar base de outros estados (HTTP ${response.statusCode}).',
-      );
+      final message = _extractMessage(response.body) ??
+          'Falha ao consultar base de outros estados (HTTP ${response.statusCode}).';
+      throw BaseEstadualException(message);
     }
 
     final body = response.body.trim();
@@ -185,9 +185,9 @@ class BaseEstadualService {
     final response = await _client.get(uri);
 
     if (response.statusCode != 200) {
-      throw BaseEstadualException(
-        'Falha ao consultar bloqueios ativos (HTTP ${response.statusCode}).',
-      );
+      final message = _extractMessage(response.body) ??
+          'Falha ao consultar bloqueios ativos (HTTP ${response.statusCode}).';
+      throw BaseEstadualException(message);
     }
 
     final body = response.body.trim();
