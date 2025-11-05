@@ -87,17 +87,6 @@ class BinResultPage extends StatelessWidget {
                   child: _SectionItemsList(items: section.items),
                 ),
               ],
-              const SizedBox(height: 16),
-              _SectionCard(
-                title: 'Resultado bruto',
-                child: SelectableText(
-                  formattedJson,
-                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                        fontFamily: 'monospace',
-                        height: 1.4,
-                      ),
-                ),
-              ),
             ],
           ),
         ),

@@ -7,28 +7,37 @@
 ])
 
 @php
-    $navItems = [
+    $navConfig = [
         [
             'label' => 'Clientes',
-            'route' => route('admin.clients.index'),
-            'active' => request()->routeIs('admin.clients.*'),
+            'route_name' => 'admin.clients.index',
+            'active_pattern' => 'admin.clients.*',
         ],
         [
             'label' => 'Gestão de créditos',
-            'route' => route('admin.payments.index'),
-            'active' => request()->routeIs('admin.payments.*'),
+            'route_name' => 'admin.payments.index',
+            'active_pattern' => 'admin.payments.*',
         ],
         [
             'label' => 'Relatórios',
-            'route' => route('admin.reports.index'),
-            'active' => request()->routeIs('admin.reports.*'),
+            'route_name' => 'admin.reports.index',
+            'active_pattern' => 'admin.reports.*',
         ],
         [
             'label' => 'Configurações',
-            'route' => route('admin.settings.index'),
-            'active' => request()->routeIs('admin.settings.*'),
+            'route_name' => 'admin.settings.index',
+            'active_pattern' => 'admin.settings.*',
         ],
     ];
+
+    $navItems = collect($navConfig)
+        ->filter(fn ($item) => Route::has($item['route_name']))
+        ->map(fn ($item) => [
+            'label' => $item['label'],
+            'route' => route($item['route_name']),
+            'active' => request()->routeIs($item['active_pattern']),
+        ])
+        ->values();
 
     $initials = collect(explode(' ', trim($user['name'] ?? 'A')))
         ->filter()

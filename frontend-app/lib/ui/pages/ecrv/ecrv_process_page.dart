@@ -1,5 +1,3 @@
-import 'dart:convert';
-
 import 'package:flutter/material.dart';
 
 class EcrvProcessPage extends StatelessWidget {
@@ -69,16 +67,6 @@ class EcrvProcessPage extends StatelessWidget {
                 const SizedBox(height: 16),
                 _InfoSection(title: 'Documentos anexos', entries: anexosInfo),
               ],
-              const SizedBox(height: 24),
-              _JsonViewer(
-                title: 'Resposta da ficha cadastral',
-                data: fichaPayload,
-              ),
-              const SizedBox(height: 16),
-              _JsonViewer(
-                title: 'Resposta do andamento do processo',
-                data: andamentoPayload,
-              ),
             ],
           ),
         ),
@@ -347,49 +335,6 @@ class _InfoSection extends StatelessWidget {
       return text;
     }
     return value.toString();
-  }
-}
-
-class _JsonViewer extends StatelessWidget {
-  const _JsonViewer({
-    required this.title,
-    required this.data,
-  });
-
-  final String title;
-  final Map<String, dynamic> data;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final formatted = const JsonEncoder.withIndent('  ').convert(data);
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        Text(
-          title,
-          style: theme.textTheme.titleMedium?.copyWith(
-            fontWeight: FontWeight.w700,
-          ),
-        ),
-        const SizedBox(height: 12),
-        Container(
-          decoration: BoxDecoration(
-            color: Colors.black.withOpacity(0.04),
-            borderRadius: BorderRadius.circular(16),
-          ),
-          padding: const EdgeInsets.all(16),
-          child: SelectableText(
-            formatted,
-            style: theme.textTheme.bodySmall?.copyWith(
-              fontFamily: 'monospace',
-              height: 1.4,
-            ),
-          ),
-        ),
-      ],
-    );
   }
 }
 
