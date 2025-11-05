@@ -28,6 +28,7 @@
             align-items: center;
             gap: 16px;
             margin-bottom: 24px;
+            flex-wrap: wrap;
         }
 
         .credit-management__select {
@@ -46,6 +47,61 @@
             color: var(--text-default);
             background: #fff;
             min-width: 220px;
+        }
+
+        .credit-management__search {
+            display: inline-flex;
+            flex-direction: column;
+            gap: 6px;
+            font-size: 14px;
+            color: var(--text-muted);
+            flex: 1;
+            min-width: 240px;
+        }
+
+        .credit-management__search-field {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+
+        .credit-management__search-input {
+            flex: 1;
+            min-width: 200px;
+            border-radius: 12px;
+            border: 1px solid var(--border);
+            padding: 12px 16px;
+            font-size: 14px;
+            color: var(--text-default);
+            background: #fff;
+        }
+
+        .credit-management__search-button {
+            border-radius: 12px;
+            border: none;
+            padding: 11px 18px;
+            font-weight: 600;
+            font-size: 14px;
+            background: var(--brand-primary);
+            color: #fff;
+            cursor: pointer;
+            box-shadow: 0 10px 20px rgba(11, 78, 162, 0.2);
+            transition: transform 160ms ease, box-shadow 160ms ease;
+        }
+
+        .credit-management__search-button:hover {
+            transform: translateY(-1px);
+        }
+
+        .credit-management__search-clear {
+            border: none;
+            background: transparent;
+            color: var(--brand-primary);
+            font-weight: 600;
+            cursor: pointer;
+            padding: 0;
+            text-decoration: none;
         }
 
         .credit-management__alert {
@@ -82,6 +138,11 @@
         .credit-management__status-pill--pending {
             background: #fee2e2;
             color: #b91c1c;
+        }
+
+        .credit-management__status-pill--neutral {
+            background: #e5e7eb;
+            color: #1f2937;
         }
 
         .credit-management__user-status {
@@ -249,6 +310,24 @@
                 @endforeach
             </select>
         </label>
+        <div class="credit-management__search">
+            <span>Buscar por usuário</span>
+            <div class="credit-management__search-field">
+                <input type="search" name="search" value="{{ $searchQuery }}" placeholder="Nome, e-mail, status, créditos..."
+                    class="credit-management__search-input">
+                <button type="submit" class="credit-management__search-button">
+                    Pesquisar
+                </button>
+                @if ($searchQuery !== '')
+                    <a
+                        href="{{ route('admin.payments.index', ['month' => $selectedMonthKey]) }}"
+                        class="credit-management__search-clear"
+                    >
+                        Limpar
+                    </a>
+                @endif
+            </div>
+        </div>
     </form>
 
     <div class="table-wrapper">
@@ -279,23 +358,30 @@
                             <span style="font-size: 13px; color: var(--text-muted); display: block;">créditos utilizados</span>
                         </td>
                         <td>
-                            @if ((bool) $user->has_paid)
+                            @if ($user->effective_payment_status === 'pending')
+                                <span class="credit-management__status-pill credit-management__status-pill--pending">
+                                    Pendente
+                                </span>
+                            @elseif ($user->effective_payment_status === 'paid')
                                 <span class="credit-management__status-pill credit-management__status-pill--paid">
                                     Pago
                                 </span>
                             @else
-                                <span class="credit-management__status-pill credit-management__status-pill--pending">
-                                    Pendente
+                                <span class="credit-management__status-pill credit-management__status-pill--neutral">
+                                    Sem consumo
                                 </span>
                             @endif
                         </td>
                         <td>
                             <div class="credit-management__actions">
-                                @if (! (bool) $user->has_paid)
+                                @if ($user->has_pending_payment)
                                     <form method="POST"
                                         action="{{ route('admin.payments.mark-paid', ['user' => $user->id]) }}">
                                         @csrf
                                         <input type="hidden" name="month" value="{{ $selectedMonthKey }}">
+                                        @if ($searchQuery !== '')
+                                            <input type="hidden" name="search" value="{{ $searchQuery }}">
+                                        @endif
                                         <button type="submit" class="credit-management__button credit-management__button--primary">
                                             Marcar como pago
                                         </button>
@@ -306,6 +392,9 @@
                                         id="deactivate-form-{{ $user->id }}">
                                         @csrf
                                         <input type="hidden" name="month" value="{{ $selectedMonthKey }}">
+                                        @if ($searchQuery !== '')
+                                            <input type="hidden" name="search" value="{{ $searchQuery }}">
+                                        @endif
                                         <button type="button"
                                             class="credit-management__button credit-management__button--danger"
                                             data-action="open-deactivate"
@@ -315,7 +404,11 @@
                                         </button>
                                     </form>
                                 @else
-                                    <span style="font-size: 13px; color: var(--text-muted);">Nenhuma ação necessária</span>
+                                    @if ($user->effective_payment_status === 'paid')
+                                        <span style="font-size: 13px; color: var(--text-muted);">Nenhuma ação necessária</span>
+                                    @else
+                                        <span style="font-size: 13px; color: var(--text-muted);">Sem consumo neste mês</span>
+                                    @endif
                                 @endif
                             </div>
                         </td>

@@ -9,6 +9,7 @@ use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Str;
 use Illuminate\View\View;
 
 class CreditManagementController extends Controller
@@ -17,6 +18,7 @@ class CreditManagementController extends Controller
     {
         $selectedMonth = $this->resolveMonth($request->query('month'));
         $monthKey = $selectedMonth->format('Y-m');
+        $searchQuery = trim((string) $request->query('search', ''));
 
         $startOfMonth = $selectedMonth->clone()->startOfMonth();
         $endOfMonth = $selectedMonth->clone()->endOfMonth();
@@ -39,6 +41,49 @@ class CreditManagementController extends Controller
             ])
             ->orderBy('name')
             ->get();
+        $users = $users->map(function ($user) {
+            $credits = (int) $user->monthly_credits_used;
+            $hasPending = ! (bool) $user->has_paid && $credits > 0;
+            $status = match (true) {
+                $hasPending => 'pending',
+                $credits === 0 => 'no_usage',
+                default => 'paid',
+            };
+
+            $user->setAttribute('has_pending_payment', $hasPending);
+            $user->setAttribute('effective_payment_status', $status);
+
+            return $user;
+        });
+
+        if ($searchQuery !== '') {
+            $needle = Str::lower($searchQuery);
+            $users = $users->filter(static function ($user) use ($needle) {
+                $haystack = [
+                    $user->name,
+                    $user->email,
+                    (string) $user->monthly_credits_used,
+                    $user->is_active ? 'ativo' : 'inativo',
+                    match ($user->effective_payment_status) {
+                        'pending' => 'pendente',
+                        'paid' => 'pago',
+                        default => 'sem consumo',
+                    },
+                ];
+
+                foreach ($haystack as $value) {
+                    if ($value === null) {
+                        continue;
+                    }
+
+                    if (Str::contains(Str::lower((string) $value), $needle)) {
+                        return true;
+                    }
+                }
+
+                return false;
+            })->values();
+        }
 
         $monthOptions = $this->buildMonthOptions();
 
@@ -47,6 +92,7 @@ class CreditManagementController extends Controller
             'selectedMonth' => $selectedMonth,
             'selectedMonthKey' => $monthKey,
             'monthOptions' => $monthOptions,
+            'searchQuery' => $searchQuery,
         ]);
     }
 
@@ -58,6 +104,7 @@ class CreditManagementController extends Controller
 
         $month = Carbon::createFromFormat('Y-m', $validated['month'], config('app.timezone'))
             ->startOfMonth();
+        $search = trim((string) $request->input('search', ''));
 
         Payment::query()->updateOrCreate(
             [
@@ -69,8 +116,16 @@ class CreditManagementController extends Controller
             ]
         );
 
+        $redirectParams = [
+            'month' => $month->format('Y-m'),
+        ];
+
+        if ($search !== '') {
+            $redirectParams['search'] = $search;
+        }
+
         return redirect()
-            ->route('admin.payments.index', ['month' => $month->format('Y-m')])
+            ->route('admin.payments.index', $redirectParams)
             ->with('status', 'Pagamento marcado como concluído.');
     }
 
@@ -84,9 +139,18 @@ class CreditManagementController extends Controller
 
         $month = Carbon::createFromFormat('Y-m', $validated['month'], config('app.timezone'))
             ->startOfMonth();
+        $search = trim((string) $request->input('search', ''));
+
+        $redirectParams = [
+            'month' => $month->format('Y-m'),
+        ];
+
+        if ($search !== '') {
+            $redirectParams['search'] = $search;
+        }
 
         return redirect()
-            ->route('admin.payments.index', ['month' => $month->format('Y-m')])
+            ->route('admin.payments.index', $redirectParams)
             ->with('status', 'Usuário inativado com sucesso.');
     }
 
