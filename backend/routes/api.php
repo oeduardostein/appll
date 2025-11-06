@@ -17,6 +17,8 @@ use App\Http\Controllers\Api\ImpressaoCrlvController;
 use App\Http\Controllers\Api\PasswordResetController;
 use App\Http\Controllers\Api\RenainfPlacaController;
 use Illuminate\Support\Facades\Route;
+use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Mail;
 
 Route::prefix('auth')->group(function (): void {
     Route::post('register', [AuthController::class, 'register']);
@@ -45,3 +47,19 @@ Route::post('pesquisas', [PesquisaController::class, 'store']);
 
 Route::post('/password/forgot', [PasswordResetController::class, 'requestCode']);
 Route::post('/password/reset',  [PasswordResetController::class, 'resetPassword']);
+
+
+Route::get('/smtp-test', function () {
+    try {
+        Mail::raw('Ping SMTP', function ($m) {
+            $m->to('dudustein2024@gmail.com')->subject('SMTP Test');
+        });
+        return ['status' => 'ok'];
+    } catch (\Throwable $e) {
+        Log::error('SMTP test falhou', ['error' => $e->getMessage()]);
+        return response()->json([
+            'status' => 'erro',
+            'error'  => $e->getMessage(),
+        ], 500);
+    }
+});
