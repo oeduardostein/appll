@@ -49,7 +49,7 @@ class PasswordResetController extends Controller
                 }
             );
         } catch (\Throwable $e) {
-            // Em produção, logue o erro
+            report($e);
             return response()->json([
                 'message' => 'Não conseguimos enviar o e-mail neste momento. Tente novamente em alguns minutos.'
             ], 500);

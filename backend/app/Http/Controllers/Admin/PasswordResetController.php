@@ -45,6 +45,7 @@ class PasswordResetController extends Controller
                 }
             );
         } catch (\Throwable $e) {
+            report($e);
             return back()
                 ->withErrors(['email' => 'Não conseguimos enviar o e-mail neste momento. Tente novamente em alguns minutos.'])
                 ->withInput();
