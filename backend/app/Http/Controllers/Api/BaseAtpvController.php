@@ -95,4 +95,42 @@ abstract class BaseAtpvController extends Controller
 
         return $html;
     }
+
+    protected function messagesIndicateFailure(array $messages): bool
+    {
+        if (empty($messages)) {
+            return false;
+        }
+
+        $failurePatterns = [
+            'erro',
+            'falha',
+            'não foi possível',
+            'nao foi possivel',
+            'não foi possivel',
+            'não foi possível realizar',
+            'não foi possível concluir',
+            'não foi possível efetuar',
+            'não foi possível localizar',
+            'não foi encontrada',
+            'inconsist',
+            'inválido',
+            'nao autorizado',
+        ];
+
+        foreach ($messages as $message) {
+            $normalized = mb_strtolower(trim((string) $message));
+            if ($normalized === '') {
+                continue;
+            }
+
+            foreach ($failurePatterns as $pattern) {
+                if (str_contains($normalized, $pattern)) {
+                    return true;
+                }
+            }
+        }
+
+        return false;
+    }
 }

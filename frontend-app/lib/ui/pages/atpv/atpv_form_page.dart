@@ -70,6 +70,12 @@ class _AtpvFormPageState extends State<AtpvFormPage> {
   String? _captchaError;
   String? _submissionError;
   String? _lastCaptchaUsed;
+  int _ownerDocOption = 1;
+  int _buyerDocOption = 1;
+  bool _updatingOwnerDoc = false;
+  bool _updatingBuyerDoc = false;
+  bool _updatingCep = false;
+  bool _updatingValor = false;
   String? _buyerMunicipioCode;
   Map<String, dynamic>? _signatureResponse;
   bool? _assinaturaDigital;
@@ -95,6 +101,16 @@ class _AtpvFormPageState extends State<AtpvFormPage> {
     if (_consultaPayload != null) {
       _prefillFromConsulta();
     }
+    _ownerDocOption = _resolveDocOption(_ownerDocumentController.text);
+    _buyerDocOption = _resolveDocOption(_buyerDocumentController.text);
+    _handleOwnerDocumentInput();
+    _handleBuyerDocumentInput();
+    _handleCepInput();
+    _handleValorInput();
+    _ownerDocumentController.addListener(_handleOwnerDocumentInput);
+    _buyerDocumentController.addListener(_handleBuyerDocumentInput);
+    _buyerCepController.addListener(_handleCepInput);
+    _saleValueController.addListener(_handleValorInput);
     if (_captchaBytes == null) {
       WidgetsBinding.instance.addPostFrameCallback((_) => _refreshCaptcha());
     }
@@ -102,6 +118,10 @@ class _AtpvFormPageState extends State<AtpvFormPage> {
 
   @override
   void dispose() {
+    _ownerDocumentController.removeListener(_handleOwnerDocumentInput);
+    _buyerDocumentController.removeListener(_handleBuyerDocumentInput);
+    _buyerCepController.removeListener(_handleCepInput);
+    _saleValueController.removeListener(_handleValorInput);
     _plateController.dispose();
     _renavamController.dispose();
     _captchaController.dispose();
@@ -199,6 +219,10 @@ class _AtpvFormPageState extends State<AtpvFormPage> {
         }
         _buyerMunicipioCode = address.code;
       });
+      final cepDigits = _onlyDigits(address.cep?.toString());
+      if (cepDigits != null) {
+        _setCepDigits(cepDigits);
+      }
 
       ScaffoldMessenger.of(context)
         ..clearSnackBars()
@@ -228,6 +252,40 @@ class _AtpvFormPageState extends State<AtpvFormPage> {
         });
       }
     }
+  }
+
+  int _resolveDocOption(String? value) {
+    final digits = _onlyDigits(value);
+    return digits != null && digits.length > 11 ? 2 : 1;
+  }
+
+  String? _onlyDigits(String? value) {
+    if (value == null) return null;
+    final digits = value.replaceAll(RegExp(r'[^0-9]'), '');
+    return digits.isEmpty ? null : digits;
+  }
+
+  String? _validateDocumento(
+    String? value,
+    int option, {
+    required bool requiredField,
+    required String subject,
+  }) {
+    final digits = _onlyDigits(value);
+
+    if (digits == null) {
+      return requiredField ? 'Informe o documento do $subject.' : null;
+    }
+
+    if (option == 1 && digits.length != 11) {
+      return 'CPF do $subject inválido.';
+    }
+
+    if (option == 2 && digits.length != 14) {
+      return 'CNPJ do $subject inválido.';
+    }
+
+    return null;
   }
 
   Widget? _buildCepSuffixIcon() {
@@ -277,6 +335,10 @@ class _AtpvFormPageState extends State<AtpvFormPage> {
     });
 
     try {
+      final ownerDocDigits = _onlyDigits(_ownerDocumentController.text);
+      final buyerDocDigits = _onlyDigits(_buyerDocumentController.text);
+      final cepDigits = _onlyDigits(_buyerCepController.text);
+
       final result = await _atpvService.emitirAtpv(
         renavam: _renavamController.text.trim(),
         placa: _plateController.text.trim().toUpperCase(),
@@ -290,10 +352,8 @@ class _AtpvFormPageState extends State<AtpvFormPage> {
         emailProprietario: _ownerEmailController.text.trim().isEmpty
             ? null
             : _ownerEmailController.text.trim(),
-        cpfCnpjProprietario: _ownerDocumentController.text.trim().isEmpty
-            ? null
-            : _ownerDocumentController.text.trim(),
-        cpfCnpjComprador: _buyerDocumentController.text.trim(),
+        cpfCnpjProprietario: ownerDocDigits,
+        cpfCnpjComprador: buyerDocDigits ?? '',
         nomeComprador: _buyerNameController.text.trim(),
         emailComprador: _buyerEmailController.text.trim().isEmpty
             ? null
@@ -302,9 +362,7 @@ class _AtpvFormPageState extends State<AtpvFormPage> {
         valorVenda: _saleValueController.text.trim().isEmpty
             ? null
             : _saleValueController.text.trim(),
-        cepComprador: _buyerCepController.text.trim().isEmpty
-            ? null
-            : _buyerCepController.text.trim(),
+        cepComprador: cepDigits,
         municipioComprador: _buyerCityController.text.trim().isEmpty
             ? null
             : _buyerCityController.text.trim(),
@@ -320,10 +378,26 @@ class _AtpvFormPageState extends State<AtpvFormPage> {
         complementoComprador: _buyerComplementController.text.trim().isEmpty
             ? null
             : _buyerComplementController.text.trim(),
-        municipioCodigoComprador: _buyerMunicipioCode,
+        municipioCodigo: _onlyDigits(_buyerMunicipioCode),
+        opcaoPesquisaProprietario:
+            ownerDocDigits == null ? null : _ownerDocOption.toString(),
+        opcaoPesquisaComprador: _buyerDocOption.toString(),
       );
 
       if (!mounted) return;
+      final status = result['status']?.toString();
+      final apiMessage = result['message']?.toString().trim();
+      if (status == null || status != 'awaiting_signature') {
+        final failureMessage = (apiMessage != null && apiMessage.isNotEmpty)
+            ? apiMessage
+            : 'Não foi possível concluir a emissão. Verifique os dados e tente novamente.';
+        setState(() {
+          _isSubmitting = false;
+          _submissionError = failureMessage;
+        });
+        await _showErrorAlert(failureMessage);
+        return;
+      }
 
       setState(() {
         _isSubmitting = false;
@@ -331,21 +405,28 @@ class _AtpvFormPageState extends State<AtpvFormPage> {
       });
 
       final registroId = _parseRegistroId(result['registro_id']);
+      if (registroId == null) {
+        final failureMessage = apiMessage?.isNotEmpty == true
+            ? apiMessage!
+            : 'Não foi possível identificar o registro da ATPV-e.';
+        setState(() {
+          _submissionError = failureMessage;
+        });
+        await _showErrorAlert(failureMessage);
+        return;
+      }
+
+      final successPrompt = apiMessage != null && apiMessage.isNotEmpty
+          ? apiMessage
+          : 'Dados enviados com sucesso.';
 
       ScaffoldMessenger.of(context)
         ..clearSnackBars()
         ..showSnackBar(
-          const SnackBar(
-            content: Text('Dados enviados com sucesso. Vamos definir o tipo de assinatura.'),
+          SnackBar(
+            content: Text('$successPrompt Vamos definir o tipo de assinatura.'),
           ),
         );
-
-      if (registroId == null) {
-        setState(() {
-          _successResult = result;
-        });
-        return;
-      }
 
       final assinaturaDigital = await _showSignatureDialog();
       if (assinaturaDigital == null) {
@@ -517,10 +598,24 @@ class _AtpvFormPageState extends State<AtpvFormPage> {
       final intencao = primeiraComunicacao['intencao'];
 
       if (comprador is Map<String, dynamic>) {
-        _setIfEmpty(_buyerDocumentController, comprador['documento']?.toString());
+        if (_buyerDocumentController.text.trim().isEmpty) {
+          final docDigits = _onlyDigits(comprador['documento']?.toString());
+          if (docDigits != null) {
+            _setDocumentDigits(
+              controller: _buyerDocumentController,
+              digits: docDigits,
+              isOwner: false,
+            );
+          }
+        }
         _setIfEmpty(_buyerNameController, comprador['nome']?.toString());
         _setIfEmpty(_buyerEmailController, comprador['email']?.toString());
-        _setIfEmpty(_buyerCepController, comprador['cep']?.toString());
+        if (_buyerCepController.text.trim().isEmpty) {
+          final cepDigits = _onlyDigits(comprador['cep']?.toString());
+          if (cepDigits != null) {
+            _setCepDigits(cepDigits);
+          }
+        }
         _setIfEmpty(_buyerCityController, comprador['municipio']?.toString());
         _setIfEmpty(_buyerNeighborhoodController, comprador['bairro']?.toString());
         _setIfEmpty(_buyerStreetController, comprador['logradouro']?.toString());
@@ -534,7 +629,12 @@ class _AtpvFormPageState extends State<AtpvFormPage> {
             _buyerStateController.text.trim().isEmpty) {
           _buyerStateController.text = uf.trim().toUpperCase();
         }
-        _setIfEmpty(_saleValueController, intencao['valor_venda']?.toString());
+        if (_saleValueController.text.trim().isEmpty) {
+          final valorDigits = _onlyDigits(intencao['valor_venda']?.toString());
+          if (valorDigits != null && valorDigits.isNotEmpty) {
+            _setValorDigits(valorDigits);
+          }
+        }
       }
     }
   }
@@ -623,7 +723,26 @@ class _AtpvFormPageState extends State<AtpvFormPage> {
             _buildTextField(
               label: 'CPF/CNPJ do proprietário atual',
               controller: _ownerDocumentController,
+              keyboardType: TextInputType.number,
+              inputFormatters: [
+                FilteringTextInputFormatter.digitsOnly,
+                LengthLimitingTextInputFormatter(
+                  _ownerDocOption == 1 ? 11 : 14,
+                ),
+              ],
               requiredField: false,
+              validator: (value) => _validateDocumento(
+                value,
+                _ownerDocOption,
+                requiredField: false,
+                subject: 'proprietário',
+              ),
+            ),
+            const SizedBox(height: 8),
+            _buildDocOptionSelector(
+              title: 'Documento do proprietário',
+              groupValue: _ownerDocOption,
+              onChanged: _onOwnerDocOptionChanged,
             ),
             const SizedBox(height: 16),
             _buildTextField(
@@ -637,6 +756,10 @@ class _AtpvFormPageState extends State<AtpvFormPage> {
               label: 'Valor da venda',
               controller: _saleValueController,
               keyboardType: TextInputType.number,
+              inputFormatters: [
+                FilteringTextInputFormatter.digitsOnly,
+                LengthLimitingTextInputFormatter(12),
+              ],
               requiredField: false,
             ),
             const SizedBox(height: 16),
@@ -650,16 +773,25 @@ class _AtpvFormPageState extends State<AtpvFormPage> {
             _buildTextField(
               label: 'CPF/CNPJ do comprador',
               controller: _buyerDocumentController,
-              validator: (value) {
-                final text = value?.trim() ?? '';
-                if (text.isEmpty) {
-                  return 'Informe o CPF ou CNPJ do comprador.';
-                }
-                if (text.length < 11) {
-                  return 'Documento do comprador inválido.';
-                }
-                return null;
-              },
+              keyboardType: TextInputType.number,
+              inputFormatters: [
+                FilteringTextInputFormatter.digitsOnly,
+                LengthLimitingTextInputFormatter(
+                  _buyerDocOption == 1 ? 11 : 14,
+                ),
+              ],
+              validator: (value) => _validateDocumento(
+                value,
+                _buyerDocOption,
+                requiredField: true,
+                subject: 'comprador',
+              ),
+            ),
+            const SizedBox(height: 8),
+            _buildDocOptionSelector(
+              title: 'Documento do comprador',
+              groupValue: _buyerDocOption,
+              onChanged: _onBuyerDocOptionChanged,
             ),
             const SizedBox(height: 16),
             _buildTextField(
@@ -689,7 +821,7 @@ class _AtpvFormPageState extends State<AtpvFormPage> {
                     keyboardType: TextInputType.number,
                     requiredField: false,
                     inputFormatters: [
-                      FilteringTextInputFormatter.allow(RegExp('[0-9]')),
+                      FilteringTextInputFormatter.digitsOnly,
                       LengthLimitingTextInputFormatter(8),
                     ],
                     suffixIcon: _buildCepSuffixIcon(),
@@ -802,6 +934,13 @@ class _AtpvFormPageState extends State<AtpvFormPage> {
   Widget _buildSuccessBody(BuildContext context) {
     final payload = _successResult?['payload'];
     final veiculo = payload is Map<String, dynamic> ? payload['parsed'] ?? payload['veiculo'] : null;
+    final successMessage = () {
+      final message = _successResult?['message']?.toString().trim();
+      if (message != null && message.isNotEmpty) {
+        return message;
+      }
+      return 'ATPV-e emitida com sucesso!';
+    }();
 
     String? placa;
     String? renavam;
@@ -823,7 +962,7 @@ class _AtpvFormPageState extends State<AtpvFormPage> {
           ),
           const SizedBox(height: 16),
           Text(
-            'ATPV-e emitida com sucesso!',
+            successMessage,
             textAlign: TextAlign.center,
             style: Theme.of(context).textTheme.headlineSmall?.copyWith(
                   fontWeight: FontWeight.w700,
@@ -904,6 +1043,10 @@ class _AtpvFormPageState extends State<AtpvFormPage> {
                 _submissionError = null;
                 _signatureResponse = null;
                 _assinaturaDigital = null;
+                _ownerDocOption = _resolveDocOption(_ownerDocumentController.text);
+                _buyerDocOption = _resolveDocOption(_buyerDocumentController.text);
+                _handleOwnerDocumentInput();
+                _handleBuyerDocumentInput();
               });
               _refreshCaptcha();
             },
@@ -1211,6 +1354,213 @@ class _AtpvFormPageState extends State<AtpvFormPage> {
     }
   }
 
+  void _onOwnerDocOptionChanged(int value) {
+    if (_ownerDocOption == value) {
+      return;
+    }
+    setState(() {
+      _ownerDocOption = value;
+      _ownerDocumentController.clear();
+      _handleOwnerDocumentInput();
+    });
+  }
+
+  void _onBuyerDocOptionChanged(int value) {
+    if (_buyerDocOption == value) {
+      return;
+    }
+    setState(() {
+      _buyerDocOption = value;
+      _buyerDocumentController.clear();
+      _handleBuyerDocumentInput();
+    });
+  }
+
+  void _handleOwnerDocumentInput() {
+    if (_updatingOwnerDoc) return;
+    _updatingOwnerDoc = true;
+    final digits = _onlyDigits(_ownerDocumentController.text) ?? '';
+    final limited = _limitDigits(digits, _ownerDocOption == 1 ? 11 : 14);
+    final formatted = _ownerDocOption == 1
+        ? _formatCpf(limited)
+        : _formatCnpj(limited);
+    if (_ownerDocumentController.text != formatted) {
+      _ownerDocumentController.value = TextEditingValue(
+        text: formatted,
+        selection: TextSelection.collapsed(offset: formatted.length),
+      );
+    }
+    _updatingOwnerDoc = false;
+  }
+
+  void _handleBuyerDocumentInput() {
+    if (_updatingBuyerDoc) return;
+    _updatingBuyerDoc = true;
+    final digits = _onlyDigits(_buyerDocumentController.text) ?? '';
+    final limited = _limitDigits(digits, _buyerDocOption == 1 ? 11 : 14);
+    final formatted = _buyerDocOption == 1
+        ? _formatCpf(limited)
+        : _formatCnpj(limited);
+    if (_buyerDocumentController.text != formatted) {
+      _buyerDocumentController.value = TextEditingValue(
+        text: formatted,
+        selection: TextSelection.collapsed(offset: formatted.length),
+      );
+    }
+    _updatingBuyerDoc = false;
+  }
+
+  void _handleCepInput() {
+    if (_updatingCep) return;
+    _updatingCep = true;
+    final digits = _onlyDigits(_buyerCepController.text) ?? '';
+    final limited = _limitDigits(digits, 8);
+    final formatted = _formatCep(limited);
+    if (_buyerCepController.text != formatted) {
+      _buyerCepController.value = TextEditingValue(
+        text: formatted,
+        selection: TextSelection.collapsed(offset: formatted.length),
+      );
+    }
+    if (!_isFetchingCep && limited.length != 8) {
+      _buyerMunicipioCode = null;
+    }
+    _updatingCep = false;
+  }
+
+  void _handleValorInput() {
+    if (_updatingValor) return;
+    _updatingValor = true;
+    final digits = _onlyDigits(_saleValueController.text) ?? '';
+    if (digits.isEmpty) {
+      _saleValueController.clear();
+      _updatingValor = false;
+      return;
+    }
+    final limited = _limitDigits(digits, 12);
+    final formatted = _formatCurrencyFromDigits(limited);
+    if (_saleValueController.text != formatted) {
+      _saleValueController.value = TextEditingValue(
+        text: formatted,
+        selection: TextSelection.collapsed(offset: formatted.length),
+      );
+    }
+    _updatingValor = false;
+  }
+
+  void _setDocumentDigits({
+    required TextEditingController controller,
+    required String digits,
+    required bool isOwner,
+  }) {
+    final option = digits.length > 11 ? 2 : 1;
+    if (isOwner) {
+      _ownerDocOption = option;
+    } else {
+      _buyerDocOption = option;
+    }
+    final limited = _limitDigits(digits, option == 1 ? 11 : 14);
+    final formatted = option == 1 ? _formatCpf(limited) : _formatCnpj(limited);
+    if (isOwner) {
+      _updatingOwnerDoc = true;
+    } else {
+      _updatingBuyerDoc = true;
+    }
+    controller.value = TextEditingValue(
+      text: formatted,
+      selection: TextSelection.collapsed(offset: formatted.length),
+    );
+    if (isOwner) {
+      _updatingOwnerDoc = false;
+    } else {
+      _updatingBuyerDoc = false;
+    }
+  }
+
+  void _setCepDigits(String digits) {
+    final limited = _limitDigits(digits, 8);
+    final formatted = _formatCep(limited);
+    _updatingCep = true;
+    _buyerCepController.value = TextEditingValue(
+      text: formatted,
+      selection: TextSelection.collapsed(offset: formatted.length),
+    );
+    _updatingCep = false;
+  }
+
+  void _setValorDigits(String digits) {
+    final limited = _limitDigits(digits, 12);
+    final formatted = _formatCurrencyFromDigits(limited);
+    _updatingValor = true;
+    _saleValueController.value = TextEditingValue(
+      text: formatted,
+      selection: TextSelection.collapsed(offset: formatted.length),
+    );
+    _updatingValor = false;
+  }
+
+  String _limitDigits(String digits, int maxLen) {
+    if (digits.length <= maxLen) {
+      return digits;
+    }
+    return digits.substring(0, maxLen);
+  }
+
+  String _formatCpf(String digits) {
+    final buffer = StringBuffer();
+    for (var i = 0; i < digits.length && i < 11; i++) {
+      if (i == 3 || i == 6) buffer.write('.');
+      if (i == 9) buffer.write('-');
+      buffer.write(digits[i]);
+    }
+    return buffer.toString();
+  }
+
+  String _formatCnpj(String digits) {
+    final buffer = StringBuffer();
+    for (var i = 0; i < digits.length && i < 14; i++) {
+      if (i == 2 || i == 5) buffer.write('.');
+      if (i == 8) buffer.write('/');
+      if (i == 12) buffer.write('-');
+      buffer.write(digits[i]);
+    }
+    return buffer.toString();
+  }
+
+  String _formatCep(String digits) {
+    if (digits.isEmpty) {
+      return '';
+    }
+    if (digits.length <= 5) {
+      return digits;
+    }
+    return '${digits.substring(0, 5)}-${digits.substring(5)}';
+  }
+
+  String _formatCurrencyFromDigits(String digits) {
+    if (digits.isEmpty) {
+      return '';
+    }
+    final limited = digits.isEmpty ? '0' : digits;
+    final intValue = int.parse(limited);
+    final cents = (intValue % 100).toString().padLeft(2, '0');
+    final integerPart = (intValue ~/ 100).toString();
+    final integerFormatted = _addThousandsSeparator(integerPart);
+    return '$integerFormatted,$cents';
+  }
+
+  String _addThousandsSeparator(String value) {
+    final buffer = StringBuffer();
+    for (var i = 0; i < value.length; i++) {
+      buffer.write(value[i]);
+      final remaining = value.length - i - 1;
+      if (remaining > 0 && remaining % 3 == 0) {
+        buffer.write('.');
+      }
+    }
+    return buffer.toString();
+  }
+
   Widget _buildTextField({
     required String label,
     required TextEditingController controller,
@@ -1240,6 +1590,57 @@ class _AtpvFormPageState extends State<AtpvFormPage> {
             }
             return null;
           },
+    );
+  }
+
+  Widget _buildDocOptionSelector({
+    required String title,
+    required int groupValue,
+    required ValueChanged<int> onChanged,
+  }) {
+    final theme = Theme.of(context);
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          title,
+          style: theme.textTheme.bodySmall?.copyWith(
+            fontWeight: FontWeight.w600,
+            color: Colors.grey.shade700,
+          ),
+        ),
+        const SizedBox(height: 4),
+        Row(
+          children: [
+            Expanded(
+              child: RadioListTile<int>(
+                value: 1,
+                groupValue: groupValue,
+                dense: true,
+                contentPadding: EdgeInsets.zero,
+                title: const Text('CPF'),
+                onChanged: (value) {
+                  if (value != null) onChanged(value);
+                },
+              ),
+            ),
+            const SizedBox(width: 8),
+            Expanded(
+              child: RadioListTile<int>(
+                value: 2,
+                groupValue: groupValue,
+                dense: true,
+                contentPadding: EdgeInsets.zero,
+                title: const Text('CNPJ'),
+                onChanged: (value) {
+                  if (value != null) onChanged(value);
+                },
+              ),
+            ),
+          ],
+        ),
+      ],
     );
   }
 

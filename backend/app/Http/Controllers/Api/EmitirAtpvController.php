@@ -20,16 +20,19 @@ class EmitirAtpvController extends BaseAtpvController
         }
 
         $data = $request->validate([
+            'method' => ['nullable', 'string', 'max:20'],
+            'municipio2' => ['nullable', 'string', 'max:10'],
             'renavam' => ['required', 'string', 'max:20'],
             'placa' => ['required', 'string', 'max:10'],
             'chassi' => ['nullable', 'string', 'max:32'],
             'hodometro' => ['nullable', 'string', 'max:16'],
             'email_proprietario' => ['nullable', 'string', 'max:150'],
             'cpf_cnpj_proprietario' => ['nullable', 'string', 'max:20'],
+            'opcao_pesquisa_proprietario' => ['nullable', 'in:1,2'],
             'cpf_cnpj_comprador' => ['required', 'string', 'max:20'],
+            'opcao_pesquisa_comprador' => ['required', 'in:1,2'],
             'nome_comprador' => ['required', 'string', 'max:150'],
             'email_comprador' => ['nullable', 'string', 'max:150'],
-            'uf' => ['required', 'string', 'max:2'],
             'valor_venda' => ['nullable', 'string', 'max:32'],
             'cep_comprador' => ['nullable', 'string', 'max:16'],
             'municipio_comprador' => ['nullable', 'string', 'max:150'],
@@ -37,9 +40,40 @@ class EmitirAtpvController extends BaseAtpvController
             'logradouro_comprador' => ['nullable', 'string', 'max:150'],
             'numero_comprador' => ['nullable', 'string', 'max:20'],
             'complemento_comprador' => ['nullable', 'string', 'max:100'],
-            'municipio_codigo' => ['nullable', 'string', 'max:10'],
+            'uf' => ['required', 'string', 'max:2'],
             'captcha' => ['required', 'string', 'max:12'],
         ]);
+
+        $ownerOption = $data['opcao_pesquisa_proprietario'] ?? null;
+        $buyerOption = $data['opcao_pesquisa_comprador'];
+
+        $ownerCpf = '';
+        $ownerCnpj = '';
+        if ($ownerOption === '1') {
+            $ownerCpf = $this->formatCpf($data['cpf_cnpj_proprietario'] ?? '');
+            if ($ownerCpf === '') {
+                return $this->validationError('Informe o CPF do proprietário.');
+            }
+        } elseif ($ownerOption === '2') {
+            $ownerCnpj = $this->formatCnpj($data['cpf_cnpj_proprietario'] ?? '');
+            if ($ownerCnpj === '') {
+                return $this->validationError('Informe o CNPJ do proprietário.');
+            }
+        }
+
+        $buyerCpf = '';
+        $buyerCnpj = '';
+        if ($buyerOption === '1') {
+            $buyerCpf = $this->formatCpf($data['cpf_cnpj_comprador'] ?? '');
+            if ($buyerCpf === '') {
+                return $this->validationError('Informe o CPF do comprador.');
+            }
+        } else {
+            $buyerCnpj = $this->formatCnpj($data['cpf_cnpj_comprador'] ?? '');
+            if ($buyerCnpj === '') {
+                return $this->validationError('Informe o CNPJ do comprador.');
+            }
+        }
 
         $token = DB::table('admin_settings')->where('id', 1)->value('value');
 
@@ -50,14 +84,6 @@ class EmitirAtpvController extends BaseAtpvController
             );
         }
 
-        $municipioCodigo = $data['municipio_codigo'] ?? null;
-        if ($municipioCodigo !== null) {
-            $municipioCodigo = preg_replace('/\D/', '', (string) $municipioCodigo);
-            if ($municipioCodigo === '') {
-                $municipioCodigo = null;
-            }
-        }
-
         $record = AtpvRequest::create([
             'user_id' => $user->id,
             'renavam' => $data['renavam'],
@@ -65,8 +91,10 @@ class EmitirAtpvController extends BaseAtpvController
             'chassi' => $data['chassi'] ?? null,
             'hodometro' => $data['hodometro'] ?? null,
             'email_proprietario' => $data['email_proprietario'] ?? null,
-            'cpf_cnpj_proprietario' => $data['cpf_cnpj_proprietario'] ?? null,
-            'cpf_cnpj_comprador' => $data['cpf_cnpj_comprador'],
+            'cpf_cnpj_proprietario' => $this->stripNonDigits($data['cpf_cnpj_proprietario'] ?? '') ?: null,
+            'cpf_cnpj_comprador' => $this->stripNonDigits($data['cpf_cnpj_comprador']) ?: null,
+            'opcao_pesquisa_proprietario' => $ownerOption,
+            'opcao_pesquisa_comprador' => $buyerOption,
             'nome_comprador' => $data['nome_comprador'],
             'email_comprador' => $data['email_comprador'] ?? null,
             'uf' => strtoupper($data['uf']),
@@ -78,7 +106,6 @@ class EmitirAtpvController extends BaseAtpvController
             'numero_comprador' => $data['numero_comprador'] ?? null,
             'complemento_comprador' => $data['complemento_comprador'] ?? null,
             'status' => 'pending',
-            'municipio_codigo' => $municipioCodigo,
         ]);
 
         $headers = [
@@ -100,27 +127,20 @@ class EmitirAtpvController extends BaseAtpvController
             'sec-ch-ua-platform' => '"macOS"',
         ];
 
-        [$opcaoPesquisaProprietario, $cpfProprietario, $cnpjProprietario] = $this->splitDocumento(
-            $record->cpf_cnpj_proprietario
-        );
-        [$opcaoPesquisaComprador, $cpfComprador, $cnpjComprador] = $this->splitDocumento(
-            $record->cpf_cnpj_comprador
-        );
-
         $form = [
-            'method' => 'pesquisar',
-            'municipio2' => $record->municipio_codigo ?? '0',
+            'method' => $data['method'] ?? 'pesquisar',
+            'municipio2' => $this->stripNonDigits($data['municipio2'] ?? '') ?: '0',
             'renavam' => $record->renavam,
             'placa' => $record->placa,
             'chassi' => $record->chassi ?? '',
             'hodometro' => $record->hodometro ?? '',
             'emailProprietario' => $record->email_proprietario ?? '',
-            'opcaoPesquisaProprietario' => $opcaoPesquisaProprietario,
-            'cpfProprietario' => $cpfProprietario,
-            'cnpjProprietario' => $cnpjProprietario,
-            'opcaoPesquisaComprador' => $opcaoPesquisaComprador,
-            'cpfComprador' => $cpfComprador,
-            'cnpjComprador' => $cnpjComprador,
+            'opcaoPesquisaProprietario' => $ownerOption ?? '0',
+            'cpfProprietario' => $ownerOption === '1' ? $ownerCpf : '',
+            'cnpjProprietario' => $ownerOption === '2' ? $ownerCnpj : '',
+            'opcaoPesquisaComprador' => $buyerOption,
+            'cpfComprador' => $buyerOption === '1' ? $buyerCpf : '',
+            'cnpjComprador' => $buyerOption === '2' ? $buyerCnpj : '',
             'nomeComprador' => $record->nome_comprador ?? '',
             'emailComprador' => $record->email_comprador ?? '',
             'valorVendaSTR' => $this->formatValorVenda($record->valor_venda),
@@ -131,6 +151,7 @@ class EmitirAtpvController extends BaseAtpvController
             'numeroComprador' => $record->numero_comprador ?? '',
             'complementoComprador' => $record->complemento_comprador ?? '',
             'ufComprador' => $this->toUpper($record->uf),
+            'captchaResponse' => strtoupper($data['captcha']),
         ];
 
         $response = Http::withHeaders($headers)
@@ -162,6 +183,21 @@ class EmitirAtpvController extends BaseAtpvController
         }
 
         $messages = $this->extractMessages($body);
+        if ($this->messagesIndicateFailure($messages)) {
+            $record->update([
+                'status' => 'failed',
+                'response_errors' => $messages,
+            ]);
+
+            return response()->json(
+                [
+                    'message' => $messages[0] ?? 'Não foi possível emitir a ATPV-e.',
+                    'detalhes' => $messages,
+                    'registro_id' => $record->id,
+                ],
+                Response::HTTP_UNPROCESSABLE_ENTITY
+            );
+        }
         $numeroAtpv = $this->extractNumeroAtpv($messages);
 
         $parsed = DetranHtmlParser::parse($body);
@@ -255,26 +291,12 @@ class EmitirAtpvController extends BaseAtpvController
         return $tables;
     }
 
-    /**
-     * @return array{0:string,1:string,2:string}
-     */
-    private function splitDocumento(?string $documento): array
-    {
-        $documento = $documento ? preg_replace('/\D/', '', $documento) : '';
-        if (! $documento) {
-            return ['0', '', ''];
-        }
-
-        if (strlen($documento) > 11) {
-            return ['2', '', $this->formatCnpj($documento)];
-        }
-
-        return ['1', $this->formatCpf($documento), ''];
-    }
-
     private function formatCpf(string $digits): string
     {
-        $digits = str_pad(substr($digits, 0, 11), 11, '0', STR_PAD_LEFT);
+        $digits = $this->stripNonDigits($digits);
+        if (strlen($digits) !== 11) {
+            return '';
+        }
 
         return sprintf(
             '%s.%s.%s-%s',
@@ -287,7 +309,10 @@ class EmitirAtpvController extends BaseAtpvController
 
     private function formatCnpj(string $digits): string
     {
-        $digits = str_pad(substr($digits, 0, 14), 14, '0', STR_PAD_LEFT);
+        $digits = $this->stripNonDigits($digits);
+        if (strlen($digits) !== 14) {
+            return '';
+        }
 
         return sprintf(
             '%s.%s.%s/%s-%s',
@@ -337,5 +362,17 @@ class EmitirAtpvController extends BaseAtpvController
     private function toUpper(?string $value): string
     {
         return $value ? mb_strtoupper($value) : '';
+    }
+
+    private function stripNonDigits(?string $value): string
+    {
+        return $value ? preg_replace('/\D/', '', $value) ?? '' : '';
+    }
+
+    private function validationError(string $message): Response
+    {
+        return response()->json([
+            'message' => $message,
+        ], Response::HTTP_UNPROCESSABLE_ENTITY);
     }
 }

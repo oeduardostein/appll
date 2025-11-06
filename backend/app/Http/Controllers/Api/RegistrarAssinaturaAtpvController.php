@@ -86,6 +86,16 @@ class RegistrarAssinaturaAtpvController extends BaseAtpvController
 
         $messages = $this->extractMessages($body);
 
+        if ($this->messagesIndicateFailure($messages)) {
+            return response()->json(
+                [
+                    'message' => $messages[0] ?? 'Não foi possível registrar a assinatura.',
+                    'detalhes' => $messages,
+                ],
+                Response::HTTP_UNPROCESSABLE_ENTITY
+            );
+        }
+
         $payload = $registro->response_payload ?? [];
         $payload['assinatura'] = [
             'messages' => $messages,

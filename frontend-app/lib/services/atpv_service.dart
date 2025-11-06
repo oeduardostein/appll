@@ -132,7 +132,9 @@ class AtpvService {
     String? logradouroComprador,
     String? numeroComprador,
     String? complementoComprador,
-    String? municipioCodigoComprador,
+    String? municipioCodigo,
+    String? opcaoPesquisaProprietario,
+    required String opcaoPesquisaComprador,
   }) async {
     final token = _ensureToken();
     final uri = _buildUri('/api/emissao-atpv');
@@ -166,9 +168,13 @@ class AtpvService {
         'numero_comprador': numeroComprador,
       if (complementoComprador != null && complementoComprador.isNotEmpty)
         'complemento_comprador': complementoComprador,
-      if (municipioCodigoComprador != null &&
-          municipioCodigoComprador.isNotEmpty)
-        'municipio_codigo': municipioCodigoComprador,
+      if (municipioCodigo != null && municipioCodigo.isNotEmpty)
+        'municipio2': municipioCodigo,
+      if (opcaoPesquisaProprietario != null &&
+          opcaoPesquisaProprietario.isNotEmpty)
+        'opcao_pesquisa_proprietario': opcaoPesquisaProprietario,
+      'opcao_pesquisa_comprador': opcaoPesquisaComprador,
+      'method': 'pesquisar',
     };
 
     final response = await _client.post(
