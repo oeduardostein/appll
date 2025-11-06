@@ -7,6 +7,7 @@ use App\Http\Controllers\Api\AnotherBaseStateController;
 use App\Http\Controllers\Api\AtpvPdfController;
 use App\Http\Controllers\Api\BinController;
 use App\Http\Controllers\Api\BloqueiosAtivosController;
+use App\Http\Controllers\Api\CepLookupController;
 use App\Http\Controllers\Api\ConsultaIntencaoVendaController;
 use App\Http\Controllers\Api\EmitirAtpvController;
 use App\Http\Controllers\Api\GravamePesquisaController;
@@ -40,6 +41,7 @@ Route::post('emissao-atpv', EmitirAtpvController::class);
 Route::get('emissao-atpv/pdf', AtpvPdfController::class);
 Route::get('emissao-crlv', ImpressaoCrlvController::class);
 Route::get('renainf', RenainfPlacaController::class);
+Route::get('cep', CepLookupController::class);
 
 Route::get('pesquisas', [PesquisaController::class, 'index']);
 Route::get('pesquisas/ultimo-mes', [PesquisaController::class, 'lastMonth']);

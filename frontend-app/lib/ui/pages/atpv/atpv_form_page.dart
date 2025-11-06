@@ -10,6 +10,7 @@ import 'package:universal_io/io.dart' as io;
 
 import 'package:frontend_app/services/atpv_service.dart';
 import 'package:frontend_app/services/base_estadual_service.dart';
+import 'package:frontend_app/services/cep_service.dart';
 import 'package:frontend_app/ui/widgets/app_error_dialog.dart';
 
 class AtpvFormPage extends StatefulWidget {
@@ -59,10 +60,12 @@ class _AtpvFormPageState extends State<AtpvFormPage> {
 
   final BaseEstadualService _baseEstadualService = BaseEstadualService();
   final AtpvService _atpvService = AtpvService();
+  final CepService _cepService = CepService();
 
   bool _termsAccepted = false;
   bool _loadingCaptcha = false;
   bool _isSubmitting = false;
+  bool _isFetchingCep = false;
   Uint8List? _captchaBytes;
   String? _captchaError;
   String? _submissionError;
@@ -153,6 +156,93 @@ class _AtpvFormPageState extends State<AtpvFormPage> {
         _loadingCaptcha = false;
       });
     }
+  }
+
+  Future<void> _lookupCep() async {
+    final rawCep = _buyerCepController.text.trim();
+    final sanitized = rawCep.replaceAll(RegExp(r'[^0-9]'), '');
+
+    if (sanitized.length != 8) {
+      ScaffoldMessenger.of(context)
+        ..clearSnackBars()
+        ..showSnackBar(
+          const SnackBar(content: Text('Digite um CEP válido com 8 dígitos.')),
+        );
+      return;
+    }
+
+    setState(() {
+      _isFetchingCep = true;
+    });
+
+    try {
+      final address = await _cepService.lookup(sanitized);
+
+      setState(() {
+        if ((address.street ?? '').isNotEmpty) {
+          _buyerStreetController.text = address.street!;
+        }
+        if ((address.neighborhood ?? '').isNotEmpty) {
+          _buyerNeighborhoodController.text = address.neighborhood!;
+        }
+        if ((address.city ?? '').isNotEmpty) {
+          _buyerCityController.text = address.city!;
+        }
+        if ((address.state ?? '').isNotEmpty) {
+          _buyerStateController.text = address.state!;
+        }
+        if ((address.complement ?? '').isNotEmpty) {
+          _buyerComplementController.text = address.complement!;
+        }
+      });
+
+      ScaffoldMessenger.of(context)
+        ..clearSnackBars()
+        ..showSnackBar(
+          const SnackBar(
+            content: Text('Endereço preenchido automaticamente. Confira os dados.'),
+          ),
+        );
+    } on CepException catch (e) {
+      ScaffoldMessenger.of(context)
+        ..clearSnackBars()
+        ..showSnackBar(
+          SnackBar(content: Text(e.message)),
+        );
+    } catch (_) {
+      ScaffoldMessenger.of(context)
+        ..clearSnackBars()
+        ..showSnackBar(
+          const SnackBar(
+            content: Text('Não foi possível consultar o CEP. Tente novamente.'),
+          ),
+        );
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isFetchingCep = false;
+        });
+      }
+    }
+  }
+
+  Widget? _buildCepSuffixIcon() {
+    if (_isFetchingCep) {
+      return Padding(
+        padding: const EdgeInsets.only(right: 8.0),
+        child: SizedBox(
+          height: 18,
+          width: 18,
+          child: const CircularProgressIndicator(strokeWidth: 2),
+        ),
+      );
+    }
+
+    return IconButton(
+      onPressed: _isFetchingCep ? null : _lookupCep,
+      tooltip: 'Buscar endereço pelo CEP',
+      icon: const Icon(Icons.search),
+    );
   }
 
   Future<void> _submitEmission() async {
@@ -559,6 +649,7 @@ class _AtpvFormPageState extends State<AtpvFormPage> {
                       FilteringTextInputFormatter.allow(RegExp('[0-9]')),
                       LengthLimitingTextInputFormatter(8),
                     ],
+                    suffixIcon: _buildCepSuffixIcon(),
                   ),
                 ),
                 const SizedBox(width: 12),
@@ -932,6 +1023,7 @@ class _AtpvFormPageState extends State<AtpvFormPage> {
     bool readOnly = false,
     bool requiredField = true,
     String? Function(String?)? validator,
+    Widget? suffixIcon,
   }) {
     return TextFormField(
       controller: controller,
@@ -941,6 +1033,7 @@ class _AtpvFormPageState extends State<AtpvFormPage> {
       inputFormatters: inputFormatters,
       decoration: InputDecoration(
         labelText: label,
+        suffixIcon: suffixIcon,
       ),
       validator: validator ??
           (value) {
