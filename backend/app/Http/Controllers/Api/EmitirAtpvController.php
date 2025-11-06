@@ -7,6 +7,7 @@ use App\Support\DetranHtmlParser;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Schema;
 use Symfony\Component\HttpFoundation\Response;
 
 class EmitirAtpvController extends BaseAtpvController
@@ -84,7 +85,7 @@ class EmitirAtpvController extends BaseAtpvController
             );
         }
 
-        $record = AtpvRequest::create([
+        $attributes = [
             'user_id' => $user->id,
             'renavam' => $data['renavam'],
             'placa' => strtoupper($data['placa']),
@@ -93,8 +94,6 @@ class EmitirAtpvController extends BaseAtpvController
             'email_proprietario' => $data['email_proprietario'] ?? null,
             'cpf_cnpj_proprietario' => $this->stripNonDigits($data['cpf_cnpj_proprietario'] ?? '') ?: null,
             'cpf_cnpj_comprador' => $this->stripNonDigits($data['cpf_cnpj_comprador']) ?: null,
-            'opcao_pesquisa_proprietario' => $ownerOption,
-            'opcao_pesquisa_comprador' => $buyerOption,
             'nome_comprador' => $data['nome_comprador'],
             'email_comprador' => $data['email_comprador'] ?? null,
             'uf' => strtoupper($data['uf']),
@@ -106,7 +105,17 @@ class EmitirAtpvController extends BaseAtpvController
             'numero_comprador' => $data['numero_comprador'] ?? null,
             'complemento_comprador' => $data['complemento_comprador'] ?? null,
             'status' => 'pending',
-        ]);
+        ];
+
+        if (Schema::hasColumn('atpv_requests', 'opcao_pesquisa_proprietario')) {
+            $attributes['opcao_pesquisa_proprietario'] = $ownerOption;
+        }
+
+        if (Schema::hasColumn('atpv_requests', 'opcao_pesquisa_comprador')) {
+            $attributes['opcao_pesquisa_comprador'] = $buyerOption;
+        }
+
+        $record = AtpvRequest::create($attributes);
 
         $headers = [
             'Accept' => 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7',
