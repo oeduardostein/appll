@@ -83,7 +83,7 @@ class PasswordResetController extends Controller
         $codigo = $request->input('codigo');
         $senha  = $request->input('password');
 
-        $usuario = Usuario::where('email', $email)->first();
+        $usuario = User::where('email', $email)->first();
 
         // Não revela se o e-mail existe
         if (!$usuario) {
