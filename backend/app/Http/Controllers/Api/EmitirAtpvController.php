@@ -136,9 +136,31 @@ class EmitirAtpvController extends BaseAtpvController
             'sec-ch-ua-platform' => '"macOS"',
         ];
 
+        $municipioCode = $this->stripNonDigits($data['municipio2'] ?? '');
+        if ($municipioCode === '' && filled($data['cep_comprador'])) {
+            $cepDigits = $this->stripNonDigits($data['cep_comprador']);
+            if (strlen($cepDigits) === 8) {
+                try {
+                    $cepResponse = Http::timeout(5)->get("https://viacep.com.br/ws/{$cepDigits}/json/");
+                    if ($cepResponse->ok()) {
+                        $cepData = $cepResponse->json();
+                        if (is_array($cepData) && !($cepData['erro'] ?? false)) {
+                            $municipioCode = $this->stripNonDigits($cepData['ibge'] ?? '') ?: '0';
+                        }
+                    }
+                } catch (\Throwable $e) {
+                    report($e);
+                }
+            }
+        }
+
+        if ($municipioCode === '') {
+            $municipioCode = '0';
+        }
+
         $form = [
             'method' => $data['method'] ?? 'pesquisar',
-            'municipio2' => $this->stripNonDigits($data['municipio2'] ?? '') ?: '0',
+            'municipio2' => $municipioCode,
             'renavam' => $record->renavam,
             'placa' => $record->placa,
             'chassi' => $record->chassi ?? '',
