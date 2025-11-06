@@ -51,6 +51,7 @@ class CepLookupController extends Controller
             'bairro' => $data['bairro'] ?? null,
             'cidade' => $data['localidade'] ?? null,
             'uf' => $data['uf'] ?? null,
+            'codigo' => $data['ibge'] ?? null,
         ]);
     }
 }

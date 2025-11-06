@@ -19,6 +19,7 @@ class CepAddress {
     required this.city,
     required this.state,
     required this.complement,
+    required this.code,
   });
 
   final String? cep;
@@ -27,6 +28,7 @@ class CepAddress {
   final String? city;
   final String? state;
   final String? complement;
+  final String? code;
 
   factory CepAddress.fromJson(Map<String, dynamic> json) {
     return CepAddress(
@@ -36,6 +38,7 @@ class CepAddress {
       city: json['cidade'] as String?,
       state: json['uf'] as String?,
       complement: json['complemento'] as String?,
+      code: json['codigo'] as String? ?? json['codigo_ibge'] as String?,
     );
   }
 }

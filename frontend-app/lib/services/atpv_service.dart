@@ -132,6 +132,7 @@ class AtpvService {
     String? logradouroComprador,
     String? numeroComprador,
     String? complementoComprador,
+    String? municipioCodigoComprador,
   }) async {
     final token = _ensureToken();
     final uri = _buildUri('/api/emissao-atpv');
@@ -165,6 +166,9 @@ class AtpvService {
         'numero_comprador': numeroComprador,
       if (complementoComprador != null && complementoComprador.isNotEmpty)
         'complemento_comprador': complementoComprador,
+      if (municipioCodigoComprador != null &&
+          municipioCodigoComprador.isNotEmpty)
+        'municipio_codigo': municipioCodigoComprador,
     };
 
     final response = await _client.post(
@@ -232,6 +236,46 @@ class AtpvService {
     final message = _extractMessage(response.body) ??
         'Falha ao baixar o PDF da ATPV-e (HTTP ${response.statusCode}).';
     throw AtpvException(message);
+  }
+
+  Future<Map<String, dynamic>> registrarTipoAssinatura({
+    required int registroId,
+    required bool assinaturaDigital,
+  }) async {
+    final token = _ensureToken();
+    final uri = _buildUri('/api/emissao-atpv/assinatura');
+
+    final response = await _client.post(
+      uri,
+      headers: _authorizedJsonHeaders(token),
+      body: jsonEncode({
+        'registro_id': registroId,
+        'assinatura_digital': assinaturaDigital,
+      }),
+    );
+
+    final body = response.body.trim();
+
+    if (response.statusCode != 200) {
+      final message = _extractMessage(body) ??
+          'Falha ao registrar a assinatura (HTTP ${response.statusCode}).';
+      throw AtpvException(message);
+    }
+
+    if (body.isEmpty) {
+      throw AtpvException('Resposta vazia ao registrar a assinatura.');
+    }
+
+    try {
+      final decoded = jsonDecode(body);
+      if (decoded is Map<String, dynamic>) {
+        return decoded;
+      }
+    } catch (_) {
+      // ignore
+    }
+
+    throw AtpvException('Resposta inválida ao registrar a assinatura.');
   }
 
   String? _extractMessage(String? body) {

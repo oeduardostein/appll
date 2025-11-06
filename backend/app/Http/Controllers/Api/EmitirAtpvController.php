@@ -3,16 +3,13 @@
 namespace App\Http\Controllers\Api;
 
 use App\Models\AtpvRequest;
-use App\Models\User;
 use App\Support\DetranHtmlParser;
-use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
-use Illuminate\Routing\Controller;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
 use Symfony\Component\HttpFoundation\Response;
 
-class EmitirAtpvController extends Controller
+class EmitirAtpvController extends BaseAtpvController
 {
     public function __invoke(Request $request): Response
     {
@@ -40,6 +37,7 @@ class EmitirAtpvController extends Controller
             'logradouro_comprador' => ['nullable', 'string', 'max:150'],
             'numero_comprador' => ['nullable', 'string', 'max:20'],
             'complemento_comprador' => ['nullable', 'string', 'max:100'],
+            'municipio_codigo' => ['nullable', 'string', 'max:10'],
             'captcha' => ['required', 'string', 'max:12'],
         ]);
 
@@ -50,6 +48,14 @@ class EmitirAtpvController extends Controller
                 ['message' => 'Nenhum token encontrado para realizar a emissão.'],
                 Response::HTTP_INTERNAL_SERVER_ERROR
             );
+        }
+
+        $municipioCodigo = $data['municipio_codigo'] ?? null;
+        if ($municipioCodigo !== null) {
+            $municipioCodigo = preg_replace('/\D/', '', (string) $municipioCodigo);
+            if ($municipioCodigo === '') {
+                $municipioCodigo = null;
+            }
         }
 
         $record = AtpvRequest::create([
@@ -72,6 +78,7 @@ class EmitirAtpvController extends Controller
             'numero_comprador' => $data['numero_comprador'] ?? null,
             'complemento_comprador' => $data['complemento_comprador'] ?? null,
             'status' => 'pending',
+            'municipio_codigo' => $municipioCodigo,
         ]);
 
         $headers = [
@@ -81,7 +88,7 @@ class EmitirAtpvController extends Controller
             'Connection' => 'keep-alive',
             'Content-Type' => 'application/x-www-form-urlencoded',
             'Origin' => 'https://www.e-crvsp.sp.gov.br',
-            'Referer' => 'https://www.e-crvsp.sp.gov.br/gever/GVR/pesquisa/baseOutrosEstados.do',
+            'Referer' => 'https://www.e-crvsp.sp.gov.br/gever/GVR/emissao/incluirIntencaoVenda.do',
             'Sec-Fetch-Dest' => 'frame',
             'Sec-Fetch-Mode' => 'navigate',
             'Sec-Fetch-Site' => 'same-origin',
@@ -93,26 +100,37 @@ class EmitirAtpvController extends Controller
             'sec-ch-ua-platform' => '"macOS"',
         ];
 
+        [$opcaoPesquisaProprietario, $cpfProprietario, $cnpjProprietario] = $this->splitDocumento(
+            $record->cpf_cnpj_proprietario
+        );
+        [$opcaoPesquisaComprador, $cpfComprador, $cnpjComprador] = $this->splitDocumento(
+            $record->cpf_cnpj_comprador
+        );
+
         $form = [
             'method' => 'pesquisar',
+            'municipio2' => $record->municipio_codigo ?? '0',
             'renavam' => $record->renavam,
             'placa' => $record->placa,
             'chassi' => $record->chassi ?? '',
             'hodometro' => $record->hodometro ?? '',
-            'email_proprietario' => $record->email_proprietario ?? '',
-            'cpf_cnpj_proprietario' => $record->cpf_cnpj_proprietario ?? '',
-            'cpf_cnpj_comprador' => $record->cpf_cnpj_comprador ?? '',
-            'nome_comprador' => $record->nome_comprador ?? '',
-            'email_comprador' => $record->email_comprador ?? '',
-            'valor_venda' => $record->valor_venda ?? '',
-            'cep_comprador' => $record->cep_comprador ?? '',
-            'municipio_comprador' => $record->municipio_comprador ?? '',
-            'bairro_comprador' => $record->bairro_comprador ?? '',
-            'logradouro_comprador' => $record->logradouro_comprador ?? '',
-            'numero_comprador' => $record->numero_comprador ?? '',
-            'complemento_comprador' => $record->complemento_comprador ?? '',
-            'uf' => $record->uf ?? '',
-            'captchaResponse' => strtoupper($data['captcha']),
+            'emailProprietario' => $record->email_proprietario ?? '',
+            'opcaoPesquisaProprietario' => $opcaoPesquisaProprietario,
+            'cpfProprietario' => $cpfProprietario,
+            'cnpjProprietario' => $cnpjProprietario,
+            'opcaoPesquisaComprador' => $opcaoPesquisaComprador,
+            'cpfComprador' => $cpfComprador,
+            'cnpjComprador' => $cnpjComprador,
+            'nomeComprador' => $record->nome_comprador ?? '',
+            'emailComprador' => $record->email_comprador ?? '',
+            'valorVendaSTR' => $this->formatValorVenda($record->valor_venda),
+            'cepComprador' => $record->cep_comprador ?? '',
+            'municipioComprador' => $this->toUpper($record->municipio_comprador),
+            'bairro' => $this->toUpper($record->bairro_comprador),
+            'logradouro' => $this->toUpper($record->logradouro_comprador),
+            'numeroComprador' => $record->numero_comprador ?? '',
+            'complementoComprador' => $record->complemento_comprador ?? '',
+            'ufComprador' => $this->toUpper($record->uf),
         ];
 
         $response = Http::withHeaders($headers)
@@ -122,7 +140,7 @@ class EmitirAtpvController extends Controller
                 'JSESSIONID' => $token,
             ], 'www.e-crvsp.sp.gov.br')
             ->asForm()
-            ->post('https://www.e-crvsp.sp.gov.br/gever/GVR/pesquisa/baseOutrosEstados.do', $form);
+            ->post('https://www.e-crvsp.sp.gov.br/gever/GVR/emissao/incluirIntencaoVenda.do', $form);
 
         $body = $response->body();
         $errors = $this->extractErrors($body);
@@ -143,21 +161,28 @@ class EmitirAtpvController extends Controller
             );
         }
 
+        $messages = $this->extractMessages($body);
+        $numeroAtpv = $this->extractNumeroAtpv($messages);
+
         $parsed = DetranHtmlParser::parse($body);
         $tables = $this->extractTables($body);
 
         $record->update([
-            'status' => 'completed',
+            'status' => 'awaiting_signature',
+            'numero_atpv' => $numeroAtpv,
             'response_payload' => [
                 'parsed' => $parsed,
                 'tables' => $tables,
+                'messages' => $messages,
             ],
         ]);
 
         return response()->json(
             [
-                'message' => 'ATPV emitida com sucesso.',
+                'message' => $messages[0] ?? 'Transação realizada com sucesso.',
                 'registro_id' => $record->id,
+                'numero_atpv' => $numeroAtpv,
+                'status' => 'awaiting_signature',
                 'payload' => $parsed,
                 'tables' => $tables,
             ],
@@ -165,63 +190,6 @@ class EmitirAtpvController extends Controller
             [],
             JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_PRETTY_PRINT
         );
-    }
-
-    private function findUserFromRequest(Request $request): ?User
-    {
-        $token = $this->extractTokenFromRequest($request);
-
-        if (! $token) {
-            return null;
-        }
-
-        return User::where('api_token', hash('sha256', $token))->first();
-    }
-
-    private function extractTokenFromRequest(Request $request): ?string
-    {
-        $authHeader = $request->header('Authorization');
-
-        if (is_string($authHeader) && str_starts_with($authHeader, 'Bearer ')) {
-            $token = trim(substr($authHeader, 7));
-            if ($token !== '') {
-                return $token;
-            }
-        }
-
-        $token = $request->input('token');
-        if (is_string($token) && $token !== '') {
-            return $token;
-        }
-
-        return null;
-    }
-
-    private function unauthorizedResponse(): JsonResponse
-    {
-        return response()->json([
-            'status' => 'error',
-            'message' => 'Não autenticado.',
-        ], 401);
-    }
-
-    /**
-     * @return string[]
-     */
-    private function extractErrors(string $html): array
-    {
-        if (stripos($html, 'charset=iso-8859-1') !== false || stripos($html, 'charset=iso8859-1') !== false) {
-            $html = @mb_convert_encoding($html, 'UTF-8', 'ISO-8859-1');
-        }
-
-        $errors = [];
-        if (preg_match_all('/errors\[errors\.length\]\s*=\s*[\'"]([^\'"]+)[\'"]\s*;?/u', $html, $matches)) {
-            foreach ($matches[1] as $message) {
-                $errors[] = html_entity_decode($message, ENT_QUOTES | ENT_HTML5, 'UTF-8');
-            }
-        }
-
-        return $errors;
     }
 
     /**
@@ -285,5 +253,89 @@ class EmitirAtpvController extends Controller
         }
 
         return $tables;
+    }
+
+    /**
+     * @return array{0:string,1:string,2:string}
+     */
+    private function splitDocumento(?string $documento): array
+    {
+        $documento = $documento ? preg_replace('/\D/', '', $documento) : '';
+        if (! $documento) {
+            return ['0', '', ''];
+        }
+
+        if (strlen($documento) > 11) {
+            return ['2', '', $this->formatCnpj($documento)];
+        }
+
+        return ['1', $this->formatCpf($documento), ''];
+    }
+
+    private function formatCpf(string $digits): string
+    {
+        $digits = str_pad(substr($digits, 0, 11), 11, '0', STR_PAD_LEFT);
+
+        return sprintf(
+            '%s.%s.%s-%s',
+            substr($digits, 0, 3),
+            substr($digits, 3, 3),
+            substr($digits, 6, 3),
+            substr($digits, 9, 2)
+        );
+    }
+
+    private function formatCnpj(string $digits): string
+    {
+        $digits = str_pad(substr($digits, 0, 14), 14, '0', STR_PAD_LEFT);
+
+        return sprintf(
+            '%s.%s.%s/%s-%s',
+            substr($digits, 0, 2),
+            substr($digits, 2, 3),
+            substr($digits, 5, 3),
+            substr($digits, 8, 4),
+            substr($digits, 12, 2)
+        );
+    }
+
+    private function formatValorVenda(?string $valor): string
+    {
+        if (! $valor) {
+            return '';
+        }
+
+        $normalized = str_replace(' ', '', $valor);
+        $normalized = str_replace(['R$', 'r$'], '', $normalized);
+
+        if (str_contains($normalized, ',')) {
+            $normalized = str_replace('.', '', $normalized);
+            $normalized = str_replace(',', '.', $normalized);
+        } else {
+            $normalized = str_replace('.', '', $normalized);
+        }
+
+        $number = is_numeric($normalized) ? (float) $normalized : 0.0;
+
+        return number_format($number, 2, ',', '.');
+    }
+
+    /**
+     * @param array<int, string> $messages
+     */
+    private function extractNumeroAtpv(array $messages): ?string
+    {
+        foreach ($messages as $message) {
+            if (preg_match('/N[úu]mero\s+ATPV:\s*(\d+)/u', $message, $matches)) {
+                return $matches[1];
+            }
+        }
+
+        return null;
+    }
+
+    private function toUpper(?string $value): string
+    {
+        return $value ? mb_strtoupper($value) : '';
     }
 }

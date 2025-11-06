@@ -70,6 +70,9 @@ class _AtpvFormPageState extends State<AtpvFormPage> {
   String? _captchaError;
   String? _submissionError;
   String? _lastCaptchaUsed;
+  String? _buyerMunicipioCode;
+  Map<String, dynamic>? _signatureResponse;
+  bool? _assinaturaDigital;
 
   Map<String, dynamic>? _consultaPayload;
   List<Map<String, dynamic>> _consultaComunicacoes = const [];
@@ -194,6 +197,7 @@ class _AtpvFormPageState extends State<AtpvFormPage> {
         if ((address.complement ?? '').isNotEmpty) {
           _buyerComplementController.text = address.complement!;
         }
+        _buyerMunicipioCode = address.code;
       });
 
       ScaffoldMessenger.of(context)
@@ -267,6 +271,9 @@ class _AtpvFormPageState extends State<AtpvFormPage> {
     setState(() {
       _isSubmitting = true;
       _submissionError = null;
+      _signatureResponse = null;
+      _assinaturaDigital = null;
+      _successResult = null;
     });
 
     try {
@@ -313,16 +320,47 @@ class _AtpvFormPageState extends State<AtpvFormPage> {
         complementoComprador: _buyerComplementController.text.trim().isEmpty
             ? null
             : _buyerComplementController.text.trim(),
+        municipioCodigoComprador: _buyerMunicipioCode,
       );
 
+      if (!mounted) return;
+
       setState(() {
-        _successResult = result;
+        _isSubmitting = false;
         _lastCaptchaUsed = _captchaController.text.trim();
       });
 
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('ATPV-e emitida com sucesso.')),
+      final registroId = _parseRegistroId(result['registro_id']);
+
+      ScaffoldMessenger.of(context)
+        ..clearSnackBars()
+        ..showSnackBar(
+          const SnackBar(
+            content: Text('Dados enviados com sucesso. Vamos definir o tipo de assinatura.'),
+          ),
+        );
+
+      if (registroId == null) {
+        setState(() {
+          _successResult = result;
+        });
+        return;
+      }
+
+      final assinaturaDigital = await _showSignatureDialog();
+      if (assinaturaDigital == null) {
+        ScaffoldMessenger.of(context)
+          ..clearSnackBars()
+          ..showSnackBar(
+            const SnackBar(content: Text('Assinatura não registrada.')),
+          );
+        return;
+      }
+
+      await _registrarAssinatura(
+        registroId: registroId,
+        assinaturaDigital: assinaturaDigital,
+        emissionResult: result,
       );
     } on AtpvException catch (e) {
       setState(() {
@@ -335,9 +373,11 @@ class _AtpvFormPageState extends State<AtpvFormPage> {
       });
       _showErrorAlert('Não foi possível emitir a ATPV-e.');
     } finally {
-      setState(() {
-        _isSubmitting = false;
-      });
+      if (mounted) {
+        setState(() {
+          _isSubmitting = false;
+        });
+      }
     }
   }
 
@@ -794,6 +834,28 @@ class _AtpvFormPageState extends State<AtpvFormPage> {
                   color: Colors.grey.shade700,
                 ),
           ),
+          if (_assinaturaDigital != null || (_signatureResponse?['message'] != null)) ...[
+            const SizedBox(height: 16),
+            if (_assinaturaDigital != null)
+              Text(
+                _assinaturaDigital == true
+                    ? 'A assinatura digital foi solicitada.'
+                    : 'A assinatura digital ficará pendente por enquanto.',
+                textAlign: TextAlign.center,
+                style: Theme.of(context).textTheme.bodyMedium,
+              ),
+            if ((_signatureResponse?['message']?.toString().trim().isNotEmpty ?? false))
+              Padding(
+                padding: const EdgeInsets.only(top: 12),
+                child: Text(
+                  _signatureResponse!['message'].toString(),
+                  textAlign: TextAlign.center,
+                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                        color: Colors.grey.shade600,
+                      ),
+                ),
+              ),
+          ],
           const SizedBox(height: 24),
           if (placa != null || renavam != null) ...[
             Card(
@@ -837,6 +899,8 @@ class _AtpvFormPageState extends State<AtpvFormPage> {
                 _successResult = null;
                 _termsAccepted = false;
                 _submissionError = null;
+                _signatureResponse = null;
+                _assinaturaDigital = null;
               });
               _refreshCaptcha();
             },
@@ -1012,6 +1076,136 @@ class _AtpvFormPageState extends State<AtpvFormPage> {
         ),
       ),
     );
+  }
+
+  int? _parseRegistroId(dynamic value) {
+    if (value is int) return value;
+    if (value is num) return value.toInt();
+    if (value is String) return int.tryParse(value);
+    return null;
+  }
+
+  Future<bool?> _showSignatureDialog() async {
+    bool selected = false;
+
+    return showDialog<bool>(
+      context: context,
+      barrierDismissible: false,
+      builder: (dialogContext) {
+        return StatefulBuilder(
+          builder: (context, setStateDialog) {
+            return AlertDialog(
+              title: const Text('Deseja assinar digitalmente a ATPVe?'),
+              content: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  RadioListTile<bool>(
+                    title: const Text('Sim, desejo assinar digitalmente'),
+                    value: true,
+                    groupValue: selected,
+                    onChanged: (value) {
+                      if (value == null) return;
+                      setStateDialog(() {
+                        selected = value;
+                      });
+                    },
+                  ),
+                  RadioListTile<bool>(
+                    title: const Text('Não, vou assinar posteriormente'),
+                    value: false,
+                    groupValue: selected,
+                    onChanged: (value) {
+                      if (value == null) return;
+                      setStateDialog(() {
+                        selected = value;
+                      });
+                    },
+                  ),
+                ],
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.of(dialogContext).pop(null),
+                  child: const Text('Cancelar'),
+                ),
+                FilledButton(
+                  onPressed: () => Navigator.of(dialogContext).pop(selected),
+                  child: const Text('Salvar'),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
+  }
+
+  Future<void> _registrarAssinatura({
+    required int registroId,
+    required bool assinaturaDigital,
+    required Map<String, dynamic> emissionResult,
+  }) async {
+    setState(() {
+      _isSubmitting = true;
+      _submissionError = null;
+    });
+
+    try {
+      final response = await _atpvService.registrarTipoAssinatura(
+        registroId: registroId,
+        assinaturaDigital: assinaturaDigital,
+      );
+
+      if (!mounted) return;
+
+      final updatedResult = Map<String, dynamic>.from(emissionResult)
+        ..['status'] = 'completed'
+        ..['assinatura_digital'] = assinaturaDigital
+        ..['assinatura'] = response;
+
+      setState(() {
+        _isSubmitting = false;
+        _successResult = updatedResult;
+        _signatureResponse = response;
+        _assinaturaDigital = assinaturaDigital;
+      });
+
+      final message = response['message']?.toString().trim();
+      if (message != null && message.isNotEmpty) {
+        ScaffoldMessenger.of(context)
+          ..clearSnackBars()
+          ..showSnackBar(SnackBar(content: Text(message)));
+      } else {
+        ScaffoldMessenger.of(context)
+          ..clearSnackBars()
+          ..showSnackBar(
+            SnackBar(
+              content: Text(
+                assinaturaDigital
+                    ? 'Assinatura digital registrada com sucesso.'
+                    : 'Preferência salva. Você pode assinar posteriormente.',
+              ),
+            ),
+          );
+      }
+    } on AtpvException catch (e) {
+      setState(() {
+        _submissionError = e.message;
+      });
+      await _showErrorAlert(e.message);
+    } catch (_) {
+      const fallbackMessage = 'Não foi possível registrar a assinatura. Tente novamente.';
+      setState(() {
+        _submissionError = fallbackMessage;
+      });
+      await _showErrorAlert(fallbackMessage);
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isSubmitting = false;
+        });
+      }
+    }
   }
 
   Widget _buildTextField({

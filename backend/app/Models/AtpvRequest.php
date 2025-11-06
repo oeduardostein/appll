@@ -24,12 +24,16 @@ class AtpvRequest extends Model
         'uf',
         'valor_venda',
         'cep_comprador',
+        'municipio_codigo',
         'municipio_comprador',
         'bairro_comprador',
         'logradouro_comprador',
         'numero_comprador',
         'complemento_comprador',
         'status',
+        'numero_atpv',
+        'assinatura_digital',
+        'assinatura_registrada_em',
         'response_payload',
         'response_errors',
     ];
@@ -37,6 +41,8 @@ class AtpvRequest extends Model
     protected $casts = [
         'response_payload' => 'array',
         'response_errors' => 'array',
+        'assinatura_digital' => 'boolean',
+        'assinatura_registrada_em' => 'datetime',
     ];
 
     public function user(): BelongsTo
