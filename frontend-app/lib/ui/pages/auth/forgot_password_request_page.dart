@@ -72,7 +72,9 @@ class _ForgotPasswordRequestPageState extends State<ForgotPasswordRequestPage> {
       if (!mounted) return;
       Navigator.of(context, rootNavigator: true).pop();
       if (!mounted) return;
-      _showSnackBar('Não foi possível enviar o código. Tente novamente.');
+      _showSnackBar(
+        'Não conseguimos finalizar o envio agora. Tente novamente em alguns instantes.',
+      );
     }
   }
 

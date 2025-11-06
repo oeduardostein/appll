@@ -28,7 +28,7 @@ class PasswordResetController extends Controller
         if (!$usuario) {
             // Retorna 200 para evitar enumeração de e-mails
             return response()->json([
-                'message' => 'Se existir uma conta para este e-mail, enviaremos um código.'
+                'message' => 'Se o endereço informado estiver cadastrado, enviaremos um código de verificação em instantes.'
             ]);
         }
 
@@ -51,12 +51,12 @@ class PasswordResetController extends Controller
         } catch (\Throwable $e) {
             // Em produção, logue o erro
             return response()->json([
-                'message' => 'Não foi possível enviar o e-mail agora.'
+                'message' => 'Não conseguimos enviar o e-mail neste momento. Tente novamente em alguns minutos.'
             ], 500);
         }
 
         return response()->json([
-            'message' => 'Se existir uma conta para este e-mail, enviaremos um código.'
+            'message' => 'Se o endereço informado estiver cadastrado, enviaremos um código de verificação em instantes.'
         ]);
     }
 
@@ -74,7 +74,7 @@ class PasswordResetController extends Controller
 
         if ($validator->fails()) {
             return response()->json([
-                'message' => 'Dados inválidos.',
+                'message' => 'Revise as informações e tente novamente.',
                 'errors'  => $validator->errors(),
             ], 422);
         }
@@ -88,7 +88,7 @@ class PasswordResetController extends Controller
         // Não revela se o e-mail existe
         if (!$usuario) {
             return response()->json([
-                'message' => 'Código inválido ou expirado.'
+                'message' => 'Não encontramos uma combinação válida de e-mail e código. Gere um novo código e tente outra vez.'
             ], 422);
         }
 
@@ -105,7 +105,7 @@ class PasswordResetController extends Controller
         $usuario->save();
 
         return response()->json([
-            'message' => 'Senha redefinida com sucesso.'
+            'message' => 'Senha atualizada com sucesso. Você já pode acessar o app com a nova credencial.'
         ]);
     }
 }

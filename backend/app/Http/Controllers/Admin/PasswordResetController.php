@@ -27,7 +27,7 @@ class PasswordResetController extends Controller
 
         if (! $admin) {
             return back()
-                ->with('status', 'Se existir uma conta para este e-mail, enviaremos um código.')
+                ->with('status', 'Caso exista um cadastro para esse e-mail, enviaremos um código de verificação nos próximos minutos.')
                 ->withInput();
         }
 
@@ -46,13 +46,13 @@ class PasswordResetController extends Controller
             );
         } catch (\Throwable $e) {
             return back()
-                ->withErrors(['email' => 'Não foi possível enviar o e-mail agora. Tente novamente em instantes.'])
+                ->withErrors(['email' => 'Não conseguimos enviar o e-mail neste momento. Tente novamente em alguns minutos.'])
                 ->withInput();
         }
 
         return redirect()
             ->route('admin.password.reset.form', ['email' => $admin->email])
-            ->with('status', 'Enviamos um código de recuperação para o e-mail informado.');
+            ->with('status', 'Acabamos de enviar um código de verificação para o e-mail informado. Verifique também a pasta de spam.');
     }
 
     public function showResetForm(Request $request): View
@@ -75,7 +75,7 @@ class PasswordResetController extends Controller
         if (! $admin || $admin->codigo !== $credentials['codigo']) {
             return back()
                 ->withErrors([
-                    'codigo' => 'Código inválido ou expirado.',
+                    'codigo' => 'Não encontramos uma combinação válida de e-mail e código. Gere um novo código e tente novamente.',
                 ])
                 ->withInput($request->except('password', 'password_confirmation'));
         }
@@ -86,6 +86,6 @@ class PasswordResetController extends Controller
 
         return redirect()
             ->route('admin.login')
-            ->with('status', 'Senha redefinida com sucesso. Acesse com sua nova senha.');
+            ->with('status', 'Senha atualizada com sucesso. Entre com a nova credencial.');
     }
 }

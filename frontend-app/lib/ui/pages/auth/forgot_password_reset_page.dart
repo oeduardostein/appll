@@ -70,7 +70,9 @@ class _ForgotPasswordResetPageState extends State<ForgotPasswordResetPage> {
       if (!mounted) return;
       Navigator.of(context, rootNavigator: true).pop();
       if (!mounted) return;
-      _showSnackBar('Não foi possível redefinir a senha. Tente novamente.');
+      _showSnackBar(
+        'Não conseguimos concluir a redefinição agora. Tente novamente em alguns minutos.',
+      );
     }
   }
 

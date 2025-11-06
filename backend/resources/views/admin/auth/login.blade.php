@@ -253,7 +253,9 @@
                     <div>
                         <div class="field-row">
                             <label for="password">Senha</label>
-                            <a href="{{ route('admin.password.request') }}">Esqueci minha senha</a>
+                            <a href="{{ Route::has('admin.password.request') ? route('admin.password.request') : url('/admin/password/forgot') }}">
+                                Esqueci minha senha
+                            </a>
                         </div>
                         <input
                             id="password"

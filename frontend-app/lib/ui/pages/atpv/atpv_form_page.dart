@@ -481,8 +481,6 @@ class _AtpvFormPageState extends State<AtpvFormPage> {
               ],
             ),
             const SizedBox(height: 16),
-            _buildCaptchaSection(),
-            const SizedBox(height: 16),
             _buildTextField(
               label: 'Chassi',
               controller: _chassiController,
@@ -629,6 +627,8 @@ class _AtpvFormPageState extends State<AtpvFormPage> {
                 return null;
               },
             ),
+            const SizedBox(height: 24),
+            _buildCaptchaSection(),
             const SizedBox(height: 24),
             CheckboxListTile(
               contentPadding: EdgeInsets.zero,
