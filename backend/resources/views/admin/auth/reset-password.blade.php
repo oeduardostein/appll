@@ -4,7 +4,7 @@
         <meta charset="utf-8">
         <meta name="viewport" content="width=device-width, initial-scale=1">
         <meta name="csrf-token" content="{{ csrf_token() }}">
-        <title>{{ config('app.name', 'Laravel') }} · Admin</title>
+        <title>{{ config('app.name', 'Laravel') }} · Redefinir senha</title>
         <style>
             :root {
                 --brand-primary: #0b4ea2;
@@ -33,15 +33,11 @@
                 padding: 32px 16px;
             }
 
-            .login-wrapper {
+            .card-wrapper {
                 width: min(480px, 100%);
-                display: flex;
-                flex-direction: column;
-                align-items: center;
-                text-align: left;
             }
 
-            .login-card {
+            .card {
                 width: 100%;
                 background-color: var(--surface);
                 border-radius: 24px;
@@ -54,20 +50,21 @@
             header h1 {
                 margin: 0 0 8px;
                 color: var(--text-strong);
-                font-size: 32px;
+                font-size: 30px;
                 font-weight: 600;
             }
 
             header p {
                 margin: 0;
                 color: var(--text-light);
-                font-size: 14px;
+                font-size: 15px;
+                line-height: 1.4;
             }
 
             form {
+                margin-top: 32px;
                 display: grid;
                 gap: 24px;
-                margin-top: 32px;
             }
 
             label {
@@ -79,6 +76,7 @@
             }
 
             input[type='email'],
+            input[type='text'],
             input[type='password'] {
                 width: 100%;
                 padding: 14px 16px;
@@ -90,47 +88,11 @@
                 transition: border-color 160ms ease, box-shadow 160ms ease, background-color 160ms ease;
             }
 
-            input[type='email']:focus,
-            input[type='password']:focus {
+            input:focus {
                 outline: none;
                 border-color: var(--brand-primary);
                 background: var(--surface);
                 box-shadow: 0 0 0 4px rgba(11, 78, 162, 0.18);
-            }
-
-            .field-row {
-                display: flex;
-                align-items: center;
-                justify-content: space-between;
-            }
-
-            .field-row a {
-                font-size: 14px;
-                color: var(--brand-primary);
-                text-decoration: none;
-                font-weight: 500;
-                transition: color 160ms ease;
-            }
-
-            .field-row a:hover,
-            .field-row a:focus {
-                color: var(--brand-primary-hover);
-            }
-
-            .remember {
-                display: flex;
-                align-items: center;
-                gap: 10px;
-                font-size: 14px;
-                color: var(--text-light);
-            }
-
-            .remember input[type='checkbox'] {
-                width: 18px;
-                height: 18px;
-                border-radius: 6px;
-                border: 1px solid #cbd5f5;
-                accent-color: var(--brand-primary);
             }
 
             button[type='submit'] {
@@ -154,13 +116,25 @@
                 transform: translateY(-1px);
             }
 
+            .back-link {
+                margin-top: 24px;
+                text-align: center;
+            }
+
+            .back-link a {
+                font-size: 14px;
+                color: #fff;
+                text-decoration: none;
+                font-weight: 500;
+            }
+
             .brand {
                 display: inline-flex;
                 align-items: center;
                 justify-content: center;
-                height: 120px;
-                width: 120px;
-                margin-bottom: 32px;
+                height: 100px;
+                width: 100px;
+                margin-bottom: 24px;
                 border-radius: 999px;
                 background: #fff;
                 border: 6px solid rgba(255, 255, 255, 0.65);
@@ -169,8 +143,8 @@
             }
 
             .brand img {
-                width: 86%;
-                height: 86%;
+                width: 82%;
+                height: 82%;
                 object-fit: contain;
             }
 
@@ -179,31 +153,39 @@
                     padding: 24px 12px;
                 }
 
-                .login-card {
+                .card {
                     padding: 32px 24px;
-                }
-
-                header h1 {
-                    font-size: 28px;
-                }
-
-                form {
-                    gap: 20px;
                 }
             }
         </style>
     </head>
     <body>
-        <div class="login-wrapper">
-            <span class="brand">
+        <div class="card-wrapper">
+            <div class="brand">
                 <img src="{{ asset('/backend/public/images/logoLL.png') }}" alt="Marca Grupo LL" />
-            </span>
+            </div>
 
-            <div class="login-card">
+            <div class="card">
                 <header>
-                    <h1>Entrar</h1>
-                    <p>Entre com suas credenciais para acessar o painel</p>
+                    <h1>Redefinir senha</h1>
+                    <p>Informe o e-mail, o código recebido e a nova senha.</p>
                 </header>
+
+                @if ($errors->any())
+                    <div style="
+                        background: #fee2e2;
+                        color: #b91c1c;
+                        padding: 12px 16px;
+                        border-radius: 12px;
+                        font-size: 14px;
+                        font-weight: 500;
+                        margin-bottom: 16px;
+                    ">
+                        @foreach ($errors->all() as $error)
+                            <div>{{ $error }}</div>
+                        @endforeach
+                    </div>
+                @endif
 
                 @if (session('status'))
                     <div style="
@@ -213,29 +195,14 @@
                         border-radius: 12px;
                         font-size: 14px;
                         font-weight: 500;
-                        margin-top: 16px;
+                        margin-bottom: 16px;
                     ">
                         {{ session('status') }}
                     </div>
                 @endif
 
-                <form method="POST" action="{{ route('admin.login.submit') }}">
+                <form method="POST" action="{{ route('admin.password.reset') }}">
                     @csrf
-
-                    @if ($errors->any())
-                        <div style="
-                            background: #fee2e2;
-                            color: #b91c1c;
-                            padding: 12px 16px;
-                            border-radius: 12px;
-                            font-size: 14px;
-                            font-weight: 500;
-                        ">
-                            @foreach ($errors->all() as $error)
-                                <div>{{ $error }}</div>
-                            @endforeach
-                        </div>
-                    @endif
 
                     <div>
                         <label for="email">Email</label>
@@ -243,35 +210,57 @@
                             id="email"
                             name="email"
                             type="email"
-                            placeholder="Digite seu email"
+                            placeholder="seuemail@exemplo.com"
                             autocomplete="email"
-                            value="{{ old('email') }}"
+                            value="{{ old('email', $email) }}"
                             required
                         />
                     </div>
 
                     <div>
-                        <div class="field-row">
-                            <label for="password">Senha</label>
-                            <a href="{{ route('admin.password.request') }}">Esqueci minha senha</a>
-                        </div>
+                        <label for="codigo">Código de verificação</label>
                         <input
-                            id="password"
-                            name="password"
-                            type="password"
-                            placeholder="Digite sua senha"
-                            autocomplete="current-password"
+                            id="codigo"
+                            name="codigo"
+                            type="text"
+                            inputmode="numeric"
+                            pattern="[0-9]*"
+                            placeholder="000000"
+                            value="{{ old('codigo') }}"
                             required
                         />
                     </div>
 
-                    <label class="remember">
-                        <input type="checkbox" name="remember" />
-                        Lembrar de mim
-                    </label>
+                    <div>
+                        <label for="password">Nova senha</label>
+                        <input
+                            id="password"
+                            name="password"
+                            type="password"
+                            placeholder="Mínimo de 8 caracteres"
+                            autocomplete="new-password"
+                            required
+                        />
+                    </div>
 
-                    <button type="submit">Entrar</button>
+                    <div>
+                        <label for="password_confirmation">Confirmar nova senha</label>
+                        <input
+                            id="password_confirmation"
+                            name="password_confirmation"
+                            type="password"
+                            placeholder="Repita a nova senha"
+                            autocomplete="new-password"
+                            required
+                        />
+                    </div>
+
+                    <button type="submit">Redefinir senha</button>
                 </form>
+            </div>
+
+            <div class="back-link">
+                <a href="{{ route('admin.login') }}">Voltar para o login</a>
             </div>
         </div>
     </body>

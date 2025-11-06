@@ -3,6 +3,7 @@
 use App\Http\Controllers\Admin\AuthController;
 use App\Http\Controllers\Admin\ClientController;
 use App\Http\Controllers\Admin\CreditManagementController;
+use App\Http\Controllers\Admin\PasswordResetController;
 use App\Http\Controllers\Admin\ReportController;
 use App\Http\Controllers\Admin\SettingsController;
 use App\Http\Controllers\Admin\UserController;
@@ -16,6 +17,10 @@ Route::prefix('admin')->name('admin.')->group(function () {
     Route::get('/login', [AuthController::class, 'showLoginForm'])->name('login');
     Route::post('/login', [AuthController::class, 'login'])->name('login.submit');
     Route::post('/logout', [AuthController::class, 'logout'])->name('logout');
+    Route::get('/password/forgot', [PasswordResetController::class, 'showRequestForm'])->name('password.request');
+    Route::post('/password/forgot', [PasswordResetController::class, 'sendCode'])->name('password.email');
+    Route::get('/password/reset', [PasswordResetController::class, 'showResetForm'])->name('password.reset.form');
+    Route::post('/password/reset', [PasswordResetController::class, 'resetPassword'])->name('password.reset');
 
     Route::middleware('admin.auth')->group(function () {
         Route::get('/clientes', [ClientController::class, 'index'])->name('clients.index');
