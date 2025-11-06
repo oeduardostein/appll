@@ -136,8 +136,8 @@ class EmitirAtpvController extends BaseAtpvController
             'sec-ch-ua-platform' => '"macOS"',
         ];
 
-        $municipioCode = $this->stripNonDigits($data['municipio2'] ?? '');
-        if ($municipioCode === '' && filled($data['cep_comprador'])) {
+        $municipioCode = null;
+        if (filled($data['cep_comprador'])) {
             $cepDigits = $this->stripNonDigits($data['cep_comprador']);
             if (strlen($cepDigits) === 8) {
                 try {
@@ -145,7 +145,7 @@ class EmitirAtpvController extends BaseAtpvController
                     if ($cepResponse->ok()) {
                         $cepData = $cepResponse->json();
                         if (is_array($cepData) && !($cepData['erro'] ?? false)) {
-                            $municipioCode = $this->stripNonDigits($cepData['siafi'] ?? '') ?: '0';
+                            $municipioCode = $this->stripNonDigits($cepData['siafi'] ?? '');
                         }
                     }
                 } catch (\Throwable $e) {
@@ -154,8 +154,8 @@ class EmitirAtpvController extends BaseAtpvController
             }
         }
 
-        if ($municipioCode === '') {
-            $municipioCode = '0';
+        if ($municipioCode === null || $municipioCode === '') {
+            $municipioCode = $this->stripNonDigits($data['municipio2'] ?? '') ?: '0';
         }
 
         $form = [
