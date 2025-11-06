@@ -395,6 +395,8 @@ class _AtpvFormPageState extends State<AtpvFormPage> {
       return;
     }
 
+    var dialogOpened = false;
+
     showDialog<void>(
       context: context,
       barrierDismissible: false,
@@ -402,6 +404,7 @@ class _AtpvFormPageState extends State<AtpvFormPage> {
         child: CircularProgressIndicator(),
       ),
     );
+    dialogOpened = true;
 
     try {
       final bytes = await _atpvService.baixarPdf(
@@ -411,7 +414,9 @@ class _AtpvFormPageState extends State<AtpvFormPage> {
       );
 
       if (!mounted) return;
-      Navigator.of(context, rootNavigator: true).pop();
+      if (dialogOpened) {
+        Navigator.of(context, rootNavigator: true).pop();
+      }
 
       final result = await _saveAndOpenPdf(bytes, placa);
       if (!mounted) return;
@@ -449,18 +454,16 @@ class _AtpvFormPageState extends State<AtpvFormPage> {
       }
     } on AtpvException catch (e) {
       if (!mounted) return;
-      Navigator.of(context, rootNavigator: true).pop();
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(e.message)),
-      );
+      if (dialogOpened) {
+        Navigator.of(context, rootNavigator: true).pop();
+      }
+      await _showErrorAlert(e.message);
     } catch (_) {
       if (!mounted) return;
-      Navigator.of(context, rootNavigator: true).pop();
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Não foi possível baixar o PDF da ATPV-e.'),
-        ),
-      );
+      if (dialogOpened) {
+        Navigator.of(context, rootNavigator: true).pop();
+      }
+      await _showErrorAlert('Não foi possível baixar o PDF da ATPV-e.');
     }
   }
 
