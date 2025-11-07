@@ -305,7 +305,6 @@ class _HomePageState extends State<HomePage> {
         fetchCaptcha: () => _baseEstadualService.fetchCaptcha(),
         captchaErrorResolver: _mapBaseEstadualCaptchaError,
         plateValidator: _isValidPlate,
-        ufCodes: _brazilUfCodes,
       ),
     );
   }
@@ -1364,7 +1363,6 @@ class _HomePageState extends State<HomePage> {
     try {
       final result = await _gravameService.consultar(
         placa: request.plate,
-        uf: request.uf,
         captcha: request.captcha,
       );
       if (!mounted) return;
@@ -1373,14 +1371,13 @@ class _HomePageState extends State<HomePage> {
       _registerPesquisa(
         nome: 'Gravame',
         placa: request.plate,
-        opcaoPesquisa: request.uf,
       );
       Navigator.of(context).push(
         MaterialPageRoute(
           builder: (_) => GravamePage(
             placa: request.plate,
             renavam: null,
-            uf: request.uf,
+            uf: null,
             payload: result,
           ),
         ),
@@ -3060,13 +3057,11 @@ class _VehicleLookupDialogState extends State<_VehicleLookupDialog> {
 class _GravameDialog extends StatefulWidget {
   const _GravameDialog({
     required this.fetchCaptcha,
-    required this.ufCodes,
     required this.plateValidator,
     this.captchaErrorResolver,
   });
 
   final Future<String> Function() fetchCaptcha;
-  final List<String> ufCodes;
   final bool Function(String value) plateValidator;
   final String Function(Object error)? captchaErrorResolver;
 
@@ -3079,7 +3074,6 @@ class _GravameDialogState extends State<_GravameDialog> {
   late final TextEditingController _plateController;
   late final TextEditingController _captchaController;
 
-  String? _selectedUf;
   bool _isLoadingCaptcha = false;
   String? _captchaBase64;
   String? _captchaError;
@@ -3129,12 +3123,10 @@ class _GravameDialogState extends State<_GravameDialog> {
   void _submit() {
     if (_isLoadingCaptcha || _captchaBase64 == null) return;
     if (!_formKey.currentState!.validate()) return;
-    if (_selectedUf == null || _selectedUf!.isEmpty) return;
 
     Navigator.of(context).pop(
       _GravameRequest(
         plate: _plateController.text.trim().toUpperCase(),
-        uf: _selectedUf!.toUpperCase(),
         captcha: _captchaController.text.trim().toUpperCase(),
       ),
     );
@@ -3181,7 +3173,7 @@ class _GravameDialogState extends State<_GravameDialog> {
                 ),
                 const SizedBox(height: 12),
                 Text(
-                  'Informe placa, UF e captcha para consultar o gravame.',
+                  'Informe placa e captcha para consultar o gravame.',
                   style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                         color: const Color(0xFF475467),
                       ),
@@ -3208,30 +3200,6 @@ class _GravameDialogState extends State<_GravameDialog> {
                     final normalized = text.replaceAll('-', '');
                     if (!widget.plateValidator(normalized)) {
                       return 'Placa inválida';
-                    }
-                    return null;
-                  },
-                ),
-                const SizedBox(height: 16),
-                DropdownButtonFormField<String>(
-                  value: _selectedUf,
-                  decoration: const InputDecoration(
-                    labelText: 'UF',
-                  ),
-                  items: widget.ufCodes
-                      .map(
-                        (uf) => DropdownMenuItem<String>(
-                          value: uf,
-                          child: Text(uf),
-                        ),
-                      )
-                      .toList(),
-                  onChanged: (value) => setState(() {
-                    _selectedUf = value;
-                  }),
-                  validator: (value) {
-                    if (value == null || value.isEmpty) {
-                      return 'Selecione a UF';
                     }
                     return null;
                   },
@@ -3886,12 +3854,10 @@ class _CrlvEmissionRequest {
 class _GravameRequest {
   const _GravameRequest({
     required this.plate,
-    required this.uf,
     required this.captcha,
   });
 
   final String plate;
-  final String uf;
   final String captcha;
 }
 

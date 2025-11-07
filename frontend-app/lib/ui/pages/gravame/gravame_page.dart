@@ -8,14 +8,14 @@ class GravamePage extends StatelessWidget {
   const GravamePage({
     super.key,
     required this.placa,
-    required this.uf,
     required this.payload,
     this.renavam,
+    this.uf,
   });
 
   final String placa;
-  final String uf;
   final String? renavam;
+  final String? uf;
   final Map<String, dynamic> payload;
 
   @override
@@ -136,15 +136,15 @@ class GravamePage extends StatelessWidget {
 class _GravameSummaryCard extends StatelessWidget {
   const _GravameSummaryCard({
     required this.placa,
-    required this.uf,
     this.origin,
     this.veiculo,
     this.fonte,
     this.renavam,
+    this.uf,
   });
 
   final String placa;
-  final String uf;
+  final String? uf;
   final String? renavam;
   final String? origin;
   final Map<String, dynamic>? veiculo;
@@ -251,21 +251,22 @@ class _GravameSummaryCard extends StatelessWidget {
           Row(
             children: [
               buildTile('Placa', placa),
-              const SizedBox(width: 12),
-              buildTile(
-                'Renavam',
-                (renavam == null || renavam!.trim().isEmpty) ? '—' : renavam!,
-              ),
+              if (renavam != null && renavam!.trim().isNotEmpty) ...[
+                const SizedBox(width: 12),
+                buildTile('Renavam', renavam!.trim()),
+              ],
             ],
           ),
           const SizedBox(height: 12),
           Row(
             children: [
-              buildTile('UF', uf),
-              if (procedencia != null && procedencia.isNotEmpty) ...[
-                const SizedBox(width: 12),
-                buildTile('Procedência', procedencia),
+              if (uf != null && uf!.trim().isNotEmpty) ...[
+                buildTile('UF', uf!.trim()),
+                if (procedencia != null && procedencia.isNotEmpty)
+                  const SizedBox(width: 12),
               ],
+              if (procedencia != null && procedencia.isNotEmpty)
+                buildTile('Procedência', procedencia),
             ],
           ),
         ],
