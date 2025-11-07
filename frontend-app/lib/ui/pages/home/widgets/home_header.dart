@@ -69,18 +69,6 @@ class HomeHeader extends StatelessWidget {
                 ),
                 const SizedBox(width: 12),
               ],
-              Container(
-                decoration: BoxDecoration(
-                  color: const Color(0x2EFFFFFF),
-                  borderRadius: BorderRadius.circular(16),
-                ),
-                padding: const EdgeInsets.all(10),
-                child: const Icon(
-                  Icons.notifications_none,
-                  color: Colors.white,
-                  size: 22,
-                ),
-              ),
             ],
           ),
           const SizedBox(height: 24),

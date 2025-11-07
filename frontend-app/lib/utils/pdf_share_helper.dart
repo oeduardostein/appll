@@ -16,6 +16,7 @@ class PdfShareHelper {
     final doc = pw.Document();
     final pretty = _jsonEncoder.convert(data);
     final monoFont = pw.Font.courier();
+    final trimmedSubtitle = subtitle?.trim();
 
     doc.addPage(
       pw.MultiPage(
@@ -30,10 +31,10 @@ class PdfShareHelper {
               color: PdfColors.blue900,
             ),
           ),
-          if (subtitle != null && subtitle.trim().isNotEmpty) ...[
+          if (trimmedSubtitle != null && trimmedSubtitle.isNotEmpty) ...[
             pw.SizedBox(height: 4),
             pw.Text(
-              subtitle!,
+              trimmedSubtitle,
               style: const pw.TextStyle(
                 fontSize: 12,
                 color: PdfColors.blueGrey700,
@@ -48,8 +49,8 @@ class PdfShareHelper {
               borderRadius: pw.BorderRadius.circular(10),
               border: pw.Border.all(color: PdfColors.blueGrey200, width: 0.4),
             ),
-            child: pw.Text(
-              pretty,
+            child: pw.Paragraph(
+              text: pretty,
               style: pw.TextStyle(
                 font: monoFont,
                 fontSize: 10,

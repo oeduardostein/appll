@@ -1,10 +1,14 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:pdf/pdf.dart';
+import 'package:pdf/widgets.dart' as pw;
+import 'package:share_plus/share_plus.dart';
 
 import 'package:frontend_app/models/renainf_models.dart';
 
-import '../../utils/pdf_share_helper.dart';
+import 'package:frontend_app/ui/widgets/response_top_bar.dart';
+
 import '../shared/vehicle_info_content.dart';
-import '../widgets/response_top_bar.dart';
 import 'renainf_notification_details_page.dart';
 
 class RenainfPage extends StatelessWidget {
@@ -149,7 +153,7 @@ class RenainfPage extends StatelessWidget {
       appBar: ResponseTopBar(
         title: 'RENAINF',
         subtitle: 'Placa: ${result.plate}',
-        onShare: () => _shareResult(context),
+        onShare: () => _shareResult(context, isNewFormat),
       ),
       body: SafeArea(
         child: SingleChildScrollView(
@@ -180,23 +184,53 @@ class RenainfPage extends StatelessWidget {
     );
   }
 
-  Future<void> _shareResult(BuildContext context) async {
+  Future<void> _shareResult(BuildContext context, bool isNewFormat) async {
+    bool dialogOpened = false;
+    showDialog<void>(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) => const Center(child: CircularProgressIndicator()),
+    );
+    dialogOpened = true;
+
     try {
-      await PdfShareHelper.share(
-        title: 'Consulta RENAINF',
-        filenamePrefix: 'pesquisa_renainf',
-        data: result.toJson(),
-        subtitle: 'Placa: ${result.plate} · UF pesquisada: ${result.uf}',
+      final generator = _RenainfPdfGenerator();
+      final bytes = await generator.generate(result, isNewFormat: isNewFormat);
+
+      if (dialogOpened && context.mounted) {
+        Navigator.of(context, rootNavigator: true).pop();
+        dialogOpened = false;
+      }
+
+      final sanitized = result.plate.replaceAll(RegExp(r'[^A-Za-z0-9]'), '');
+      final filename =
+          'pesquisa_renainf_${sanitized.isEmpty ? 'consulta' : sanitized}.pdf';
+
+      await Share.shareXFiles(
+        [
+          XFile.fromData(
+            bytes,
+            mimeType: 'application/pdf',
+            name: filename,
+          ),
+        ],
+        text: 'Consulta RENAINF',
+        subject: 'Consulta RENAINF',
       );
+
       if (!context.mounted) return;
       ScaffoldMessenger.of(context)
         ..clearSnackBars()
         ..showSnackBar(
           const SnackBar(
-            content: Text('PDF gerado. Selecione o app para compartilhar.'),
+            content: Text('PDF gerado. Escolha o app para compartilhar.'),
           ),
         );
     } catch (error) {
+      if (dialogOpened && context.mounted) {
+        Navigator.of(context, rootNavigator: true).pop();
+        dialogOpened = false;
+      }
       if (!context.mounted) return;
       ScaffoldMessenger.of(context)
         ..clearSnackBars()
@@ -593,3 +627,387 @@ Color _statusColor(String status) {
   }
   return const Color(0xFF475467);
 }
+
+class _RenainfPdfField {
+  const _RenainfPdfField({required this.label, required this.value});
+
+  final String label;
+  final String value;
+}
+
+class _RenainfPdfSection {
+  const _RenainfPdfSection({required this.title, required this.fields});
+
+  final String title;
+  final List<_RenainfPdfField> fields;
+}
+
+class _RenainfPdfGenerator {
+  Future<Uint8List> generate(
+    RenainfResult result, {
+    required bool isNewFormat,
+  }) async {
+    final doc = pw.Document();
+    final logo = await _loadLogo();
+    final sections = _buildSections(result, isNewFormat);
+
+    doc.addPage(
+      pw.MultiPage(
+        pageFormat: PdfPageFormat.a4,
+        margin: const pw.EdgeInsets.fromLTRB(32, 28, 32, 36),
+        build: (context) => [
+          _buildHeader(logo, result),
+          pw.SizedBox(height: 18),
+          ...sections.map(_buildSection),
+        ],
+      ),
+    );
+
+    return doc.save();
+  }
+
+  Future<pw.MemoryImage?> _loadLogo() async {
+    try {
+      final data = await rootBundle.load('assets/images/logoLL.png');
+      return pw.MemoryImage(data.buffer.asUint8List());
+    } catch (_) {
+      return null;
+    }
+  }
+
+  pw.Widget _buildHeader(pw.MemoryImage? logo, RenainfResult result) {
+    final now = DateTime.now();
+    final dateFormatted =
+        '${_twoDigits(now.day)}/${_twoDigits(now.month)}/${now.year} - '
+        '${_twoDigits(now.hour)}:${_twoDigits(now.minute)}:${_twoDigits(now.second)}';
+
+    return pw.Column(
+      crossAxisAlignment: pw.CrossAxisAlignment.start,
+      children: [
+        pw.Row(
+          crossAxisAlignment: pw.CrossAxisAlignment.start,
+          children: [
+            if (logo != null)
+              pw.Container(
+                width: 70,
+                height: 70,
+                decoration: pw.BoxDecoration(
+                  borderRadius: pw.BorderRadius.circular(16),
+                ),
+                child: pw.Image(logo),
+              ),
+            if (logo != null) pw.SizedBox(width: 16),
+            pw.Expanded(
+              child: pw.Column(
+                crossAxisAlignment: pw.CrossAxisAlignment.start,
+                children: [
+                  pw.Text(
+                    'LL DESPACHANTE',
+                    style: pw.TextStyle(
+                      fontSize: 18,
+                      fontWeight: pw.FontWeight.bold,
+                      color: PdfColors.blue900,
+                    ),
+                  ),
+                  pw.Text(
+                    'AV. DES. PLÍNIO DE CARVALHO PINTO, 05 - ENSEADA - (13) 99730-1533 / 11 3367-8400\nGUARUJÁ - SP',
+                    style: const pw.TextStyle(fontSize: 10),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+        pw.SizedBox(height: 14),
+        pw.Center(
+          child: pw.Column(
+            children: [
+              pw.Text(
+                'CONSULTA RENAINF',
+                style: pw.TextStyle(
+                  fontSize: 14,
+                  fontWeight: pw.FontWeight.bold,
+                  color: PdfColors.blue800,
+                ),
+              ),
+              pw.Text(
+                'Data da pesquisa: $dateFormatted',
+                style: const pw.TextStyle(fontSize: 10),
+              ),
+            ],
+          ),
+        ),
+        pw.SizedBox(height: 10),
+        pw.Text(
+          'Placa: ${result.plate}   |   UF pesquisada: ${result.uf}',
+          style: const pw.TextStyle(fontSize: 11),
+        ),
+      ],
+    );
+  }
+
+  pw.Widget _buildSection(_RenainfPdfSection section) {
+    return pw.Container(
+      margin: const pw.EdgeInsets.only(bottom: 16),
+      padding: const pw.EdgeInsets.all(14),
+      decoration: pw.BoxDecoration(
+        borderRadius: pw.BorderRadius.circular(10),
+        border: pw.Border.all(color: PdfColors.blueGrey300, width: 0.6),
+      ),
+      child: pw.Column(
+        crossAxisAlignment: pw.CrossAxisAlignment.start,
+        children: [
+          pw.Text(
+            section.title,
+            style: pw.TextStyle(
+              fontSize: 12,
+              fontWeight: pw.FontWeight.bold,
+              color: PdfColors.blue800,
+            ),
+          ),
+          pw.SizedBox(height: 8),
+          _buildFieldsGrid(section.fields),
+        ],
+      ),
+    );
+  }
+
+  pw.Widget _buildFieldsGrid(List<_RenainfPdfField> fields) {
+    final rows = <pw.TableRow>[];
+    for (var i = 0; i < fields.length; i += 2) {
+      final first = fields[i];
+      final second = i + 1 < fields.length ? fields[i + 1] : null;
+      rows.add(
+        pw.TableRow(
+          children: [
+            _buildFieldCell(first),
+            if (second != null) _buildFieldCell(second) else pw.Container(),
+          ],
+        ),
+      );
+    }
+
+    return pw.Table(
+      columnWidths: const {
+        0: pw.FlexColumnWidth(1),
+        1: pw.FlexColumnWidth(1),
+      },
+      defaultVerticalAlignment: pw.TableCellVerticalAlignment.middle,
+      children: rows,
+    );
+  }
+
+  pw.Widget _buildFieldCell(_RenainfPdfField field) {
+    return pw.Padding(
+      padding: const pw.EdgeInsets.all(4),
+      child: pw.Column(
+        crossAxisAlignment: pw.CrossAxisAlignment.start,
+        children: [
+          pw.Text(
+            field.label,
+            style: pw.TextStyle(
+              fontSize: 9,
+              fontWeight: pw.FontWeight.bold,
+              color: PdfColors.blueGrey700,
+            ),
+          ),
+          pw.SizedBox(height: 2),
+          pw.Text(
+            field.value,
+            style: pw.TextStyle(
+              fontSize: 11,
+              color: PdfColors.blueGrey900,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  List<_RenainfPdfSection> _buildSections(
+    RenainfResult result,
+    bool isNewFormat,
+  ) {
+    final sections = <_RenainfPdfSection?>[];
+
+    sections.add(
+      _RenainfPdfSection(
+        title: 'Dados da consulta',
+        fields: _filterFields(
+          [
+            _field('Placa consultada', result.plate),
+            _field('UF pesquisada', result.uf),
+            _field(
+              'Período pesquisado',
+              '${_formatDate(result.startDate)} • ${_formatDate(result.endDate)}',
+            ),
+            _field('Status do filtro', result.statusLabel),
+          ],
+        ),
+      ),
+    );
+
+    if (result.consulta != null) {
+      sections.add(
+        _RenainfPdfSection(
+          title: 'Consulta RENAINF',
+          fields: _filterFields(
+            [
+              _field('UF de emplacamento', result.consulta?.ufEmplacamento),
+              _field('Indicador de exigibilidade', result.consulta?.indicadorExigibilidade),
+            ],
+          ),
+        ),
+      );
+    }
+
+    sections.add(
+      _RenainfPdfSection(
+        title: 'Resumo financeiro',
+        fields: _filterFields(
+          [
+            _field('Total de infrações', result.summary.totalInfractions),
+            _currencyField('Valor total', result.summary.totalValue),
+            _currencyField('Valor em aberto', result.summary.openValue),
+            _field(
+              'Última atualização',
+              _formatDateTime(
+                result.summary.lastUpdatedAt,
+                fallback: result.summary.lastUpdatedLabel,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+
+    if (result.sourceTitle != null || result.sourceGeneratedAt != null) {
+      sections.add(
+        _RenainfPdfSection(
+          title: 'Fonte',
+          fields: _filterFields(
+            [
+              _field('Sistema', result.sourceTitle),
+              _field('Gerado em', result.sourceGeneratedAt),
+            ],
+          ),
+        ),
+      );
+    }
+
+    if (isNewFormat) {
+      sections.add(
+        _RenainfPdfSection(
+          title: 'Ocorrências',
+          fields: _filterFields(
+            [
+              _field(
+                'Quantidade',
+                result.occurrencesCount ?? result.occurrences.length,
+              ),
+              _field(
+                'Indicador de exigibilidade',
+                result.consulta?.indicadorExigibilidade ?? result.statusLabel,
+              ),
+            ],
+          ),
+        ),
+      );
+      sections.addAll(_buildOccurrenceSections(result.occurrences));
+    } else {
+      sections.addAll(_buildInfractionSections(result.infractions));
+    }
+
+    return sections.whereType<_RenainfPdfSection>().toList();
+  }
+
+  List<_RenainfPdfSection> _buildOccurrenceSections(
+    List<RenainfOccurrence> occurrences,
+  ) {
+    final sections = <_RenainfPdfSection>[];
+    for (var i = 0; i < occurrences.length; i++) {
+      final occurrence = occurrences[i];
+      sections.add(
+        _RenainfPdfSection(
+          title: 'Ocorrência ${i + 1}',
+          fields: _filterFields(
+            [
+              _field('Órgão autuador', occurrence.orgaoAutuador),
+              _field('Auto de infração', occurrence.autoInfracao),
+              _field('Infração', occurrence.infracao),
+              _field('Data da infração', occurrence.dataInfracao),
+              _field('Exigibilidade', occurrence.exigibilidade),
+            ],
+          ),
+        ),
+      );
+    }
+    return sections;
+  }
+
+  List<_RenainfPdfSection> _buildInfractionSections(
+    List<RenainfInfraction> infractions,
+  ) {
+    final sections = <_RenainfPdfSection>[];
+    for (var i = 0; i < infractions.length; i++) {
+      final infraction = infractions[i];
+      sections.add(
+        _RenainfPdfSection(
+          title: 'Infração ${i + 1}',
+          fields: _filterFields(
+            [
+              _field('Auto', infraction.code),
+              _field('Descrição', infraction.description),
+              _field('Status', infraction.status),
+              _currencyField('Valor', infraction.amount),
+              _field('Data', infraction.date != null
+                  ? _formatDate(infraction.date)
+                  : infraction.dateLabel),
+              _field('Órgão autuador', infraction.origin),
+              _field('Local', infraction.local),
+              _field('Município placa', infraction.municipioPlaca),
+              _field('Classificação', infraction.classificacao),
+              _field('Tipo de auto', infraction.tipoAuto),
+            ],
+          ),
+        ),
+      );
+    }
+    return sections;
+  }
+}
+
+List<_RenainfPdfField> _filterFields(List<_RenainfPdfField?> fields) {
+  return fields.whereType<_RenainfPdfField>().toList();
+}
+
+_RenainfPdfField? _field(String label, dynamic value) {
+  final text = _formatDisplayValue(value);
+  if (text == '—') return null;
+  return _RenainfPdfField(label: label, value: text);
+}
+
+_RenainfPdfField? _currencyField(String label, double? value) {
+  if (value == null) return null;
+  return _RenainfPdfField(label: label, value: _formatCurrency(value));
+}
+
+String _formatDisplayValue(dynamic value) {
+  if (value == null) return '—';
+  if (value is String) {
+    final trimmed = value.trim();
+    if (trimmed.isEmpty || RegExp(r'^-+$').hasMatch(trimmed)) {
+      return '—';
+    }
+    return trimmed;
+  }
+  if (value is num) {
+    return value.toString();
+  }
+  if (value is bool) {
+    return value ? 'Sim' : 'Não';
+  }
+  return value.toString();
+}
+
+String _twoDigits(int value) => value.toString().padLeft(2, '0');

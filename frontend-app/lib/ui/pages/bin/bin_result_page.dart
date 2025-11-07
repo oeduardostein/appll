@@ -2,9 +2,11 @@ import 'dart:convert';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:pdf/pdf.dart';
+import 'package:pdf/widgets.dart' as pw;
+import 'package:share_plus/share_plus.dart';
 
 import 'package:frontend_app/ui/widgets/response_top_bar.dart';
-import 'package:frontend_app/utils/pdf_share_helper.dart';
 
 String? _nonEmptyString(dynamic value) {
   if (value == null) return null;
@@ -26,26 +28,26 @@ class BinResultPage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final normalized = _asMap(payload['normalized']);
-    final identificacao =
-        _asMap(normalized?['identificacao_do_veiculo_na_bin']);
-    final gravames = _asMap(normalized?['gravames']);
-    final sections = _asSectionList(payload['sections']);
-    final fonte = _asMap(payload['fonte']);
+    final structured = _BinStructuredPayload.fromPayload(
+      payload,
+      fallbackPlaca: placa,
+      fallbackRenavam: renavam,
+    );
 
-    final displayPlaca = _nonEmptyString(identificacao?['placa']) ?? placa;
-    final displayRenavam =
-        _nonEmptyString(identificacao?['renavam']) ?? renavam;
-    final displayChassi = _nonEmptyString(identificacao?['chassi']);
-    final displayProprietario =
-        _nonEmptyString(gravames?['nome_financiado']);
+    final sections = structured.sections;
+    final fonte = structured.fonte;
+
+    final displayPlaca = structured.displayPlaca;
+    final displayRenavam = structured.displayRenavam;
+    final displayChassi = structured.displayChassi;
+    final displayProprietario = structured.displayProprietario;
     final formattedJson = const JsonEncoder.withIndent('  ').convert(payload);
 
     return Scaffold(
       appBar: ResponseTopBar(
         title: 'Pesquisa BIN',
         subtitle: 'Placa: $displayPlaca',
-        onShare: () => _shareResult(context),
+        onShare: () => _shareResult(context, structured),
         actions: [
           IconButton(
             tooltip: 'Copiar resultado',
@@ -99,23 +101,55 @@ class BinResultPage extends StatelessWidget {
       );
   }
 
-  Future<void> _shareResult(BuildContext context) async {
+  Future<void> _shareResult(
+    BuildContext context,
+    _BinStructuredPayload structured,
+  ) async {
+    bool dialogOpened = false;
+    showDialog<void>(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) => const Center(child: CircularProgressIndicator()),
+    );
+    dialogOpened = true;
+
     try {
-      await PdfShareHelper.share(
-        title: 'Pesquisa BIN',
-        filenamePrefix: 'pesquisa_bin',
-        data: payload,
-        subtitle: 'Placa: ${_nonEmptyString(payload['placa']) ?? placa}',
+      final generator = _BinPdfGenerator();
+      final bytes = await generator.generate(structured);
+
+      if (dialogOpened && context.mounted) {
+        Navigator.of(context, rootNavigator: true).pop();
+        dialogOpened = false;
+      }
+
+      final sanitized = structured.displayPlaca.replaceAll(RegExp(r'[^A-Za-z0-9]'), '');
+      final filename =
+          'pesquisa_bin_${sanitized.isEmpty ? 'consulta' : sanitized}.pdf';
+
+      await Share.shareXFiles(
+        [
+          XFile.fromData(
+            bytes,
+            mimeType: 'application/pdf',
+            name: filename,
+          ),
+        ],
+        text: 'Pesquisa BIN',
+        subject: 'Pesquisa BIN',
       );
+
       if (!context.mounted) return;
       ScaffoldMessenger.of(context)
         ..clearSnackBars()
         ..showSnackBar(
           const SnackBar(
-            content: Text('PDF gerado. Selecione o app para compartilhar.'),
+            content: Text('PDF gerado. Escolha o app para compartilhar.'),
           ),
         );
     } catch (error) {
+      if (dialogOpened && context.mounted) {
+        Navigator.of(context, rootNavigator: true).pop();
+      }
       if (!context.mounted) return;
       ScaffoldMessenger.of(context)
         ..clearSnackBars()
@@ -415,3 +449,316 @@ class _SectionItemsList extends StatelessWidget {
     );
   }
 }
+
+class _BinStructuredPayload {
+  const _BinStructuredPayload({
+    required this.payload,
+    required this.displayPlaca,
+    required this.displayRenavam,
+    this.displayChassi,
+    this.displayProprietario,
+    this.fonte,
+    required this.sections,
+  });
+
+  final Map<String, dynamic> payload;
+  final String displayPlaca;
+  final String displayRenavam;
+  final String? displayChassi;
+  final String? displayProprietario;
+  final Map<String, dynamic>? fonte;
+  final List<_BinSection> sections;
+
+  factory _BinStructuredPayload.fromPayload(
+    Map<String, dynamic> payload, {
+    required String fallbackPlaca,
+    required String fallbackRenavam,
+  }) {
+    final normalized = BinResultPage._asMap(payload['normalized']);
+    final identificacao = BinResultPage._asMap(
+      normalized?['identificacao_do_veiculo_na_bin'],
+    );
+    final gravames = BinResultPage._asMap(normalized?['gravames']);
+    final fonte = BinResultPage._asMap(payload['fonte']);
+
+    final displayPlaca =
+        _nonEmptyString(identificacao?['placa']) ?? fallbackPlaca;
+    final displayRenavam =
+        _nonEmptyString(identificacao?['renavam']) ?? fallbackRenavam;
+    final displayChassi = _nonEmptyString(identificacao?['chassi']);
+    final displayProprietario = _nonEmptyString(gravames?['nome_financiado']);
+
+    return _BinStructuredPayload(
+      payload: payload,
+      displayPlaca: displayPlaca,
+      displayRenavam: displayRenavam,
+      displayChassi: displayChassi,
+      displayProprietario: displayProprietario,
+      fonte: fonte,
+      sections: _asSectionList(payload['sections']),
+    );
+  }
+}
+
+class _BinPdfField {
+  const _BinPdfField({required this.label, required this.value});
+
+  final String label;
+  final String value;
+}
+
+class _BinPdfSection {
+  const _BinPdfSection({required this.title, required this.fields});
+
+  final String title;
+  final List<_BinPdfField> fields;
+}
+
+class _BinPdfGenerator {
+  Future<Uint8List> generate(_BinStructuredPayload data) async {
+    final doc = pw.Document();
+    final logo = await _loadLogo();
+    final sections = _buildSections(data);
+
+    doc.addPage(
+      pw.MultiPage(
+        pageFormat: PdfPageFormat.a4,
+        margin: const pw.EdgeInsets.fromLTRB(32, 28, 32, 36),
+        build: (context) => [
+          _buildHeader(
+            logo: logo,
+            placa: data.displayPlaca,
+            renavam: data.displayRenavam,
+            chassi: data.displayChassi,
+            proprietario: data.displayProprietario,
+          ),
+          pw.SizedBox(height: 18),
+          ...sections.map(_buildSection),
+        ],
+      ),
+    );
+
+    return doc.save();
+  }
+
+  Future<pw.MemoryImage?> _loadLogo() async {
+    try {
+      final data = await rootBundle.load('assets/images/logoLL.png');
+      return pw.MemoryImage(data.buffer.asUint8List());
+    } catch (_) {
+      return null;
+    }
+  }
+
+  pw.Widget _buildHeader({
+    required pw.MemoryImage? logo,
+    required String placa,
+    required String renavam,
+    String? chassi,
+    String? proprietario,
+  }) {
+    final now = DateTime.now();
+    final dateFormatted =
+        '${_twoDigits(now.day)}/${_twoDigits(now.month)}/${now.year} - '
+        '${_twoDigits(now.hour)}:${_twoDigits(now.minute)}:${_twoDigits(now.second)}';
+
+    return pw.Column(
+      crossAxisAlignment: pw.CrossAxisAlignment.start,
+      children: [
+        pw.Row(
+          crossAxisAlignment: pw.CrossAxisAlignment.start,
+          children: [
+            if (logo != null)
+              pw.Container(
+                width: 70,
+                height: 70,
+                decoration: pw.BoxDecoration(
+                  borderRadius: pw.BorderRadius.circular(16),
+                ),
+                child: pw.Image(logo),
+              ),
+            if (logo != null) pw.SizedBox(width: 16),
+            pw.Expanded(
+              child: pw.Column(
+                crossAxisAlignment: pw.CrossAxisAlignment.start,
+                children: [
+                  pw.Text(
+                    'LL DESPACHANTE',
+                    style: pw.TextStyle(
+                      fontSize: 18,
+                      fontWeight: pw.FontWeight.bold,
+                      color: PdfColors.blue900,
+                    ),
+                  ),
+                  pw.Text(
+                    'AV. DES. PLÍNIO DE CARVALHO PINTO, 05 - ENSEADA - (13) 99730-1533 / 11 3367-8400\nGUARUJÁ - SP',
+                    style: const pw.TextStyle(fontSize: 10),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+        pw.SizedBox(height: 14),
+        pw.Center(
+          child: pw.Column(
+            children: [
+              pw.Text(
+                'PESQUISA BIN',
+                style: pw.TextStyle(
+                  fontSize: 14,
+                  fontWeight: pw.FontWeight.bold,
+                  color: PdfColors.blue800,
+                ),
+              ),
+              pw.Text(
+                'Data da pesquisa: $dateFormatted',
+                style: const pw.TextStyle(fontSize: 10),
+              ),
+            ],
+          ),
+        ),
+        pw.SizedBox(height: 10),
+        pw.Text(
+          'Placa: $placa   |   Renavam: $renavam   |   Chassi: ${_formatDisplayValue(chassi)}',
+          style: const pw.TextStyle(fontSize: 11),
+        ),
+        if (proprietario != null && proprietario.trim().isNotEmpty)
+          pw.Text(
+            'Proprietário: $proprietario',
+            style: const pw.TextStyle(fontSize: 11),
+          ),
+      ],
+    );
+  }
+
+  pw.Widget _buildSection(_BinPdfSection section) {
+    return pw.Container(
+      margin: const pw.EdgeInsets.only(bottom: 16),
+      padding: const pw.EdgeInsets.all(14),
+      decoration: pw.BoxDecoration(
+        borderRadius: pw.BorderRadius.circular(10),
+        border: pw.Border.all(color: PdfColors.blueGrey300, width: 0.6),
+      ),
+      child: pw.Column(
+        crossAxisAlignment: pw.CrossAxisAlignment.start,
+        children: [
+          pw.Text(
+            section.title,
+            style: pw.TextStyle(
+              fontSize: 12,
+              fontWeight: pw.FontWeight.bold,
+              color: PdfColors.blue800,
+            ),
+          ),
+          pw.SizedBox(height: 8),
+          _buildFieldsGrid(section.fields),
+        ],
+      ),
+    );
+  }
+
+  pw.Widget _buildFieldsGrid(List<_BinPdfField> fields) {
+    final rows = <pw.TableRow>[];
+    for (var i = 0; i < fields.length; i += 2) {
+      final first = fields[i];
+      final second = i + 1 < fields.length ? fields[i + 1] : null;
+      rows.add(
+        pw.TableRow(
+          children: [
+            _buildFieldCell(first),
+            if (second != null) _buildFieldCell(second) else pw.Container(),
+          ],
+        ),
+      );
+    }
+
+    return pw.Table(
+      columnWidths: const {
+        0: pw.FlexColumnWidth(1),
+        1: pw.FlexColumnWidth(1),
+      },
+      defaultVerticalAlignment: pw.TableCellVerticalAlignment.middle,
+      children: rows,
+    );
+  }
+
+  pw.Widget _buildFieldCell(_BinPdfField field) {
+    return pw.Padding(
+      padding: const pw.EdgeInsets.all(4),
+      child: pw.Column(
+        crossAxisAlignment: pw.CrossAxisAlignment.start,
+        children: [
+          pw.Text(
+            field.label,
+            style: pw.TextStyle(
+              fontSize: 9,
+              fontWeight: pw.FontWeight.bold,
+              color: PdfColors.blueGrey700,
+            ),
+          ),
+          pw.SizedBox(height: 2),
+          pw.Text(
+            field.value,
+            style: pw.TextStyle(
+              fontSize: 11,
+              color: PdfColors.blueGrey900,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  List<_BinPdfSection> _buildSections(_BinStructuredPayload data) {
+    final sections = <_BinPdfSection?>[
+      _pdfSectionFromMap('Fonte', data.fonte),
+    ];
+
+    for (final section in data.sections) {
+      sections.add(_pdfSectionFromItems(section.title, section.items));
+    }
+
+    return sections.whereType<_BinPdfSection>().toList();
+  }
+}
+
+_BinPdfSection? _pdfSectionFromMap(
+  String title,
+  Map<String, dynamic>? data,
+) {
+  if (data == null || data.isEmpty) return null;
+  final fields = data.entries
+      .map(
+        (entry) => _BinPdfField(
+          label: _formatLabel(entry.key),
+          value: _formatDisplayValue(entry.value),
+        ),
+      )
+      .where((field) => field.value.isNotEmpty && field.value != '—')
+      .toList();
+  if (fields.isEmpty) return null;
+  return _BinPdfSection(title: title, fields: fields);
+}
+
+_BinPdfSection? _pdfSectionFromItems(String title, List<_BinItem> items) {
+  if (items.isEmpty) return null;
+  final fields = items
+      .map(
+        (item) => _BinPdfField(
+          label: item.label,
+          value: item.displayValue,
+        ),
+      )
+      .where((field) => field.value.isNotEmpty)
+      .toList();
+  if (fields.isEmpty) return null;
+  return _BinPdfSection(title: title, fields: fields);
+}
+
+String _formatDisplayValue(dynamic value) {
+  final computed = _nonEmptyString(value);
+  return computed ?? '—';
+}
+
+String _twoDigits(int value) => value.toString().padLeft(2, '0');

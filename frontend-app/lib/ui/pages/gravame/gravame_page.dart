@@ -1,10 +1,13 @@
 import 'dart:convert';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:pdf/pdf.dart';
+import 'package:pdf/widgets.dart' as pw;
+import 'package:share_plus/share_plus.dart';
 
 import '../shared/gravame_details_card.dart';
-import '../widgets/response_top_bar.dart';
-import '../../utils/pdf_share_helper.dart';
+import 'package:frontend_app/ui/widgets/response_top_bar.dart';
 
 class GravamePage extends StatelessWidget {
   const GravamePage({
@@ -22,12 +25,13 @@ class GravamePage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final fonte = _asMap(payload['fonte']);
-    final veiculo = _asMap(payload['veiculo']);
-    final gravames = _asMap(payload['gravames']);
-    final gravamesDatas = _asMap(payload['gravames_datas']);
-    final intencao = _asMap(payload['intencao_gravame']);
-    final origin = payload['origin']?.toString();
+    final structured = _GravameStructuredPayload.fromPayload(payload);
+    final fonte = structured.fonte;
+    final veiculo = structured.veiculo;
+    final gravames = structured.gravames;
+    final gravamesDatas = structured.gravamesDatas;
+    final intencao = structured.intencaoGravame;
+    final origin = structured.origin;
 
     final inclusionDate = _nonEmptyString(intencao?['data_inclusao']) ??
         _nonEmptyString(gravamesDatas?['inclusao_financiamento']) ??
@@ -63,7 +67,7 @@ class GravamePage extends StatelessWidget {
       appBar: ResponseTopBar(
         title: 'Gravame',
         subtitle: 'Placa: $placa',
-        onShare: () => _shareResult(context),
+        onShare: () => _shareResult(context, structured),
       ),
       body: SafeArea(
         child: SingleChildScrollView(
@@ -118,42 +122,60 @@ class GravamePage extends StatelessWidget {
     );
   }
 
-  Map<String, dynamic>? _asMap(dynamic value) {
-    if (value is Map<String, dynamic>) return value;
-    if (value is Map) {
-      return value.map(
-        (key, dynamic val) => MapEntry(key.toString(), val),
-      );
-    }
-    return null;
-  }
+  Future<void> _shareResult(
+    BuildContext context,
+    _GravameStructuredPayload structured,
+  ) async {
+    bool dialogOpened = false;
+    showDialog<void>(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) => const Center(child: CircularProgressIndicator()),
+    );
+    dialogOpened = true;
 
-  String? _nonEmptyString(dynamic value) {
-    if (value == null) return null;
-    final text = value.toString().trim();
-    if (text.isEmpty) return null;
-    if (RegExp(r'^-+$').hasMatch(text)) return null;
-    return text;
-  }
-}
-
-  Future<void> _shareResult(BuildContext context) async {
     try {
-      await PdfShareHelper.share(
-        title: 'Pesquisa Gravame',
-        filenamePrefix: 'pesquisa_gravame',
-        data: payload,
-        subtitle: 'Placa: $placa',
+      final generator = _GravamePdfGenerator();
+      final bytes = await generator.generate(
+        data: structured,
+        placa: placa,
+        renavam: renavam,
+        uf: uf,
       );
+
+      if (dialogOpened && context.mounted) {
+        Navigator.of(context, rootNavigator: true).pop();
+        dialogOpened = false;
+      }
+
+      final sanitized = placa.replaceAll(RegExp(r'[^A-Za-z0-9]'), '');
+      final filename =
+          'pesquisa_gravame_${sanitized.isEmpty ? 'consulta' : sanitized}.pdf';
+
+      await Share.shareXFiles(
+        [
+          XFile.fromData(
+            bytes,
+            mimeType: 'application/pdf',
+            name: filename,
+          ),
+        ],
+        text: 'Pesquisa Gravame',
+        subject: 'Pesquisa Gravame',
+      );
+
       if (!context.mounted) return;
       ScaffoldMessenger.of(context)
         ..clearSnackBars()
         ..showSnackBar(
           const SnackBar(
-            content: Text('PDF gerado. Selecione o app para compartilhar.'),
+            content: Text('PDF gerado. Escolha o app para compartilhar.'),
           ),
         );
     } catch (error) {
+      if (dialogOpened && context.mounted) {
+        Navigator.of(context, rootNavigator: true).pop();
+      }
       if (!context.mounted) return;
       ScaffoldMessenger.of(context)
         ..clearSnackBars()
@@ -164,6 +186,7 @@ class GravamePage extends StatelessWidget {
         );
     }
   }
+}
 
 class _GravameSummaryCard extends StatelessWidget {
   const _GravameSummaryCard({
@@ -306,3 +329,433 @@ class _GravameSummaryCard extends StatelessWidget {
     );
   }
 }
+
+class _GravameStructuredPayload {
+  const _GravameStructuredPayload({
+    this.fonte,
+    this.veiculo,
+    this.gravames,
+    this.gravamesDatas,
+    this.intencaoGravame,
+    this.origin,
+  });
+
+  final Map<String, dynamic>? fonte;
+  final Map<String, dynamic>? veiculo;
+  final Map<String, dynamic>? gravames;
+  final Map<String, dynamic>? gravamesDatas;
+  final Map<String, dynamic>? intencaoGravame;
+  final String? origin;
+
+  factory _GravameStructuredPayload.fromPayload(Map<String, dynamic> payload) {
+    return _GravameStructuredPayload(
+      fonte: _asMap(payload['fonte']),
+      veiculo: _asMap(payload['veiculo']),
+      gravames: _asMap(payload['gravames']),
+      gravamesDatas: _asMap(payload['gravames_datas']),
+      intencaoGravame: _asMap(payload['intencao_gravame']),
+      origin: payload['origin']?.toString(),
+    );
+  }
+}
+
+class _GravamePdfField {
+  const _GravamePdfField({required this.label, required this.value});
+
+  final String label;
+  final String value;
+}
+
+class _GravamePdfSection {
+  const _GravamePdfSection({required this.title, required this.fields});
+
+  final String title;
+  final List<_GravamePdfField> fields;
+}
+
+class _GravamePdfGenerator {
+  Future<Uint8List> generate({
+    required _GravameStructuredPayload data,
+    required String placa,
+    String? renavam,
+    String? uf,
+  }) async {
+    final sections = _buildSections(data, placa, renavam, uf);
+    final doc = pw.Document();
+    final logo = await _loadLogo();
+
+    doc.addPage(
+      pw.MultiPage(
+        pageFormat: PdfPageFormat.a4,
+        margin: const pw.EdgeInsets.fromLTRB(32, 28, 32, 36),
+        build: (context) => [
+          _buildHeader(
+            logo: logo,
+            placa: placa,
+            renavam: renavam,
+            uf: uf,
+            origin: data.origin,
+          ),
+          pw.SizedBox(height: 18),
+          ...sections.map(_buildSection),
+        ],
+      ),
+    );
+
+    return doc.save();
+  }
+
+  Future<pw.MemoryImage?> _loadLogo() async {
+    try {
+      final data = await rootBundle.load('assets/images/logoLL.png');
+      return pw.MemoryImage(data.buffer.asUint8List());
+    } catch (_) {
+      return null;
+    }
+  }
+
+  pw.Widget _buildHeader({
+    required pw.MemoryImage? logo,
+    required String placa,
+    String? renavam,
+    String? uf,
+    String? origin,
+  }) {
+    final now = DateTime.now();
+    final dateFormatted =
+        '${_twoDigits(now.day)}/${_twoDigits(now.month)}/${now.year} - '
+        '${_twoDigits(now.hour)}:${_twoDigits(now.minute)}:${_twoDigits(now.second)}';
+
+    return pw.Column(
+      crossAxisAlignment: pw.CrossAxisAlignment.start,
+      children: [
+        pw.Row(
+          crossAxisAlignment: pw.CrossAxisAlignment.start,
+          children: [
+            if (logo != null)
+              pw.Container(
+                width: 70,
+                height: 70,
+                decoration: pw.BoxDecoration(
+                  borderRadius: pw.BorderRadius.circular(16),
+                ),
+                child: pw.Image(logo),
+              ),
+            if (logo != null) pw.SizedBox(width: 16),
+            pw.Expanded(
+              child: pw.Column(
+                crossAxisAlignment: pw.CrossAxisAlignment.start,
+                children: [
+                  pw.Text(
+                    'LL DESPACHANTE',
+                    style: pw.TextStyle(
+                      fontSize: 18,
+                      fontWeight: pw.FontWeight.bold,
+                      color: PdfColors.blue900,
+                    ),
+                  ),
+                  pw.Text(
+                    'AV. DES. PLÍNIO DE CARVALHO PINTO, 05 - ENSEADA - (13) 99730-1533 / 11 3367-8400\nGUARUJÁ - SP',
+                    style: const pw.TextStyle(fontSize: 10),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+        pw.SizedBox(height: 14),
+        pw.Center(
+          child: pw.Column(
+            children: [
+              pw.Text(
+                'PESQUISA GRAVAME',
+                style: pw.TextStyle(
+                  fontSize: 14,
+                  fontWeight: pw.FontWeight.bold,
+                  color: PdfColors.blue800,
+                ),
+              ),
+              pw.Text(
+                'Data da pesquisa: $dateFormatted',
+                style: const pw.TextStyle(fontSize: 10),
+              ),
+              if (origin != null && origin.trim().isNotEmpty)
+                pw.Text(
+                  'Origem: ${origin == 'another_base_estadual' ? 'Outros estados' : origin}',
+                  style: const pw.TextStyle(fontSize: 10),
+                ),
+            ],
+          ),
+        ),
+        pw.SizedBox(height: 10),
+        pw.Text(
+          'Placa: ${placa.toUpperCase()}   |   Renavam: ${_formatDisplayValue(renavam)}   |   UF: ${_formatDisplayValue(uf)}',
+          style: const pw.TextStyle(fontSize: 11),
+        ),
+      ],
+    );
+  }
+
+  pw.Widget _buildSection(_GravamePdfSection section) {
+    return pw.Container(
+      margin: const pw.EdgeInsets.only(bottom: 16),
+      padding: const pw.EdgeInsets.all(14),
+      decoration: pw.BoxDecoration(
+        borderRadius: pw.BorderRadius.circular(10),
+        border: pw.Border.all(color: PdfColors.blueGrey300, width: 0.6),
+      ),
+      child: pw.Column(
+        crossAxisAlignment: pw.CrossAxisAlignment.start,
+        children: [
+          pw.Text(
+            section.title,
+            style: pw.TextStyle(
+              fontSize: 12,
+              fontWeight: pw.FontWeight.bold,
+              color: PdfColors.blue800,
+            ),
+          ),
+          pw.SizedBox(height: 8),
+          _buildFieldsGrid(section.fields),
+        ],
+      ),
+    );
+  }
+
+  pw.Widget _buildFieldsGrid(List<_GravamePdfField> fields) {
+    final rows = <pw.TableRow>[];
+    for (var i = 0; i < fields.length; i += 2) {
+      final first = fields[i];
+      final second = i + 1 < fields.length ? fields[i + 1] : null;
+      rows.add(
+        pw.TableRow(
+          children: [
+            _buildFieldCell(first),
+            if (second != null) _buildFieldCell(second) else pw.Container(),
+          ],
+        ),
+      );
+    }
+
+    return pw.Table(
+      columnWidths: const {
+        0: pw.FlexColumnWidth(1),
+        1: pw.FlexColumnWidth(1),
+      },
+      defaultVerticalAlignment: pw.TableCellVerticalAlignment.middle,
+      children: rows,
+    );
+  }
+
+  pw.Widget _buildFieldCell(_GravamePdfField field) {
+    return pw.Padding(
+      padding: const pw.EdgeInsets.all(4),
+      child: pw.Column(
+        crossAxisAlignment: pw.CrossAxisAlignment.start,
+        children: [
+          pw.Text(
+            field.label,
+            style: pw.TextStyle(
+              fontSize: 9,
+              fontWeight: pw.FontWeight.bold,
+              color: PdfColors.blueGrey700,
+            ),
+          ),
+          pw.SizedBox(height: 2),
+          pw.Text(
+            field.value,
+            style: pw.TextStyle(
+              fontSize: 11,
+              color: PdfColors.blueGrey900,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  List<_GravamePdfSection> _buildSections(
+    _GravameStructuredPayload data,
+    String placa,
+    String? renavam,
+    String? uf,
+  ) {
+    final sections = <_GravamePdfSection?>[
+      _pdfSectionFromMap(
+        'Dados da consulta',
+        {
+          'placa': placa,
+          'renavam': renavam,
+          'uf': uf,
+          'origin': data.origin,
+          'gerado_em': data.fonte?['gerado_em'],
+        },
+        const {
+          'placa': 'Placa',
+          'renavam': 'Renavam',
+          'uf': 'UF',
+          'origin': 'Origem',
+          'gerado_em': 'Gerado em',
+        },
+      ),
+      _pdfSectionFromMap(
+        'Veículo',
+        data.veiculo,
+        const {
+          'marca': 'Marca',
+          'modelo': 'Modelo',
+          'tipo': 'Tipo',
+          'categoria': 'Categoria',
+          'procedencia': 'Procedência',
+          'combustivel': 'Combustível',
+          'cor': 'Cor',
+          'ano_fabricacao': 'Ano fabricação',
+          'ano_modelo': 'Ano modelo',
+          'chassi': 'Chassi',
+        },
+      ),
+      _pdfSectionFromMap(
+        'Gravame atual',
+        data.gravames,
+        const {
+          'restricao_financeira': 'Restrição financeira',
+          'nome_agente': 'Nome do agente',
+          'arrendatario': 'Arrendatário',
+          'cnpj_cpf_financiado': 'CNPJ/CPF financiado',
+          'numero_contrato': 'Número do contrato',
+        },
+        excludeKeys: const {'datas'},
+      ),
+      _pdfSectionFromMap(
+        'Gravame - Datas',
+        data.gravamesDatas,
+        const {
+          'inclusao_financiamento': 'Inclusão financiamento',
+          'emissao': 'Emissão',
+        },
+      ),
+      _pdfSectionFromMap(
+        'Intenção de gravame',
+        data.intencaoGravame,
+        const {
+          'restricao_financeira': 'Restrição financeira',
+          'agente_financeiro': 'Agente financeiro',
+          'nome_financiado': 'Nome financiado',
+          'cnpj_cpf': 'CNPJ/CPF',
+          'data_inclusao': 'Data inclusão',
+        },
+      ),
+    ];
+
+    return sections.whereType<_GravamePdfSection>().toList();
+  }
+}
+
+Map<String, dynamic>? _asMap(dynamic value) {
+  if (value is Map<String, dynamic>) return value;
+  if (value is Map) {
+    return value.map(
+      (key, dynamic val) => MapEntry(key.toString(), val),
+    );
+  }
+  return null;
+}
+
+String? _nonEmptyString(dynamic value) {
+  if (value == null) return null;
+  final text = value.toString().trim();
+  if (text.isEmpty) return null;
+  if (RegExp(r'^-+$').hasMatch(text)) return null;
+  return text;
+}
+
+List<_GravamePdfField> _buildPdfFieldsFromMap(
+  Map<String, dynamic>? source,
+  Map<String, String> labels, {
+  Set<String> excludeKeys = const {},
+}) {
+  if (source == null) return [];
+
+  final fields = <_GravamePdfField>[];
+  final handled = <String>{};
+
+  for (final entry in labels.entries) {
+    handled.add(entry.key);
+    final value = source[entry.key];
+    if (!_hasDisplayValue(value)) continue;
+    fields.add(
+      _GravamePdfField(
+        label: entry.value,
+        value: _formatDisplayValue(value),
+      ),
+    );
+  }
+
+  for (final entry in source.entries) {
+    final key = entry.key;
+    if (handled.contains(key) || excludeKeys.contains(key)) {
+      continue;
+    }
+    final value = entry.value;
+    if (!_hasDisplayValue(value)) continue;
+    fields.add(
+      _GravamePdfField(
+        label: _generateAutoLabel(key),
+        value: _formatDisplayValue(value),
+      ),
+    );
+  }
+
+  return fields;
+}
+
+_GravamePdfSection? _pdfSectionFromMap(
+  String title,
+  Map<String, dynamic>? source,
+  Map<String, String> labels, {
+  Set<String> excludeKeys = const {},
+}) {
+  final fields = _buildPdfFieldsFromMap(
+    source,
+    labels,
+    excludeKeys: excludeKeys,
+  );
+  if (fields.isEmpty) return null;
+  return _GravamePdfSection(title: title, fields: fields);
+}
+
+bool _hasDisplayValue(dynamic value) {
+  if (value == null) return false;
+  if (value is String) return value.trim().isNotEmpty && !RegExp(r'^-+$').hasMatch(value.trim());
+  if (value is Iterable) return value.isNotEmpty;
+  if (value is Map) return value.isNotEmpty;
+  return true;
+}
+
+String _generateAutoLabel(String key) {
+  if (key.trim().isEmpty) return 'Valor';
+  String working = key
+      .replaceAll(RegExp(r'[-_]+'), ' ')
+      .replaceAllMapped(RegExp(r'(?<=[a-z0-9])([A-Z])'), (match) => ' ${match.group(1)}');
+  final buffer = StringBuffer();
+  for (final part in working.split(RegExp(r'\s+'))) {
+    if (part.isEmpty) continue;
+    if (buffer.isNotEmpty) buffer.write(' ');
+    buffer.write(part[0].toUpperCase());
+    if (part.length > 1) {
+      buffer.write(part.substring(1).toLowerCase());
+    }
+  }
+  return buffer.isEmpty ? key : buffer.toString();
+}
+
+String _formatDisplayValue(dynamic value) {
+  if (value == null) return '—';
+  if (value is String) {
+    final trimmed = value.trim();
+    return trimmed.isEmpty ? '—' : trimmed;
+  }
+  return value.toString();
+}
+
+String _twoDigits(int value) => value.toString().padLeft(2, '0');

@@ -286,6 +286,7 @@ class _HomePageState extends State<HomePage> {
       title: 'Consulta base estadual',
       fetchCaptcha: () => _baseEstadualService.fetchCaptcha(),
       captchaErrorResolver: _mapBaseEstadualCaptchaError,
+      includeRenavam: false,
     );
   }
 

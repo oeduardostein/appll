@@ -2,9 +2,11 @@ import 'dart:convert';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:pdf/pdf.dart';
+import 'package:pdf/widgets.dart' as pw;
+import 'package:share_plus/share_plus.dart';
 
 import 'package:frontend_app/ui/widgets/response_top_bar.dart';
-import 'package:frontend_app/utils/pdf_share_helper.dart';
 
 class BloqueiosPage extends StatelessWidget {
   const BloqueiosPage({
@@ -126,31 +128,16 @@ class _BloqueiosFallbackScreen extends StatelessWidget {
   }
 
   Future<void> _sharePayload(BuildContext context) async {
-    try {
-      await PdfShareHelper.share(
-        title: 'Bloqueios ativos',
-        filenamePrefix: 'pesquisa_bloqueios',
-        data: payload,
-        subtitle: 'Origem: $origin',
-      );
-      if (!context.mounted) return;
-      ScaffoldMessenger.of(context)
-        ..clearSnackBars()
-        ..showSnackBar(
-          const SnackBar(
-            content: Text('PDF gerado. Selecione o app para compartilhar.'),
-          ),
-        );
-    } catch (error) {
-      if (!context.mounted) return;
-      ScaffoldMessenger.of(context)
-        ..clearSnackBars()
-        ..showSnackBar(
-          SnackBar(
-            content: Text('Não foi possível gerar o PDF (${error.toString()}).'),
-          ),
-        );
-    }
+    await _shareBloqueiosPdf(
+      context,
+      filenameSeed: plate ?? chassi ?? origin,
+      builder: (generator) => generator.generateFallback(
+        origin: origin,
+        plate: plate,
+        chassi: chassi,
+        payload: payload,
+      ),
+    );
   }
 }
 
@@ -439,31 +426,14 @@ class _BloqueiosStructuredScreen extends StatelessWidget {
   }
 
   Future<void> _sharePayload(BuildContext context) async {
-    try {
-      await PdfShareHelper.share(
-        title: 'Bloqueios ativos',
-        filenamePrefix: 'pesquisa_bloqueios',
-        data: rawPayload,
-        subtitle: 'Origem: $origin',
-      );
-      if (!context.mounted) return;
-      ScaffoldMessenger.of(context)
-        ..clearSnackBars()
-        ..showSnackBar(
-          const SnackBar(
-            content: Text('PDF gerado. Selecione o app para compartilhar.'),
-          ),
-        );
-    } catch (error) {
-      if (!context.mounted) return;
-      ScaffoldMessenger.of(context)
-        ..clearSnackBars()
-        ..showSnackBar(
-          SnackBar(
-            content: Text('Não foi possível gerar o PDF (${error.toString()}).'),
-          ),
-        );
-    }
+    await _shareBloqueiosPdf(
+      context,
+      filenameSeed: data.placa ?? data.chassi ?? origin,
+      builder: (generator) => generator.generateStructured(
+        origin: origin,
+        data: data,
+      ),
+    );
   }
 
   void _copyJson(BuildContext context) async {
@@ -886,6 +856,8 @@ String _formatDisplayValue(dynamic value) {
   return value.toString();
 }
 
+String _twoDigits(int value) => value.toString().padLeft(2, '0');
+
 class _BloqueiosStructuredPayload {
   const _BloqueiosStructuredPayload({
     required this.fonte,
@@ -967,5 +939,408 @@ class _BloqueiosStructuredPayload {
           .toList(growable: false);
     }
     return const [];
+  }
+}
+
+class _BloqueiosPdfField {
+  const _BloqueiosPdfField({required this.label, required this.value});
+
+  final String label;
+  final String value;
+}
+
+class _BloqueiosPdfSection {
+  const _BloqueiosPdfSection({required this.title, required this.fields});
+
+  final String title;
+  final List<_BloqueiosPdfField> fields;
+}
+
+class _BloqueiosPdfGenerator {
+  static const _jsonEncoder = JsonEncoder.withIndent('  ');
+
+  Future<Uint8List> generateStructured({
+    required String origin,
+    required _BloqueiosStructuredPayload data,
+  }) async {
+    final sections = <_BloqueiosPdfSection?>[
+      _sectionFromFields(
+        'Consulta',
+        [
+          _field('Origem', origin),
+          _field('Placa', data.placa),
+          _field('Município da placa', data.municipioPlaca),
+          _field('Chassi consultado', data.chassi),
+          _field('Ocorrências encontradas', data.ocorrenciasEncontradas),
+          _field('Ocorrências exibidas', data.ocorrenciasExibidas),
+        ],
+      ),
+      _sectionFromMap('Fonte', data.fonte, const {
+        'titulo': 'Título',
+        'gerado_em': 'Gerado em',
+      }),
+      _sectionFromMap('Consulta detalhada', data.consulta, const {
+        'origem': 'Origem',
+        'uf_origem': 'UF origem',
+        'placa': 'Placa',
+        'chassi': 'Chassi',
+        'municipio_placa': 'Município placa',
+        'uf_placa': 'UF placa',
+      }),
+    ];
+
+    if (data.renajud.isNotEmpty) {
+      for (var i = 0; i < data.renajud.length; i++) {
+        sections.add(
+          _sectionFromFields(
+            'Bloqueio RENAJUD ${i + 1}',
+            [
+              _field('Tipo de restrição', data.renajud[i]['tipo_restricao_judicial']),
+              _field('Data inclusão', data.renajud[i]['data_inclusao']),
+              _field('Hora inclusão', data.renajud[i]['hora_inclusao']),
+              _field('Número processo', data.renajud[i]['numero_processo']),
+              _field('Código tribunal', data.renajud[i]['codigo_tribunal']),
+              _field('Órgão judicial', data.renajud[i]['codigo_orgao_judicial']),
+              _field('Nome do órgão', data.renajud[i]['nome_orgao_judicial']),
+            ],
+          ),
+        );
+      }
+    }
+
+    final doc = pw.Document();
+    final logo = await _loadLogo();
+
+    doc.addPage(
+      pw.MultiPage(
+        pageFormat: PdfPageFormat.a4,
+        margin: const pw.EdgeInsets.fromLTRB(32, 28, 32, 36),
+        build: (context) => [
+          _buildHeader(logo, origin, data.placa, data.chassi),
+          pw.SizedBox(height: 18),
+          ...sections.whereType<_BloqueiosPdfSection>().map(_buildSection),
+        ],
+      ),
+    );
+
+    return doc.save();
+  }
+
+  Future<Uint8List> generateFallback({
+    required String origin,
+    String? plate,
+    String? chassi,
+    required Map<String, dynamic> payload,
+  }) async {
+    final doc = pw.Document();
+    final logo = await _loadLogo();
+    final pretty = _jsonEncoder.convert(payload);
+
+    doc.addPage(
+      pw.MultiPage(
+        pageFormat: PdfPageFormat.a4,
+        margin: const pw.EdgeInsets.fromLTRB(32, 28, 32, 36),
+        build: (context) => [
+          _buildHeader(logo, origin, plate, chassi),
+          pw.SizedBox(height: 18),
+          if (_sectionFromFields(
+                'Consulta',
+                [
+                  _field('Origem', origin),
+                  _field('Placa', plate),
+                  _field('Chassi', chassi),
+                ],
+              ) case final consultaSection?)
+            _buildSection(consultaSection),
+          pw.Container(
+            padding: const pw.EdgeInsets.all(14),
+            decoration: pw.BoxDecoration(
+              borderRadius: pw.BorderRadius.circular(10),
+              border: pw.Border.all(color: PdfColors.blueGrey300, width: 0.6),
+            ),
+            child: pw.Column(
+              crossAxisAlignment: pw.CrossAxisAlignment.start,
+              children: [
+                pw.Text(
+                  'Resposta completa',
+                  style: pw.TextStyle(
+                    fontSize: 12,
+                    fontWeight: pw.FontWeight.bold,
+                    color: PdfColors.blue800,
+                  ),
+                ),
+                pw.SizedBox(height: 8),
+                pw.Paragraph(
+                  text: pretty,
+                  style: const pw.TextStyle(fontSize: 10),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+
+    return doc.save();
+  }
+
+  Future<pw.MemoryImage?> _loadLogo() async {
+    try {
+      final data = await rootBundle.load('assets/images/logoLL.png');
+      return pw.MemoryImage(data.buffer.asUint8List());
+    } catch (_) {
+      return null;
+    }
+  }
+
+  pw.Widget _buildHeader(
+    pw.MemoryImage? logo,
+    String origin,
+    String? plate,
+    String? chassi,
+  ) {
+    final now = DateTime.now();
+    final dateFormatted =
+        '${_twoDigits(now.day)}/${_twoDigits(now.month)}/${now.year} - '
+        '${_twoDigits(now.hour)}:${_twoDigits(now.minute)}:${_twoDigits(now.second)}';
+
+    final plateText = plate == null || plate.trim().isEmpty ? '—' : plate;
+    final chassiText = chassi == null || chassi.trim().isEmpty ? '—' : chassi;
+
+    return pw.Column(
+      crossAxisAlignment: pw.CrossAxisAlignment.start,
+      children: [
+        pw.Row(
+          crossAxisAlignment: pw.CrossAxisAlignment.start,
+          children: [
+            if (logo != null)
+              pw.Container(
+                width: 70,
+                height: 70,
+                decoration: pw.BoxDecoration(
+                  borderRadius: pw.BorderRadius.circular(16),
+                ),
+                child: pw.Image(logo),
+              ),
+            if (logo != null) pw.SizedBox(width: 16),
+            pw.Expanded(
+              child: pw.Column(
+                crossAxisAlignment: pw.CrossAxisAlignment.start,
+                children: [
+                  pw.Text(
+                    'LL DESPACHANTE',
+                    style: pw.TextStyle(
+                      fontSize: 18,
+                      fontWeight: pw.FontWeight.bold,
+                      color: PdfColors.blue900,
+                    ),
+                  ),
+                  pw.Text(
+                    'AV. DES. PLÍNIO DE CARVALHO PINTO, 05 - ENSEADA - (13) 99730-1533 / 11 3367-8400\nGUARUJÁ - SP',
+                    style: const pw.TextStyle(fontSize: 10),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+        pw.SizedBox(height: 14),
+        pw.Center(
+          child: pw.Column(
+            children: [
+              pw.Text(
+                'BLOQUEIOS ATIVOS',
+                style: pw.TextStyle(
+                  fontSize: 14,
+                  fontWeight: pw.FontWeight.bold,
+                  color: PdfColors.blue800,
+                ),
+              ),
+              pw.Text(
+                'Data da pesquisa: $dateFormatted',
+                style: const pw.TextStyle(fontSize: 10),
+              ),
+            ],
+          ),
+        ),
+        pw.SizedBox(height: 10),
+        pw.Text(
+          'Origem: $origin   |   Placa: $plateText   |   Chassi: $chassiText',
+          style: const pw.TextStyle(fontSize: 11),
+        ),
+      ],
+    );
+  }
+
+  pw.Widget _buildSection(_BloqueiosPdfSection section) {
+    return pw.Container(
+      margin: const pw.EdgeInsets.only(bottom: 16),
+      padding: const pw.EdgeInsets.all(14),
+      decoration: pw.BoxDecoration(
+        borderRadius: pw.BorderRadius.circular(10),
+        border: pw.Border.all(color: PdfColors.blueGrey300, width: 0.6),
+      ),
+      child: pw.Column(
+        crossAxisAlignment: pw.CrossAxisAlignment.start,
+        children: [
+          pw.Text(
+            section.title,
+            style: pw.TextStyle(
+              fontSize: 12,
+              fontWeight: pw.FontWeight.bold,
+              color: PdfColors.blue800,
+            ),
+          ),
+          pw.SizedBox(height: 8),
+          _buildFieldsGrid(section.fields),
+        ],
+      ),
+    );
+  }
+
+  pw.Widget _buildFieldsGrid(List<_BloqueiosPdfField> fields) {
+    final rows = <pw.TableRow>[];
+    for (var i = 0; i < fields.length; i += 2) {
+      final first = fields[i];
+      final second = i + 1 < fields.length ? fields[i + 1] : null;
+      rows.add(
+        pw.TableRow(
+          children: [
+            _buildFieldCell(first),
+            if (second != null) _buildFieldCell(second) else pw.Container(),
+          ],
+        ),
+      );
+    }
+
+    return pw.Table(
+      columnWidths: const {
+        0: pw.FlexColumnWidth(1),
+        1: pw.FlexColumnWidth(1),
+      },
+      defaultVerticalAlignment: pw.TableCellVerticalAlignment.middle,
+      children: rows,
+    );
+  }
+
+  pw.Widget _buildFieldCell(_BloqueiosPdfField field) {
+    return pw.Padding(
+      padding: const pw.EdgeInsets.all(4),
+      child: pw.Column(
+        crossAxisAlignment: pw.CrossAxisAlignment.start,
+        children: [
+          pw.Text(
+            field.label,
+            style: pw.TextStyle(
+              fontSize: 9,
+              fontWeight: pw.FontWeight.bold,
+              color: PdfColors.blueGrey700,
+            ),
+          ),
+          pw.SizedBox(height: 2),
+          pw.Text(
+            field.value,
+            style: pw.TextStyle(
+              fontSize: 11,
+              color: PdfColors.blueGrey900,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  _BloqueiosPdfSection? _sectionFromMap(
+    String title,
+    Map<String, dynamic>? source,
+    Map<String, String> labels,
+  ) {
+    if (source == null) return null;
+    final fields = <_BloqueiosPdfField>[];
+    for (final entry in labels.entries) {
+      final value = source[entry.key];
+      final text = _formatDisplayValue(value);
+      if (text == '—') continue;
+      fields.add(_BloqueiosPdfField(label: entry.value, value: text));
+    }
+    if (fields.isEmpty) return null;
+    return _BloqueiosPdfSection(title: title, fields: fields);
+  }
+
+  _BloqueiosPdfSection? _sectionFromFields(
+    String title,
+    List<_BloqueiosPdfField?> fields,
+  ) {
+    final filtered = fields.whereType<_BloqueiosPdfField>().toList();
+    if (filtered.isEmpty) return null;
+    return _BloqueiosPdfSection(title: title, fields: filtered);
+  }
+
+  _BloqueiosPdfField? _field(String label, dynamic value) {
+    final text = _formatDisplayValue(value);
+    if (text == '—') return null;
+    return _BloqueiosPdfField(label: label, value: text);
+  }
+}
+
+Future<void> _shareBloqueiosPdf(
+  BuildContext context, {
+  required String filenameSeed,
+  required Future<Uint8List> Function(_BloqueiosPdfGenerator generator) builder,
+}) async {
+  bool dialogOpened = false;
+  showDialog<void>(
+    context: context,
+    barrierDismissible: false,
+    builder: (_) => const Center(child: CircularProgressIndicator()),
+  );
+  dialogOpened = true;
+
+  try {
+    final generator = _BloqueiosPdfGenerator();
+    final bytes = await builder(generator);
+
+    if (dialogOpened && context.mounted) {
+      Navigator.of(context, rootNavigator: true).pop();
+      dialogOpened = false;
+    }
+
+    final sanitized = filenameSeed.replaceAll(RegExp(r'[^A-Za-z0-9]'), '');
+    final filename =
+        'pesquisa_bloqueios_${sanitized.isEmpty ? 'consulta' : sanitized}.pdf';
+
+    await Share.shareXFiles(
+      [
+        XFile.fromData(
+          bytes,
+          mimeType: 'application/pdf',
+          name: filename,
+        ),
+      ],
+      text: 'Bloqueios ativos',
+      subject: 'Bloqueios ativos',
+    );
+
+    if (!context.mounted) return;
+    ScaffoldMessenger.of(context)
+      ..clearSnackBars()
+      ..showSnackBar(
+        const SnackBar(
+          content: Text('PDF gerado. Escolha o app para compartilhar.'),
+        ),
+      );
+  } catch (error) {
+    if (dialogOpened && context.mounted) {
+      Navigator.of(context, rootNavigator: true).pop();
+      dialogOpened = false;
+    }
+    if (!context.mounted) return;
+    ScaffoldMessenger.of(context)
+      ..clearSnackBars()
+      ..showSnackBar(
+        SnackBar(
+          content: Text('Não foi possível gerar o PDF (${error.toString()}).'),
+        ),
+      );
   }
 }
