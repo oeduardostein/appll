@@ -341,6 +341,7 @@ class _HomePageState extends State<HomePage> {
     required String title,
     required Future<String> Function() fetchCaptcha,
     String Function(Object error)? captchaErrorResolver,
+    bool includeRenavam = true,
   }) {
     return showDialog<_BaseEstadualQuery>(
       context: context,
@@ -350,6 +351,8 @@ class _HomePageState extends State<HomePage> {
         fetchCaptcha: fetchCaptcha,
         captchaErrorResolver: captchaErrorResolver,
         plateValidator: _isValidPlate,
+        includeRenavam: includeRenavam,
+        renavamValidator: _isValidRenavam,
       ),
     );
   }
@@ -2796,14 +2799,18 @@ class _VehicleLookupDialog extends StatefulWidget {
     this.submitLabel = "Consultar",
     this.captchaLabel = "Informe o captcha",
     this.captchaErrorResolver,
+    this.includeRenavam = true,
+    this.renavamValidator,
   });
 
   final String title;
   final Future<String> Function() fetchCaptcha;
   final bool Function(String value) plateValidator;
+  final bool Function(String value)? renavamValidator;
   final String Function(Object error)? captchaErrorResolver;
   final String submitLabel;
   final String captchaLabel;
+  final bool includeRenavam;
     
   @override
   State<_VehicleLookupDialog> createState() => _VehicleLookupDialogState();
@@ -2812,6 +2819,7 @@ class _VehicleLookupDialog extends StatefulWidget {
 class _VehicleLookupDialogState extends State<_VehicleLookupDialog> {
   final _formKey = GlobalKey<FormState>();
   late final TextEditingController _plateController;
+  late final TextEditingController _renavamController;
   late final TextEditingController _captchaController;
 
   bool _isLoadingCaptcha = false;
@@ -2822,6 +2830,7 @@ class _VehicleLookupDialogState extends State<_VehicleLookupDialog> {
   void initState() {
     super.initState();
     _plateController = TextEditingController();
+    _renavamController = TextEditingController();
     _captchaController = TextEditingController();
     _refreshCaptcha();
   }
@@ -2829,6 +2838,7 @@ class _VehicleLookupDialogState extends State<_VehicleLookupDialog> {
   @override
   void dispose() {
     _plateController.dispose();
+    _renavamController.dispose();
     _captchaController.dispose();
     super.dispose();
   }
@@ -2867,10 +2877,13 @@ class _VehicleLookupDialogState extends State<_VehicleLookupDialog> {
     if (!_formKey.currentState!.validate()) {
       return;
     }
+    final renavamValue = widget.includeRenavam
+        ? _renavamController.text.trim()
+        : '';
     Navigator.of(context).pop(
       _BaseEstadualQuery(
         placa: _plateController.text.trim().toUpperCase(),
-        renavam: '',
+        renavam: renavamValue.toUpperCase(),
         captcha: _captchaController.text.trim().toUpperCase(),
       ),
     );
@@ -2941,6 +2954,34 @@ class _VehicleLookupDialogState extends State<_VehicleLookupDialog> {
                     return null;
                   },
                 ),
+                if (widget.includeRenavam) ...[
+                  const SizedBox(height: 16),
+                  TextFormField(
+                    controller: _renavamController,
+                    decoration: const InputDecoration(
+                      labelText: 'Renavam',
+                    ),
+                    keyboardType: TextInputType.number,
+                    inputFormatters: [
+                      FilteringTextInputFormatter.digitsOnly,
+                      LengthLimitingTextInputFormatter(11),
+                    ],
+                    validator: (value) {
+                      final text = value?.trim() ?? '';
+                      if (!widget.includeRenavam) {
+                        return null;
+                      }
+                      if (text.isEmpty) {
+                        return 'Informe o renavam';
+                      }
+                      if (widget.renavamValidator != null &&
+                          !widget.renavamValidator!(text)) {
+                        return 'Renavam inválido';
+                      }
+                      return null;
+                    },
+                  ),
+                ],
                 const SizedBox(height: 20),
                 Container(
                   decoration: BoxDecoration(

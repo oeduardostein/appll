@@ -2,8 +2,9 @@ import 'package:flutter/material.dart';
 
 import 'package:frontend_app/models/renainf_models.dart';
 
-import '../shared/common_page_header.dart';
+import '../../utils/pdf_share_helper.dart';
 import '../shared/vehicle_info_content.dart';
+import '../widgets/response_top_bar.dart';
 import 'renainf_notification_details_page.dart';
 
 class RenainfPage extends StatelessWidget {
@@ -145,39 +146,66 @@ class RenainfPage extends StatelessWidget {
 
     return Scaffold(
       backgroundColor: const Color(0xFFF5F6FA),
+      appBar: ResponseTopBar(
+        title: 'RENAINF',
+        subtitle: 'Placa: ${result.plate}',
+        onShare: () => _shareResult(context),
+      ),
       body: SafeArea(
         child: SingleChildScrollView(
-          child: Column(
-            children: [
-              const CommonPageHeader(title: 'RENAINF', bottomPadding: 24),
-              const SizedBox(height: 20),
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 20),
-                child: Column(
-                  children: [
-                    VehicleInfoContent(
-                      summary: summary,
-                      sections: sections,
-                    ),
-                    const SizedBox(height: 20),
-                    if (isNewFormat)
-                      _RenainfOccurrencesSection(
-                        occurrences: result.occurrences,
-                        totalCount: result.occurrencesCount ?? result.occurrences.length,
-                      )
-                    else
-                      RenainfInfractionsSection(
-                        infractions: infractions,
-                      ),
-                    const SizedBox(height: 28),
-                  ],
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+            child: Column(
+              children: [
+                VehicleInfoContent(
+                  summary: summary,
+                  sections: sections,
                 ),
-              ),
-            ],
+                const SizedBox(height: 20),
+                if (isNewFormat)
+                  _RenainfOccurrencesSection(
+                    occurrences: result.occurrences,
+                    totalCount: result.occurrencesCount ?? result.occurrences.length,
+                  )
+                else
+                  RenainfInfractionsSection(
+                    infractions: infractions,
+                  ),
+                const SizedBox(height: 28),
+              ],
+            ),
           ),
         ),
       ),
     );
+  }
+
+  Future<void> _shareResult(BuildContext context) async {
+    try {
+      await PdfShareHelper.share(
+        title: 'Consulta RENAINF',
+        filenamePrefix: 'pesquisa_renainf',
+        data: result.toJson(),
+        subtitle: 'Placa: ${result.plate} · UF pesquisada: ${result.uf}',
+      );
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context)
+        ..clearSnackBars()
+        ..showSnackBar(
+          const SnackBar(
+            content: Text('PDF gerado. Selecione o app para compartilhar.'),
+          ),
+        );
+    } catch (error) {
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context)
+        ..clearSnackBars()
+        ..showSnackBar(
+          SnackBar(
+            content: Text('Não foi possível gerar o PDF (${error.toString()}).'),
+          ),
+        );
+    }
   }
 }
 

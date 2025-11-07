@@ -144,6 +144,24 @@ class RenainfResult {
       occurrencesCount: occurrencesCount,
     );
   }
+
+  Map<String, dynamic> toJson() {
+    return {
+      'plate': plate,
+      'status_code': statusCode,
+      'status_label': statusLabel,
+      'uf': uf,
+      'start_date': startDate.toIso8601String(),
+      'end_date': endDate.toIso8601String(),
+      'summary': summary.toJson(),
+      'infractions': infractions.map((infraction) => infraction.toJson()).toList(),
+      'source_title': sourceTitle,
+      'source_generated_at': sourceGeneratedAt,
+      'consulta': consulta?.toJson(),
+      'occurrences': occurrences.map((occurrence) => occurrence.toJson()).toList(),
+      'occurrences_count': occurrencesCount,
+    };
+  }
 }
 
 class RenainfSummary {
@@ -203,6 +221,16 @@ class RenainfSummary {
           lastUpdatedAt == null && lastUpdateRaw.isNotEmpty ? lastUpdateRaw : null,
     );
   }
+
+  Map<String, dynamic> toJson() {
+    return {
+      'total_infractions': totalInfractions,
+      'total_value': totalValue,
+      'open_value': openValue,
+      'last_updated_at': lastUpdatedAt?.toIso8601String(),
+      'last_updated_label': lastUpdatedLabel,
+    };
+  }
 }
 
 class RenainfConsulta {
@@ -245,6 +273,14 @@ class RenainfConsulta {
       indicadorExigibilidade: indicador,
     );
   }
+
+  Map<String, dynamic> toJson() {
+    return {
+      'placa': placa,
+      'uf_emplacamento': ufEmplacamento,
+      'indicador_exigibilidade': indicadorExigibilidade,
+    };
+  }
 }
 
 class RenainfOccurrence {
@@ -280,6 +316,16 @@ class RenainfOccurrence {
         _readString(json, ['exigibilidade', 'indicador_exigibilidade']),
       ),
     );
+  }
+
+  Map<String, dynamic> toJson() {
+    return {
+      'orgao_autuador': orgaoAutuador,
+      'auto_infracao': autoInfracao,
+      'infracao': infracao,
+      'data_infracao': dataInfracao,
+      'exigibilidade': exigibilidade,
+    };
   }
 }
 
@@ -469,6 +515,40 @@ class RenainfInfraction {
       suspensaoOrigem: suspensaoOrigem,
       suspensaoAceitoUf: suspensaoAceitoUf,
     );
+  }
+
+  Map<String, dynamic> toJson() {
+    return {
+      'code': code,
+      'description': description,
+      'status': status,
+      'status_code': statusCode,
+      'amount': amount,
+      'origin': origin,
+      'plate': plate,
+      'date': date?.toIso8601String(),
+      'date_label': dateLabel,
+      'municipio_placa': municipioPlaca,
+      'uf_juridica': ufJuridica,
+      'model_description': modelDescription,
+      'codigo_infracao': codigoInfracao,
+      'classificacao': classificacao,
+      'data_cadastro': dataCadastro,
+      'data_emissao': dataEmissao,
+      'valor_pago': valorPago,
+      'local': local,
+      'tipo_auto': tipoAuto,
+      'uf_pagamento': ufPagamento,
+      'data_pagamento': dataPagamento,
+      'data_registro_pagamento': dataRegistroPagamento,
+      'cnh_infrator': cnhInfrator,
+      'cnh_condutor': cnhCondutor,
+      'suspensao_tipo': suspensaoTipo,
+      'suspensao_data_registro': suspensaoDataRegistro,
+      'suspensao_origem': suspensaoOrigem,
+      'suspensao_aceito_uf': suspensaoAceitoUf,
+      'is_open': isOpen,
+    };
   }
 }
 

@@ -3,6 +3,8 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 
 import '../shared/gravame_details_card.dart';
+import '../widgets/response_top_bar.dart';
+import '../../utils/pdf_share_helper.dart';
 
 class GravamePage extends StatelessWidget {
   const GravamePage({
@@ -58,8 +60,10 @@ class GravamePage extends StatelessWidget {
     final formattedJson = const JsonEncoder.withIndent('  ').convert(payload);
 
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Gravame'),
+      appBar: ResponseTopBar(
+        title: 'Gravame',
+        subtitle: 'Placa: $placa',
+        onShare: () => _shareResult(context),
       ),
       body: SafeArea(
         child: SingleChildScrollView(
@@ -132,6 +136,34 @@ class GravamePage extends StatelessWidget {
     return text;
   }
 }
+
+  Future<void> _shareResult(BuildContext context) async {
+    try {
+      await PdfShareHelper.share(
+        title: 'Pesquisa Gravame',
+        filenamePrefix: 'pesquisa_gravame',
+        data: payload,
+        subtitle: 'Placa: $placa',
+      );
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context)
+        ..clearSnackBars()
+        ..showSnackBar(
+          const SnackBar(
+            content: Text('PDF gerado. Selecione o app para compartilhar.'),
+          ),
+        );
+    } catch (error) {
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context)
+        ..clearSnackBars()
+        ..showSnackBar(
+          SnackBar(
+            content: Text('Não foi possível gerar o PDF (${error.toString()}).'),
+          ),
+        );
+    }
+  }
 
 class _GravameSummaryCard extends StatelessWidget {
   const _GravameSummaryCard({

@@ -3,6 +3,9 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
+import 'package:frontend_app/ui/widgets/response_top_bar.dart';
+import 'package:frontend_app/utils/pdf_share_helper.dart';
+
 class BloqueiosPage extends StatelessWidget {
   const BloqueiosPage({
     super.key,
@@ -34,6 +37,7 @@ class BloqueiosPage extends StatelessWidget {
         origin: origin,
         data: structured,
         formattedPayload: _formattedPayload,
+        rawPayload: payload,
       );
     }
 
@@ -72,24 +76,15 @@ class _BloqueiosFallbackScreen extends StatelessWidget {
         payload.length == 1 && message is String && message.isNotEmpty;
 
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Bloqueios ativos'),
+      appBar: ResponseTopBar(
+        title: 'Bloqueios ativos',
+        subtitle: 'Origem: $origin',
+        onShare: hasOnlyMessage ? null : () => _sharePayload(context),
         actions: [
           if (!hasOnlyMessage)
             IconButton(
               tooltip: 'Copiar resultado',
-              onPressed: () async {
-                await Clipboard.setData(ClipboardData(text: formattedPayload));
-                if (context.mounted) {
-                  ScaffoldMessenger.of(context)
-                    ..clearSnackBars()
-                    ..showSnackBar(
-                      const SnackBar(
-                        content: Text('Dados copiados para a área de transferência.'),
-                      ),
-                    );
-                }
-              },
+              onPressed: () => _copyToClipboard(context),
               icon: const Icon(Icons.copy_outlined),
             ),
         ],
@@ -118,6 +113,44 @@ class _BloqueiosFallbackScreen extends StatelessWidget {
         ),
       ),
     );
+  }
+
+  void _copyToClipboard(BuildContext context) async {
+    await Clipboard.setData(ClipboardData(text: formattedPayload));
+    if (!context.mounted) return;
+    ScaffoldMessenger.of(context)
+      ..clearSnackBars()
+      ..showSnackBar(
+        const SnackBar(content: Text('Dados copiados para a área de transferência.')),
+      );
+  }
+
+  Future<void> _sharePayload(BuildContext context) async {
+    try {
+      await PdfShareHelper.share(
+        title: 'Bloqueios ativos',
+        filenamePrefix: 'pesquisa_bloqueios',
+        data: payload,
+        subtitle: 'Origem: $origin',
+      );
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context)
+        ..clearSnackBars()
+        ..showSnackBar(
+          const SnackBar(
+            content: Text('PDF gerado. Selecione o app para compartilhar.'),
+          ),
+        );
+    } catch (error) {
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context)
+        ..clearSnackBars()
+        ..showSnackBar(
+          SnackBar(
+            content: Text('Não foi possível gerar o PDF (${error.toString()}).'),
+          ),
+        );
+    }
   }
 }
 
@@ -305,198 +338,144 @@ class _BloqueiosStructuredScreen extends StatelessWidget {
     required this.origin,
     required this.data,
     required this.formattedPayload,
+    required this.rawPayload,
   });
 
   final String origin;
   final _BloqueiosStructuredPayload data;
   final String formattedPayload;
+  final Map<String, dynamic> rawPayload;
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
     return Scaffold(
-      backgroundColor: theme.colorScheme.surfaceVariant.withOpacity(0.08),
-      body: SafeArea(
-        child: Stack(
-          children: [
-            Container(
-              height: 220,
-              decoration: BoxDecoration(
-                color: theme.colorScheme.primary,
-                borderRadius: const BorderRadius.only(
-                  bottomLeft: Radius.circular(32),
-                  bottomRight: Radius.circular(32),
-                ),
-              ),
-            ),
-            Column(
-              children: [
-                _BloqueiosHeader(
-                  onBack: () => Navigator.of(context).pop(),
-                  onShare: () => _copyBloqueiosJsonToClipboard(
-                    context,
-                    formatted: formattedPayload,
-                  ),
-                ),
-                Expanded(
-                  child: SingleChildScrollView(
-                    padding: const EdgeInsets.fromLTRB(20, 0, 20, 24),
-                    child: Column(
-                      children: [
-                        const SizedBox(height: 12),
-                        _BloqueiosSummaryCard(
-                          origin: origin,
-                          data: data,
-                        ),
-                        const SizedBox(height: 24),
-                        _BloqueiosSectionCard(
-                          title: 'Consulta',
-                          children: [
-                            _BloqueiosInfoRow(
-                              label: 'Placa',
-                              value: data.consulta['placa'],
-                            ),
-                            _BloqueiosInfoRow(
-                              label: 'Município da placa',
-                              value: data.consulta['municipio_placa'],
-                            ),
-                            _BloqueiosInfoRow(
-                              label: 'Chassi',
-                              value: data.consulta['chassi'],
-                            ),
-                            if (data.ocorrenciasEncontradas != null ||
-                                data.ocorrenciasExibidas != null) ...[
-                              const SizedBox(height: 12),
-                              const _BloqueiosSectionSubheading('Ocorrências'),
-                              if (data.ocorrenciasEncontradas != null)
-                                _BloqueiosInfoRow(
-                                  label: 'Encontradas',
-                                  value: data.ocorrenciasEncontradas,
-                                ),
-                              if (data.ocorrenciasExibidas != null)
-                                _BloqueiosInfoRow(
-                                  label: 'Exibidas',
-                                  value: data.ocorrenciasExibidas,
-                                ),
-                            ],
-                          ],
-                        ),
-                        const SizedBox(height: 16),
-                        _BloqueiosSectionCard(
-                          title: 'Fonte',
-                          children: _buildInfoRows(
-                            data.fonte,
-                            const {
-                              'titulo': 'Título',
-                              'gerado_em': 'Gerado em',
-                            },
-                          ),
-                        ),
-                        const SizedBox(height: 16),
-                        _BloqueiosSectionCard(
-                          title: 'Bloqueios RENAJUD',
-                          children: [
-                            if (data.renajud.isEmpty)
-                              Text(
-                                'Nenhum bloqueio RENAJUD encontrado.',
-                                style: Theme.of(context)
-                                    .textTheme
-                                    .bodyMedium
-                                    ?.copyWith(
-                                      color: Theme.of(context)
-                                          .colorScheme
-                                          .outline,
-                                    ),
-                              )
-                            else
-                              ...data.renajud
-                                  .map(
-                                    (entry) => _RenajudEntryTile(entry: entry),
-                                  )
-                                  .toList(),
-                          ],
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _BloqueiosHeader extends StatelessWidget {
-  const _BloqueiosHeader({
-    this.onBack,
-    this.onShare,
-  });
-
-  final VoidCallback? onBack;
-  final VoidCallback? onShare;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(20, 16, 20, 0),
-      child: Row(
-        children: [
-          _HeaderCircleButton(
-            icon: Icons.arrow_back,
-            onTap: onBack ?? () => Navigator.of(context).pop(),
-          ),
-          Expanded(
-            child: Center(
-              child: Image.asset(
-                'assets/images/logoLL.png',
-                height: 40,
-              ),
-            ),
-          ),
-          _HeaderCircleButton(
-            icon: Icons.share_outlined,
-            onTap: onShare,
-            enabled: onShare != null,
+      appBar: ResponseTopBar(
+        title: 'Bloqueios ativos',
+        subtitle: 'Origem: $origin',
+        onShare: () => _sharePayload(context),
+        actions: [
+          IconButton(
+            tooltip: 'Copiar resultado',
+            onPressed: () => _copyJson(context),
+            icon: const Icon(Icons.copy_outlined),
           ),
         ],
       ),
-    );
-  }
-}
-
-class _HeaderCircleButton extends StatelessWidget {
-  const _HeaderCircleButton({
-    required this.icon,
-    this.onTap,
-    this.enabled = true,
-  });
-
-  final IconData icon;
-  final VoidCallback? onTap;
-  final bool enabled;
-
-  @override
-  Widget build(BuildContext context) {
-    return Material(
-      color: Colors.white.withOpacity(enabled ? 0.18 : 0.08),
-      shape: const CircleBorder(),
-      child: InkWell(
-        customBorder: const CircleBorder(),
-        onTap: enabled ? onTap : null,
-        child: SizedBox(
-          width: 44,
-          height: 44,
-          child: Icon(
-            icon,
-            color: Colors.white.withOpacity(enabled ? 1 : 0.5),
+      body: SafeArea(
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.fromLTRB(20, 12, 20, 24),
+          child: Column(
+            children: [
+              _BloqueiosSummaryCard(
+                origin: origin,
+                data: data,
+              ),
+              const SizedBox(height: 24),
+              _BloqueiosSectionCard(
+                title: 'Consulta',
+                children: [
+                  _BloqueiosInfoRow(
+                    label: 'Placa',
+                    value: data.consulta['placa'],
+                  ),
+                  _BloqueiosInfoRow(
+                    label: 'Município da placa',
+                    value: data.consulta['municipio_placa'],
+                  ),
+                  _BloqueiosInfoRow(
+                    label: 'Chassi',
+                    value: data.consulta['chassi'],
+                  ),
+                  if (data.ocorrenciasEncontradas != null ||
+                      data.ocorrenciasExibidas != null) ...[
+                    const SizedBox(height: 12),
+                    const _BloqueiosSectionSubheading('Ocorrências'),
+                    if (data.ocorrenciasEncontradas != null)
+                      _BloqueiosInfoRow(
+                        label: 'Encontradas',
+                        value: data.ocorrenciasEncontradas,
+                      ),
+                    if (data.ocorrenciasExibidas != null)
+                      _BloqueiosInfoRow(
+                        label: 'Exibidas',
+                        value: data.ocorrenciasExibidas,
+                      ),
+                  ],
+                ],
+              ),
+              const SizedBox(height: 16),
+              _BloqueiosSectionCard(
+                title: 'Fonte',
+                children: _buildInfoRows(
+                  data.fonte,
+                  const {
+                    'titulo': 'Título',
+                    'gerado_em': 'Gerado em',
+                  },
+                ),
+              ),
+              const SizedBox(height: 16),
+              _BloqueiosSectionCard(
+                title: 'Bloqueios RENAJUD',
+                children: [
+                  if (data.renajud.isEmpty)
+                    Text(
+                      'Nenhum bloqueio RENAJUD encontrado.',
+                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                            color: Theme.of(context).colorScheme.outline,
+                          ),
+                    )
+                  else
+                    ...data.renajud
+                        .map((entry) => _RenajudEntryTile(entry: entry))
+                        .toList(),
+                ],
+              ),
+            ],
           ),
         ),
       ),
     );
+  }
+
+  Future<void> _sharePayload(BuildContext context) async {
+    try {
+      await PdfShareHelper.share(
+        title: 'Bloqueios ativos',
+        filenamePrefix: 'pesquisa_bloqueios',
+        data: rawPayload,
+        subtitle: 'Origem: $origin',
+      );
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context)
+        ..clearSnackBars()
+        ..showSnackBar(
+          const SnackBar(
+            content: Text('PDF gerado. Selecione o app para compartilhar.'),
+          ),
+        );
+    } catch (error) {
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context)
+        ..clearSnackBars()
+        ..showSnackBar(
+          SnackBar(
+            content: Text('Não foi possível gerar o PDF (${error.toString()}).'),
+          ),
+        );
+    }
+  }
+
+  void _copyJson(BuildContext context) async {
+    await Clipboard.setData(ClipboardData(text: formattedPayload));
+    if (!context.mounted) return;
+    ScaffoldMessenger.of(context)
+      ..clearSnackBars()
+      ..showSnackBar(
+        const SnackBar(
+          content: Text('Dados copiados para a área de transferência.'),
+        ),
+      );
   }
 }
 
@@ -877,24 +856,6 @@ class _BloqueiosInfoRow extends StatelessWidget {
       ],
     );
   }
-}
-
-Future<void> _copyBloqueiosJsonToClipboard(
-  BuildContext context, {
-  Map<String, dynamic?>? payload,
-  String? formatted,
-}) async {
-  final text = formatted ??
-      const JsonEncoder.withIndent('  ').convert(payload ?? <String, dynamic>{});
-  await Clipboard.setData(ClipboardData(text: text));
-  if (!context.mounted) return;
-  ScaffoldMessenger.of(context)
-    ..clearSnackBars()
-    ..showSnackBar(
-      const SnackBar(
-        content: Text('Dados copiados para a área de transferência.'),
-      ),
-    );
 }
 
 List<Widget> _buildInfoRows(

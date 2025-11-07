@@ -3,6 +3,9 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
+import 'package:frontend_app/ui/widgets/response_top_bar.dart';
+import 'package:frontend_app/utils/pdf_share_helper.dart';
+
 String? _nonEmptyString(dynamic value) {
   if (value == null) return null;
   final text = value.toString().trim();
@@ -39,24 +42,14 @@ class BinResultPage extends StatelessWidget {
     final formattedJson = const JsonEncoder.withIndent('  ').convert(payload);
 
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Pesquisa BIN'),
+      appBar: ResponseTopBar(
+        title: 'Pesquisa BIN',
+        subtitle: 'Placa: $displayPlaca',
+        onShare: () => _shareResult(context),
         actions: [
           IconButton(
             tooltip: 'Copiar resultado',
-            onPressed: () async {
-              await Clipboard.setData(ClipboardData(text: formattedJson));
-              if (context.mounted) {
-                ScaffoldMessenger.of(context)
-                  ..clearSnackBars()
-                  ..showSnackBar(
-                    const SnackBar(
-                      content:
-                          Text('Dados copiados para a área de transferência.'),
-                    ),
-                  );
-              }
-            },
+            onPressed: () => _copyToClipboard(context, formattedJson),
             icon: const Icon(Icons.copy_outlined),
           ),
         ],
@@ -92,6 +85,48 @@ class BinResultPage extends StatelessWidget {
         ),
       ),
     );
+  }
+
+  void _copyToClipboard(BuildContext context, String text) async {
+    await Clipboard.setData(ClipboardData(text: text));
+    if (!context.mounted) return;
+    ScaffoldMessenger.of(context)
+      ..clearSnackBars()
+      ..showSnackBar(
+        const SnackBar(
+          content: Text('Dados copiados para a área de transferência.'),
+        ),
+      );
+  }
+
+  Future<void> _shareResult(BuildContext context) async {
+    try {
+      await PdfShareHelper.share(
+        title: 'Pesquisa BIN',
+        filenamePrefix: 'pesquisa_bin',
+        data: payload,
+        subtitle: 'Placa: ${_nonEmptyString(payload['placa']) ?? placa}',
+      );
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context)
+        ..clearSnackBars()
+        ..showSnackBar(
+          const SnackBar(
+            content: Text('PDF gerado. Selecione o app para compartilhar.'),
+          ),
+        );
+    } catch (error) {
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context)
+        ..clearSnackBars()
+        ..showSnackBar(
+          SnackBar(
+            content: Text(
+              'Não foi possível gerar o PDF (${error is Exception ? error.toString() : 'erro desconhecido'}).',
+            ),
+          ),
+        );
+    }
   }
 
   static Map<String, dynamic>? _asMap(dynamic value) {
