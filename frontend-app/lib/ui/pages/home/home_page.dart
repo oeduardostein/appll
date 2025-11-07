@@ -67,6 +67,9 @@ class _HomePageState extends State<HomePage> {
   int? _monthlyCreditsUsed;
   bool _isLoadingMonthlyCredits = false;
   String? _monthlyCreditsError;
+  Set<String> _allowedPermissionSlugs = {};
+  bool _isLoadingPermissions = false;
+  String? _permissionsError;
 
   static final List<HomeAction> _actions = [
     HomeAction(
@@ -75,18 +78,40 @@ class _HomePageState extends State<HomePage> {
       description:
           'Base estadual, BIN, outros Estados, RENAINF, Gravame e bloqueios ativos.',
       subActions: [
-        HomeSubAction(icon: Icons.location_on_outlined, label: 'Base estadual'),
+        HomeSubAction(
+          icon: Icons.location_on_outlined,
+          label: 'Base estadual',
+          permissionSlug: 'pesquisa_base_estadual',
+        ),
         HomeSubAction(
           icon: Icons.public_outlined,
           label: 'Base Outros Estados',
+          permissionSlug: 'pesquisa_base_outros_estados',
         ),
-        HomeSubAction(icon: Icons.credit_card, label: 'BIN'),
-        HomeSubAction(icon: Icons.assignment_outlined, label: 'Gravame'),
-        HomeSubAction(icon: Icons.directions_car_outlined, label: 'Renainf'),
-        HomeSubAction(icon: Icons.lock_outline, label: 'Bloqueios Ativos'),
+        HomeSubAction(
+          icon: Icons.credit_card,
+          label: 'BIN',
+          permissionSlug: 'pesquisa_bin',
+        ),
+        HomeSubAction(
+          icon: Icons.assignment_outlined,
+          label: 'Gravame',
+          permissionSlug: 'pesquisa_gravame',
+        ),
+        HomeSubAction(
+          icon: Icons.directions_car_outlined,
+          label: 'Renainf',
+          permissionSlug: 'pesquisa_renainf',
+        ),
+        HomeSubAction(
+          icon: Icons.lock_outline,
+          label: 'Bloqueios Ativos',
+          permissionSlug: 'pesquisa_bloqueios_ativos',
+        ),
         HomeSubAction(
           icon: Icons.timeline_outlined,
           label: 'Andamento do processo e-CRV',
+          permissionSlug: 'pesquisa_andamento_processo',
         ),
       ],
     ),
@@ -94,11 +119,13 @@ class _HomePageState extends State<HomePage> {
       icon: Icons.description_outlined,
       title: 'CRLV-e',
       description: 'Emissão do CRLV digital',
+      permissionSlug: 'crlv',
     ),
     HomeAction(
       icon: Icons.assignment_turned_in_outlined,
       title: 'Emissão da ATPV-e',
       description: 'Preencher a autorização para transferência',
+      permissionSlug: 'atpv',
     ),
   ];
 
@@ -138,18 +165,59 @@ class _HomePageState extends State<HomePage> {
     'TO',
   ];
 
-  int? _expandedIndex;
+  String? _expandedActionKey;
 
-  void _toggleExpanded(int index) {
+  void _toggleExpanded(String key) {
     setState(() {
-      _expandedIndex = _expandedIndex == index ? null : index;
+      _expandedActionKey = _expandedActionKey == key ? null : key;
     });
+  }
+
+  bool _ensurePermission(String? slug) {
+    if (slug == null) return true;
+    if (_allowedPermissionSlugs.contains(slug)) {
+      return true;
+    }
+    _showErrorMessage('Você não tem permissão para acessar esta funcionalidade.');
+    return false;
+  }
+
+  List<HomeAction> _buildVisibleActions() {
+    final allowed = _allowedPermissionSlugs;
+    final result = <HomeAction>[];
+
+    for (final action in _actions) {
+      if (action.subActions.isEmpty) {
+        final slug = action.permissionSlug;
+        if (slug == null || allowed.contains(slug)) {
+          result.add(action);
+        }
+        continue;
+      }
+
+      final filteredSubs = action.subActions
+          .where(
+            (sub) =>
+                sub.permissionSlug == null ||
+                allowed.contains(sub.permissionSlug!),
+          )
+          .toList();
+
+      if (filteredSubs.isEmpty) continue;
+      result.add(action.copyWith(subActions: filteredSubs));
+    }
+
+    return result;
   }
 
   Future<void> _handleSubActionTap(
     HomeAction action,
     HomeSubAction subAction,
   ) async {
+    if (!_ensurePermission(subAction.permissionSlug)) {
+      return;
+    }
+
     if (action.title == 'Pesquisas') {
       if (subAction.label == 'Base estadual') {
         await _handleBaseEstadualFlow();
@@ -579,6 +647,10 @@ class _HomePageState extends State<HomePage> {
   }
 
   Future<void> _handlePrimaryActionTap(HomeAction action) async {
+    if (!_ensurePermission(action.permissionSlug)) {
+      return;
+    }
+
     if (action.title == 'CRLV-e') {
       await _handleCrlvEmissionFlow();
     } else if (action.title == 'Emissão da ATPV-e') {
@@ -2320,6 +2392,7 @@ class _HomePageState extends State<HomePage> {
     _authService = widget.authService ?? AuthService();
     _currentUser = _authService.session?.user;
     _loadCurrentUser();
+    _loadPermissions();
     _loadRecentVehicles();
     _loadMonthlyCredits();
   }
@@ -2418,6 +2491,58 @@ class _HomePageState extends State<HomePage> {
     }
   }
 
+  Future<void> _loadPermissions() async {
+    if (!mounted) return;
+    if (_authService.session == null) {
+      setState(() {
+        _allowedPermissionSlugs = {};
+        _permissionsError = null;
+        _isLoadingPermissions = false;
+      });
+      return;
+    }
+
+    final cached = _authService.permissions;
+    if (cached.isNotEmpty) {
+      setState(() {
+        _allowedPermissionSlugs = cached.toSet();
+        _permissionsError = null;
+        _isLoadingPermissions = false;
+      });
+      return;
+    }
+
+    setState(() {
+      _isLoadingPermissions = true;
+      _permissionsError = null;
+    });
+
+    try {
+      final permissions = await _authService.fetchPermissions();
+      if (!mounted) return;
+      setState(() {
+        _allowedPermissionSlugs = permissions.toSet();
+        _isLoadingPermissions = false;
+      });
+    } on AuthException catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _isLoadingPermissions = false;
+        _permissionsError = e.message;
+      });
+      if (e.message.contains('Não autenticado') ||
+          e.message.contains('Sessão expirada')) {
+        _handleUnauthorized();
+      }
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        _isLoadingPermissions = false;
+        _permissionsError = 'Não foi possível carregar as permissões.';
+      });
+    }
+  }
+
   RecentVehicle _mapPesquisaResumoToRecentVehicle(
     PesquisaResumo resumo,
   ) {
@@ -2506,19 +2631,25 @@ class _HomePageState extends State<HomePage> {
   }
 
   void _handleUnauthorized() {
-   _authService.clearSession();
-   WidgetsBinding.instance.addPostFrameCallback((_) {
-     if (!mounted) return;
-     Navigator.of(context).pushNamedAndRemoveUntil(
-       LoginPage.routeName,
-       (route) => false,
-     );
-   });
+    _authService.clearSession();
+    if (mounted) {
+      setState(() {
+        _allowedPermissionSlugs = {};
+      });
+    }
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      Navigator.of(context).pushNamedAndRemoveUntil(
+        LoginPage.routeName,
+        (route) => false,
+      );
+    });
   }
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final visibleActions = _buildVisibleActions();
     final monthlyCreditsLabel = _isLoadingMonthlyCredits
         ? 'Créditos usados este mês: carregando...'
         : _monthlyCreditsError != null
@@ -2550,19 +2681,58 @@ class _HomePageState extends State<HomePage> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        for (var i = 0; i < _actions.length; i++)
-                          Padding(
-                            padding: const EdgeInsets.only(bottom: 16),
-                            child: HomeActionCard(
-                              action: _actions[i],
-                              isExpanded: _expandedIndex == i,
-                              onTap: _actions[i].subActions.isNotEmpty
-                                  ? () => _toggleExpanded(i)
-                                  : () => _handlePrimaryActionTap(_actions[i]),
-                              onSubActionTap: (subAction) =>
-                                  _handleSubActionTap(_actions[i], subAction),
+                        if (_isLoadingPermissions)
+                          const Center(
+                            child: Padding(
+                              padding: EdgeInsets.symmetric(vertical: 32),
+                              child: CircularProgressIndicator(),
                             ),
-                          ),
+                          )
+                        else if (_permissionsError != null)
+                          Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                _permissionsError!,
+                                style: theme.textTheme.bodyMedium?.copyWith(
+                                  color: theme.colorScheme.error,
+                                ),
+                              ),
+                              TextButton(
+                                onPressed: _loadPermissions,
+                                child: const Text('Tentar novamente'),
+                              ),
+                            ],
+                          )
+                        else if (visibleActions.isEmpty)
+                          Text(
+                            'Nenhuma funcionalidade liberada para este usuário.',
+                            style: theme.textTheme.bodyMedium?.copyWith(
+                              color: const Color(0xFF667085),
+                            ),
+                          )
+                        else
+                          for (var i = 0; i < visibleActions.length; i++)
+                            Padding(
+                              padding: const EdgeInsets.only(bottom: 16),
+                              child: Builder(
+                                builder: (_) {
+                                  final action = visibleActions[i];
+                                  final hasSubActions = action.subActions.isNotEmpty;
+                                  return HomeActionCard(
+                                    action: action,
+                                    isExpanded: hasSubActions
+                                        ? _expandedActionKey == action.title
+                                        : false,
+                                    onTap: hasSubActions
+                                        ? () => _toggleExpanded(action.title)
+                                        : () => _handlePrimaryActionTap(action),
+                                    onSubActionTap: (subAction) =>
+                                        _handleSubActionTap(action, subAction),
+                                  );
+                                },
+                              ),
+                            ),
                         const SizedBox(height: 8),
                         Text(
                           'Últimos veículos pesquisados',

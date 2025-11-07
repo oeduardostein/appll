@@ -248,6 +248,10 @@
             overflow-y: auto;
         }
 
+        .admin-modal__panel--wide {
+            width: min(720px, 95vw);
+        }
+
         .admin-modal__header {
             display: flex;
             align-items: center;
@@ -402,6 +406,48 @@
             background: rgba(11, 78, 162, 0.08);
             color: var(--brand-primary);
         }
+
+        .admin-toast-container {
+            position: fixed;
+            top: 24px;
+            right: 24px;
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+            z-index: 60;
+            pointer-events: none;
+        }
+
+        .admin-toast {
+            min-width: 260px;
+            max-width: 360px;
+            padding: 12px 16px;
+            border-radius: 12px;
+            color: #fff;
+            font-size: 14px;
+            font-weight: 600;
+            box-shadow: 0 15px 35px rgba(15, 23, 42, 0.18);
+            opacity: 0;
+            transform: translateX(20px);
+            transition: opacity 180ms ease, transform 180ms ease;
+        }
+
+        .admin-toast.is-visible {
+            opacity: 1;
+            transform: translateX(0);
+        }
+
+        .admin-toast--success {
+            background: #16a34a;
+        }
+
+        .admin-toast--error {
+            background: #dc2626;
+        }
+
+        .admin-toast--info {
+            background: var(--brand-primary);
+        }
     </style>
 
     <header style="margin-bottom: 32px;">
@@ -550,7 +596,7 @@
 
     <div class="admin-modal" data-modal="create" aria-hidden="true">
         <div class="admin-modal__backdrop" data-modal-close></div>
-        <div class="admin-modal__panel" role="dialog" aria-modal="true" aria-labelledby="create-user-title">
+        <div class="admin-modal__panel admin-modal__panel--wide" role="dialog" aria-modal="true" aria-labelledby="create-user-title">
             <header class="admin-modal__header">
                 <h2 id="create-user-title">Cadastrar usuário</h2>
                 <button type="button" class="admin-modal__close" data-modal-close aria-label="Fechar">×</button>
@@ -606,7 +652,7 @@
 
     <div class="admin-modal" data-modal="edit" aria-hidden="true">
         <div class="admin-modal__backdrop" data-modal-close></div>
-        <div class="admin-modal__panel" role="dialog" aria-modal="true" aria-labelledby="edit-user-title">
+        <div class="admin-modal__panel admin-modal__panel--wide" role="dialog" aria-modal="true" aria-labelledby="edit-user-title">
             <header class="admin-modal__header">
                 <h2 id="edit-user-title">Editar usuário</h2>
                 <button type="button" class="admin-modal__close" data-modal-close aria-label="Fechar">×</button>
@@ -796,6 +842,8 @@
         </tr>
     </template>
 
+    <div class="admin-toast-container" data-toast-container></div>
+
     <script>
         window.adminUsersState = {
             data: @json($initialUsers),
@@ -870,6 +918,7 @@
                 bulkDeleteCount: document.querySelector('[data-bulk-delete-count]'),
                 createPermissionsContainer: document.querySelector('[data-create-permissions]'),
                 editPermissionsContainer: document.querySelector('[data-edit-permissions]'),
+                toastContainer: document.querySelector('[data-toast-container]'),
             };
 
             let currentUser = null;
@@ -997,6 +1046,26 @@
                 } else {
                     elements.selectionActions.classList.remove('is-visible');
                 }
+            }
+
+            function showNotification(type = 'info', message = '') {
+                if (!elements.toastContainer || !message) {
+                    return;
+                }
+
+                const toast = document.createElement('div');
+                toast.className = `admin-toast admin-toast--${type}`;
+                toast.textContent = message;
+                elements.toastContainer.appendChild(toast);
+
+                requestAnimationFrame(() => {
+                    toast.classList.add('is-visible');
+                });
+
+                setTimeout(() => {
+                    toast.classList.remove('is-visible');
+                    setTimeout(() => toast.remove(), 250);
+                }, 4500);
             }
 
             function updateSelectedState() {
@@ -1399,6 +1468,7 @@
                     closeModal('create');
                     resetCreateForm();
                     await fetchUsers(1);
+                    showNotification('success', 'Usuário criado com sucesso.');
                 } catch (error) {
                     if (error.details) {
                         const firstError = Object.values(error.details)[0];
@@ -1406,6 +1476,7 @@
                     } else {
                         setFormError('create', error.message);
                     }
+                    showNotification('error', error.message ?? 'Não foi possível criar o usuário.');
                 } finally {
                     setSubmitting(elements.createForm, false);
                 }
@@ -1444,6 +1515,7 @@
                     });
                     closeModal('edit');
                     await fetchUsers(state.pagination.current_page);
+                    showNotification('success', 'Usuário atualizado com sucesso.');
                 } catch (error) {
                     if (error.details) {
                         const firstError = Object.values(error.details)[0];
@@ -1451,6 +1523,7 @@
                     } else {
                         setFormError('edit', error.message);
                     }
+                    showNotification('error', error.message ?? 'Não foi possível atualizar o usuário.');
                 } finally {
                     setSubmitting(elements.editForm, false);
                 }
@@ -1466,7 +1539,7 @@
                 setSubmitting(elements.deleteForm, true);
 
                 try {
-                    await handleRequest(endpoints.delete(userToDelete.id), {
+                    const response = await handleRequest(endpoints.delete(userToDelete.id), {
                         method: 'DELETE',
                     });
                     closeModal('delete');
@@ -1474,6 +1547,7 @@
                         ? state.pagination.current_page - 1
                         : state.pagination.current_page;
                     await fetchUsers(targetPage);
+                    showNotification('success', response?.message ?? 'Usuário excluído com sucesso.');
                 } catch (error) {
                     if (error.details) {
                         const firstError = Object.values(error.details)[0];
@@ -1481,6 +1555,7 @@
                     } else {
                         setFormError('delete', error.message);
                     }
+                    showNotification('error', error.message ?? 'Não foi possível excluir o usuário.');
                 } finally {
                     setSubmitting(elements.deleteForm, false);
                     userToDelete = null;
@@ -1518,7 +1593,7 @@
                 setSubmitting(elements.bulkStatusForm, true);
 
                 try {
-                    await handleRequest(endpoints.bulkStatus(), {
+                    const response = await handleRequest(endpoints.bulkStatus(), {
                         method: 'POST',
                         body: JSON.stringify({
                             user_ids: state.selectedIds,
@@ -1529,6 +1604,7 @@
                     closeModal('bulk-status');
                     resetSelection();
                     await fetchUsers(state.pagination.current_page);
+                    showNotification('success', response?.message ?? 'Status atualizado com sucesso.');
                 } catch (error) {
                     if (error.details) {
                         const firstError = Object.values(error.details)[0];
@@ -1536,6 +1612,7 @@
                     } else {
                         setFormError('bulk-status', error.message);
                     }
+                    showNotification('error', error.message ?? 'Não foi possível atualizar o status.');
                 } finally {
                     setSubmitting(elements.bulkStatusForm, false);
                 }
@@ -1567,7 +1644,7 @@
                 setSubmitting(elements.bulkDeleteForm, true);
 
                 try {
-                    await handleRequest(endpoints.bulkDelete(), {
+                    const response = await handleRequest(endpoints.bulkDelete(), {
                         method: 'DELETE',
                         body: JSON.stringify({
                             user_ids: state.selectedIds,
@@ -1581,6 +1658,7 @@
                         : state.pagination.current_page;
                     resetSelection();
                     await fetchUsers(targetPage);
+                    showNotification('success', response?.message ?? 'Usuários excluídos com sucesso.');
                 } catch (error) {
                     if (error.details) {
                         const firstError = Object.values(error.details)[0];
@@ -1588,6 +1666,7 @@
                     } else {
                         setFormError('bulk-delete', error.message);
                     }
+                    showNotification('error', error.message ?? 'Não foi possível excluir os usuários selecionados.');
                 } finally {
                     setSubmitting(elements.bulkDeleteForm, false);
                 }

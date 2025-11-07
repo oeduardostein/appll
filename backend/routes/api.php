@@ -17,6 +17,7 @@ use App\Http\Controllers\Api\RegistrarAssinaturaAtpvController;
 use App\Http\Controllers\Api\PesquisaController;
 use App\Http\Controllers\Api\ImpressaoCrlvController;
 use App\Http\Controllers\Api\PasswordResetController;
+use App\Http\Controllers\Api\UserPermissionController;
 use App\Http\Controllers\Api\RenainfPlacaController;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Support\Facades\Log;
@@ -51,6 +52,8 @@ Route::post('pesquisas', [PesquisaController::class, 'store']);
 
 Route::post('/password/forgot', [PasswordResetController::class, 'requestCode']);
 Route::post('/password/reset',  [PasswordResetController::class, 'resetPassword']);
+
+Route::get('user/permissions', UserPermissionController::class);
 
 
 Route::get('/smtp-test', function () {

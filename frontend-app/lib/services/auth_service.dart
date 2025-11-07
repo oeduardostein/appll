@@ -65,8 +65,10 @@ class AuthService {
   final String _baseUrl;
 
   static AuthSession? _sharedSession;
+  static List<String> _cachedPermissions = [];
 
   AuthSession? get session => _sharedSession;
+  List<String> get permissions => List.unmodifiable(_cachedPermissions);
 
   static String _sanitizeBaseUrl(String baseUrl) {
     if (baseUrl.endsWith('/')) {
@@ -113,7 +115,9 @@ class AuthService {
     );
 
     final payload = _handleResponse(response);
-    return _createOrUpdateSession(payload);
+    final session = _createOrUpdateSession(payload);
+    await fetchPermissions();
+    return session;
   }
 
   Future<AuthSession> login({
@@ -131,7 +135,9 @@ class AuthService {
     );
 
     final payload = _handleResponse(response);
-    return _createOrUpdateSession(payload);
+    final session = _createOrUpdateSession(payload);
+    await fetchPermissions();
+    return session;
   }
 
   Future<void> logout() async {
@@ -144,7 +150,7 @@ class AuthService {
     );
 
     _handleResponse(response);
-    _sharedSession = null;
+    clearSession();
   }
 
   Future<AuthUser> fetchCurrentUser() async {
@@ -186,6 +192,7 @@ class AuthService {
 
   void clearSession() {
     _sharedSession = null;
+    _cachedPermissions = [];
   }
 
   Map<String, dynamic> _handleResponse(http.Response response) {
@@ -223,6 +230,40 @@ class AuthService {
       throw AuthException('Sessão expirada. Faça login novamente.');
     }
     return token;
+  }
+
+  Future<List<String>> fetchPermissions() async {
+    final token = _ensureToken();
+    final uri = _buildUri('/api/user/permissions');
+    final response = await _client.get(
+      uri,
+      headers: _authorizedHeaders(token),
+    );
+
+    final payload = _handleResponse(response);
+    var slugs = _extractSlugList(payload['slugs']);
+    if (slugs.isEmpty) {
+      slugs = _extractSlugList(payload['permissions']);
+    }
+    _cachedPermissions = slugs;
+    return List.unmodifiable(_cachedPermissions);
+  }
+
+  List<String> _extractSlugList(dynamic raw) {
+    if (raw is Iterable) {
+      return raw
+          .map((value) {
+            if (value is String) return value.trim();
+            if (value is Map && value['slug'] != null) {
+              return value['slug'].toString().trim();
+            }
+            return null;
+          })
+          .whereType<String>()
+          .where((slug) => slug.isNotEmpty)
+          .toList(growable: false);
+    }
+    return const [];
   }
 
   String _extractValidationErrors(dynamic decoded) {
