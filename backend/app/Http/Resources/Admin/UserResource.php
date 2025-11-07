@@ -32,6 +32,20 @@ class UserResource extends JsonResource
             'last_login_label' => $lastLogin ? $lastLogin->timezone(config('app.timezone'))->format('d/m/Y H:i') : null,
             'created_at' => $this->created_at?->toIso8601String(),
             'updated_at' => $this->updated_at?->toIso8601String(),
+            'permissions' => $this->whenLoaded(
+                'permissions',
+                fn () => $this->permissions
+                    ->map(fn ($permission) => [
+                        'id' => $permission->id,
+                        'name' => $permission->name,
+                        'slug' => $permission->slug,
+                    ])
+                    ->all()
+            ),
+            'permission_ids' => $this->whenLoaded(
+                'permissions',
+                fn () => $this->permissions->pluck('id')->map(fn ($id) => (int) $id)->all()
+            ),
         ];
     }
 

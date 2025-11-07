@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
 use App\Http\Resources\Admin\UserResource;
+use App\Models\Permission;
 use App\Models\User;
 use Illuminate\Support\Collection;
 use Illuminate\View\View;
@@ -15,6 +16,7 @@ class ClientController extends Controller
         $perPage = 10;
 
         $users = User::query()
+            ->with(['permissions:id,name,slug'])
             ->withCount(['pesquisas as credits_used'])
             ->latest('created_at')
             ->paginate($perPage);
@@ -45,6 +47,10 @@ class ClientController extends Controller
             ],
         ];
 
+        $permissions = Permission::query()
+            ->orderBy('name')
+            ->get(['id', 'name', 'slug']);
+
         return view('admin.clients.index', [
             'stats' => $statCards,
             'selectedCount' => 0,
@@ -56,6 +62,7 @@ class ClientController extends Controller
                 'per_page' => $users->perPage(),
                 'total' => $users->total(),
             ],
+            'availablePermissions' => $permissions,
         ]);
     }
 

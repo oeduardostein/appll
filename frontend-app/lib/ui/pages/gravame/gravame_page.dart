@@ -8,14 +8,14 @@ class GravamePage extends StatelessWidget {
   const GravamePage({
     super.key,
     required this.placa,
-    required this.renavam,
     required this.uf,
     required this.payload,
+    this.renavam,
   });
 
   final String placa;
-  final String renavam;
   final String uf;
+  final String? renavam;
   final Map<String, dynamic> payload;
 
   @override
@@ -136,16 +136,16 @@ class GravamePage extends StatelessWidget {
 class _GravameSummaryCard extends StatelessWidget {
   const _GravameSummaryCard({
     required this.placa,
-    required this.renavam,
     required this.uf,
     this.origin,
     this.veiculo,
     this.fonte,
+    this.renavam,
   });
 
   final String placa;
-  final String renavam;
   final String uf;
+  final String? renavam;
   final String? origin;
   final Map<String, dynamic>? veiculo;
   final Map<String, dynamic>? fonte;
@@ -252,7 +252,10 @@ class _GravameSummaryCard extends StatelessWidget {
             children: [
               buildTile('Placa', placa),
               const SizedBox(width: 12),
-              buildTile('Renavam', renavam),
+              buildTile(
+                'Renavam',
+                (renavam == null || renavam!.trim().isEmpty) ? '—' : renavam!,
+              ),
             ],
           ),
           const SizedBox(height: 12),

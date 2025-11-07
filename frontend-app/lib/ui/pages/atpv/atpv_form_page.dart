@@ -11,6 +11,7 @@ import 'package:universal_io/io.dart' as io;
 import 'package:frontend_app/services/atpv_service.dart';
 import 'package:frontend_app/services/base_estadual_service.dart';
 import 'package:frontend_app/services/cep_service.dart';
+import 'package:frontend_app/ui/pages/atpv/widgets/atpv_top_bar.dart';
 import 'package:frontend_app/ui/widgets/app_error_dialog.dart';
 
 class AtpvFormPage extends StatefulWidget {
@@ -462,10 +463,16 @@ class _AtpvFormPageState extends State<AtpvFormPage> {
     }
   }
 
-  Future<void> _handleDownloadPdf() async {
-    final placa = _plateController.text.trim().toUpperCase();
-    final renavam = _renavamController.text.trim();
-    final captcha = (_lastCaptchaUsed ?? _captchaController.text).trim();
+  Future<void> _handleDownloadPdf({
+    String? placaOverride,
+    String? renavamOverride,
+    String? captchaOverride,
+  }) async {
+    final placa = (placaOverride ?? _plateController.text).trim().toUpperCase();
+    final renavam = (renavamOverride ?? _renavamController.text).trim();
+    final captchaSource =
+        captchaOverride ?? (_lastCaptchaUsed ?? _captchaController.text);
+    final captcha = captchaSource.trim().toUpperCase();
 
     if (placa.isEmpty || renavam.isEmpty || captcha.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -491,7 +498,7 @@ class _AtpvFormPageState extends State<AtpvFormPage> {
       final bytes = await _atpvService.baixarPdf(
         placa: placa,
         renavam: renavam,
-        captcha: captcha.toUpperCase(),
+        captcha: captcha,
       );
 
       if (!mounted) return;
@@ -546,6 +553,23 @@ class _AtpvFormPageState extends State<AtpvFormPage> {
       }
       await _showErrorAlert('Não foi possível baixar o PDF da ATPV-e.');
     }
+  }
+
+  Future<void> _openDirectPdfDownloadDialog() async {
+    final result = await showDialog<_AtpvPdfDownloadRequest>(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) => _DownloadPdfDialog(
+        baseService: _baseEstadualService,
+      ),
+    );
+
+    if (result == null) return;
+    await _handleDownloadPdf(
+      placaOverride: result.placa,
+      renavamOverride: result.renavam,
+      captchaOverride: result.captcha,
+    );
   }
 
   Future<({bool opened, String? path})> _saveAndOpenPdf(
@@ -653,15 +677,12 @@ class _AtpvFormPageState extends State<AtpvFormPage> {
     final success = _successResult;
 
     return Scaffold(
-      appBar: AppBar(
-        title: Text(success == null ? 'Emissão da ATPV-e' : 'ATPV-e emitida'),
-        actions: [
-          IconButton(
-            onPressed: _refreshCaptcha,
-            tooltip: 'Atualizar captcha',
-            icon: const Icon(Icons.refresh),
-          ),
-        ],
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
+      appBar: AtpvTopBar(
+        title: success == null ? 'Preenchimento da ATPV-e' : 'ATPV-e emitida',
+        subtitle: success == null
+            ? 'Confira os dados antes de enviar'
+            : 'ATPV-e pronta para finalizar',
       ),
       body: SafeArea(
         child: success != null ? _buildSuccessBody(context) : _buildFormBody(context),
@@ -675,6 +696,12 @@ class _AtpvFormPageState extends State<AtpvFormPage> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
+          FilledButton.icon(
+            onPressed: _openDirectPdfDownloadDialog,
+            icon: const Icon(Icons.picture_as_pdf_outlined),
+            label: const Text('Baixar PDF já emitido'),
+          ),
+          const SizedBox(height: 24),
           if (_consultaPayload != null) ...[
             _buildConsultaResultSection(),
             const SizedBox(height: 24),
@@ -686,247 +713,281 @@ class _AtpvFormPageState extends State<AtpvFormPage> {
   }
 
   Widget _buildEmissionFormSection(BuildContext context) {
-    return _buildSection(
-      title: 'Dados para emissão da ATPV-e',
-      child: Form(
-        key: _emissaoFormKey,
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            _buildTextField(
-              label: 'Placa',
-              controller: _plateController,
-              textCapitalization: TextCapitalization.characters,
-              inputFormatters: [
-                const UpperCaseTextFormatter(),
-                FilteringTextInputFormatter.allow(RegExp('[A-Za-z0-9]')),
-                LengthLimitingTextInputFormatter(7),
-              ],
-            ),
-            const SizedBox(height: 16),
-            _buildTextField(
-              label: 'Renavam',
-              controller: _renavamController,
-              keyboardType: TextInputType.number,
-              inputFormatters: [
-                FilteringTextInputFormatter.digitsOnly,
-                LengthLimitingTextInputFormatter(11),
-              ],
-            ),
-            const SizedBox(height: 16),
-            _buildTextField(
-              label: 'Chassi',
-              controller: _chassiController,
-              requiredField: false,
-            ),
-            const SizedBox(height: 16),
-            _buildTextField(
-              label: 'CPF/CNPJ do proprietário atual',
-              controller: _ownerDocumentController,
-              keyboardType: TextInputType.number,
-              inputFormatters: [
-                FilteringTextInputFormatter.digitsOnly,
-                LengthLimitingTextInputFormatter(
-                  _ownerDocOption == 1 ? 11 : 14,
-                ),
-              ],
-              requiredField: false,
-              validator: (value) => _validateDocumento(
-                value,
-                _ownerDocOption,
-                requiredField: false,
-                subject: 'proprietário',
-              ),
-            ),
-            const SizedBox(height: 8),
-            _buildDocOptionSelector(
-              title: 'Documento do proprietário',
-              groupValue: _ownerDocOption,
-              onChanged: _onOwnerDocOptionChanged,
-            ),
-            const SizedBox(height: 16),
-            _buildTextField(
-              label: 'E-mail do proprietário atual',
-              controller: _ownerEmailController,
-              keyboardType: TextInputType.emailAddress,
-              requiredField: false,
-            ),
-            const SizedBox(height: 16),
-            _buildTextField(
-              label: 'Valor da venda',
-              controller: _saleValueController,
-              keyboardType: TextInputType.number,
-              inputFormatters: [
-                FilteringTextInputFormatter.digitsOnly,
-                LengthLimitingTextInputFormatter(12),
-              ],
-              requiredField: false,
-            ),
-            const SizedBox(height: 16),
-            _buildTextField(
-              label: 'Hodômetro',
-              controller: _odometerController,
-              keyboardType: TextInputType.number,
-              requiredField: false,
-            ),
-            const SizedBox(height: 16),
-            _buildTextField(
-              label: 'CPF/CNPJ do comprador',
-              controller: _buyerDocumentController,
-              keyboardType: TextInputType.number,
-              inputFormatters: [
-                FilteringTextInputFormatter.digitsOnly,
-                LengthLimitingTextInputFormatter(
-                  _buyerDocOption == 1 ? 11 : 14,
-                ),
-              ],
-              validator: (value) => _validateDocumento(
-                value,
-                _buyerDocOption,
-                requiredField: true,
-                subject: 'comprador',
-              ),
-            ),
-            const SizedBox(height: 8),
-            _buildDocOptionSelector(
-              title: 'Documento do comprador',
-              groupValue: _buyerDocOption,
-              onChanged: _onBuyerDocOptionChanged,
-            ),
-            const SizedBox(height: 16),
-            _buildTextField(
-              label: 'Nome completo do comprador',
-              controller: _buyerNameController,
-              validator: (value) {
-                if (value == null || value.trim().isEmpty) {
-                  return 'Informe o nome do comprador.';
-                }
-                return null;
-              },
-            ),
-            const SizedBox(height: 16),
-            _buildTextField(
-              label: 'E-mail do comprador',
-              controller: _buyerEmailController,
-              keyboardType: TextInputType.emailAddress,
-              requiredField: false,
-            ),
-            const SizedBox(height: 16),
-            Row(
+    return Form(
+      key: _emissaoFormKey,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          _buildSection(
+            title: 'Dados do veículo',
+            subtitle: 'Informações do proprietário atual',
+            icon: Icons.directions_car_filled_outlined,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                Expanded(
-                  child: _buildTextField(
-                    label: 'CEP',
-                    controller: _buyerCepController,
-                    keyboardType: TextInputType.number,
+                _buildTextField(
+                  label: 'Placa',
+                  controller: _plateController,
+                  textCapitalization: TextCapitalization.characters,
+                  inputFormatters: [
+                    const UpperCaseTextFormatter(),
+                    FilteringTextInputFormatter.allow(RegExp('[A-Za-z0-9]')),
+                    LengthLimitingTextInputFormatter(7),
+                  ],
+                ),
+                const SizedBox(height: 16),
+                _buildTextField(
+                  label: 'Renavam',
+                  controller: _renavamController,
+                  keyboardType: TextInputType.number,
+                  inputFormatters: [
+                    FilteringTextInputFormatter.digitsOnly,
+                    LengthLimitingTextInputFormatter(11),
+                  ],
+                ),
+                const SizedBox(height: 16),
+                _buildTextField(
+                  label: 'Chassi',
+                  controller: _chassiController,
+                  requiredField: false,
+                ),
+                const SizedBox(height: 16),
+                _buildDocOptionSelector(
+                  title: 'Documento do proprietário',
+                  groupValue: _ownerDocOption,
+                  onChanged: _onOwnerDocOptionChanged,
+                ),
+                const SizedBox(height: 12),
+                _buildTextField(
+                  label: 'CPF/CNPJ do proprietário atual',
+                  controller: _ownerDocumentController,
+                  keyboardType: TextInputType.number,
+                  inputFormatters: [
+                    FilteringTextInputFormatter.digitsOnly,
+                    LengthLimitingTextInputFormatter(
+                      _ownerDocOption == 1 ? 11 : 14,
+                    ),
+                  ],
+                  requiredField: false,
+                  validator: (value) => _validateDocumento(
+                    value,
+                    _ownerDocOption,
                     requiredField: false,
-                    inputFormatters: [
-                      FilteringTextInputFormatter.digitsOnly,
-                      LengthLimitingTextInputFormatter(8),
-                    ],
-                    suffixIcon: _buildCepSuffixIcon(),
+                    subject: 'proprietário',
                   ),
                 ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: _buildTextField(
-                    label: 'Número',
-                    controller: _buyerNumberController,
-                    keyboardType: TextInputType.number,
+                const SizedBox(height: 20),
+                _buildTextField(
+                  label: 'E-mail do proprietário atual',
+                  controller: _ownerEmailController,
+                  keyboardType: TextInputType.emailAddress,
+                  requiredField: false,
+                ),
+                const SizedBox(height: 16),
+                _buildTextField(
+                  label: 'Valor da venda',
+                  controller: _saleValueController,
+                  keyboardType: TextInputType.number,
+                  inputFormatters: [
+                    FilteringTextInputFormatter.digitsOnly,
+                    LengthLimitingTextInputFormatter(12),
+                  ],
+                  requiredField: false,
+                ),
+                const SizedBox(height: 16),
+                _buildTextField(
+                  label: 'Hodômetro',
+                  controller: _odometerController,
+                  keyboardType: TextInputType.number,
+                  requiredField: false,
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 24),
+          _buildSection(
+            title: 'Dados do comprador',
+            subtitle: 'Preencha conforme registro no Detran',
+            icon: Icons.person_outline,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                _buildDocOptionSelector(
+                  title: 'Documento do comprador',
+                  groupValue: _buyerDocOption,
+                  onChanged: _onBuyerDocOptionChanged,
+                ),
+                const SizedBox(height: 12),
+                _buildTextField(
+                  label: 'CPF/CNPJ do comprador',
+                  controller: _buyerDocumentController,
+                  keyboardType: TextInputType.number,
+                  inputFormatters: [
+                    FilteringTextInputFormatter.digitsOnly,
+                    LengthLimitingTextInputFormatter(
+                      _buyerDocOption == 1 ? 11 : 14,
+                    ),
+                  ],
+                  validator: (value) => _validateDocumento(
+                    value,
+                    _buyerDocOption,
+                    requiredField: true,
+                    subject: 'comprador',
+                  ),
+                ),
+                const SizedBox(height: 20),
+                _buildTextField(
+                  label: 'Nome completo do comprador',
+                  controller: _buyerNameController,
+                  validator: (value) {
+                    if (value == null || value.trim().isEmpty) {
+                      return 'Informe o nome do comprador.';
+                    }
+                    return null;
+                  },
+                ),
+                const SizedBox(height: 16),
+                _buildTextField(
+                  label: 'E-mail do comprador',
+                  controller: _buyerEmailController,
+                  keyboardType: TextInputType.emailAddress,
+                  requiredField: false,
+                ),
+                const SizedBox(height: 16),
+                Row(
+                  children: [
+                    Expanded(
+                      child: _buildTextField(
+                        label: 'CEP',
+                        controller: _buyerCepController,
+                        keyboardType: TextInputType.number,
+                        requiredField: false,
+                        inputFormatters: [
+                          FilteringTextInputFormatter.digitsOnly,
+                          LengthLimitingTextInputFormatter(8),
+                        ],
+                        suffixIcon: _buildCepSuffixIcon(),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: _buildTextField(
+                        label: 'Número',
+                        controller: _buyerNumberController,
+                        keyboardType: TextInputType.number,
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 16),
+                _buildTextField(
+                  label: 'Complemento',
+                  controller: _buyerComplementController,
+                  requiredField: false,
+                ),
+                const SizedBox(height: 16),
+                _buildTextField(
+                  label: 'Município',
+                  controller: _buyerCityController,
+                  validator: (value) {
+                    if (value == null || value.trim().isEmpty) {
+                      return 'Informe o município do comprador.';
+                    }
+                    return null;
+                  },
+                ),
+                const SizedBox(height: 16),
+                _buildTextField(
+                  label: 'Bairro',
+                  controller: _buyerNeighborhoodController,
+                  validator: (value) {
+                    if (value == null || value.trim().isEmpty) {
+                      return 'Informe o bairro.';
+                    }
+                    return null;
+                  },
+                ),
+                const SizedBox(height: 16),
+                _buildTextField(
+                  label: 'Logradouro',
+                  controller: _buyerStreetController,
+                  validator: (value) {
+                    if (value == null || value.trim().isEmpty) {
+                      return 'Informe o logradouro.';
+                    }
+                    return null;
+                  },
+                ),
+                const SizedBox(height: 16),
+                _buildTextField(
+                  label: 'UF',
+                  controller: _buyerStateController,
+                  textCapitalization: TextCapitalization.characters,
+                  inputFormatters: [
+                    const UpperCaseTextFormatter(),
+                    LengthLimitingTextInputFormatter(2),
+                  ],
+                  validator: (value) {
+                    final text = value?.trim().toUpperCase() ?? '';
+                    if (text.length != 2) {
+                      return 'Informe a UF com duas letras.';
+                    }
+                    return null;
+                  },
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 24),
+          _buildSection(
+            title: 'Validação',
+            subtitle: 'Confirme o captcha e aceite os termos',
+            icon: Icons.verified_outlined,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                _buildCaptchaSection(),
+                const SizedBox(height: 16),
+                Container(
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFF4F7FF),
+                    borderRadius: BorderRadius.circular(18),
+                  ),
+                  child: CheckboxListTile(
+                    contentPadding: const EdgeInsets.symmetric(horizontal: 8),
+                    controlAffinity: ListTileControlAffinity.leading,
+                    title: const Text('Confirmo que as informações estão corretas.'),
+                    value: _termsAccepted,
+                    onChanged: (value) => setState(() {
+                      _termsAccepted = value ?? false;
+                    }),
                   ),
                 ),
               ],
             ),
-            const SizedBox(height: 16),
-            _buildTextField(
-              label: 'Complemento',
-              controller: _buyerComplementController,
-              requiredField: false,
-            ),
-            const SizedBox(height: 16),
-            _buildTextField(
-              label: 'Município',
-              controller: _buyerCityController,
-              validator: (value) {
-                if (value == null || value.trim().isEmpty) {
-                  return 'Informe o município do comprador.';
-                }
-                return null;
-              },
-            ),
-            const SizedBox(height: 16),
-            _buildTextField(
-              label: 'Bairro',
-              controller: _buyerNeighborhoodController,
-              validator: (value) {
-                if (value == null || value.trim().isEmpty) {
-                  return 'Informe o bairro.';
-                }
-                return null;
-              },
-            ),
-            const SizedBox(height: 16),
-            _buildTextField(
-              label: 'Logradouro',
-              controller: _buyerStreetController,
-              validator: (value) {
-                if (value == null || value.trim().isEmpty) {
-                  return 'Informe o logradouro.';
-                }
-                return null;
-              },
-            ),
-            const SizedBox(height: 16),
-            _buildTextField(
-              label: 'UF',
-              controller: _buyerStateController,
-              textCapitalization: TextCapitalization.characters,
-              inputFormatters: [
-                const UpperCaseTextFormatter(),
-                LengthLimitingTextInputFormatter(2),
-              ],
-              validator: (value) {
-                final text = value?.trim().toUpperCase() ?? '';
-                if (text.length != 2) {
-                  return 'Informe a UF com duas letras.';
-                }
-                return null;
-              },
-            ),
-            const SizedBox(height: 24),
-            _buildCaptchaSection(),
-            const SizedBox(height: 24),
-            CheckboxListTile(
-              contentPadding: EdgeInsets.zero,
-              title: const Text('Confirmo que as informações estão corretas.'),
-              value: _termsAccepted,
-              onChanged: (value) => setState(() {
-                _termsAccepted = value ?? false;
-              }),
-            ),
+          ),
+          const SizedBox(height: 24),
+          FilledButton(
+            onPressed: _isSubmitting ? null : _submitEmission,
+            child: _isSubmitting
+                ? const SizedBox(
+                    height: 18,
+                    width: 18,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  )
+                : const Text('Enviar ATPV-e'),
+          ),
+          if (_submissionError != null) ...[
             const SizedBox(height: 12),
-            FilledButton(
-              onPressed: _isSubmitting ? null : _submitEmission,
-              child: _isSubmitting
-                  ? const SizedBox(
-                      height: 18,
-                      width: 18,
-                      child: CircularProgressIndicator(strokeWidth: 2),
-                    )
-                  : const Text('Emitir ATPV-e'),
+            Text(
+              _submissionError!,
+              style: Theme.of(context)
+                  .textTheme
+                  .bodyMedium
+                  ?.copyWith(color: Colors.red.shade700),
             ),
-            if (_submissionError != null) ...[
-              const SizedBox(height: 12),
-              Text(
-                _submissionError!,
-                style: Theme.of(context)
-                    .textTheme
-                    .bodyMedium
-                    ?.copyWith(color: Colors.red.shade700),
-              ),
-            ],
           ],
-        ),
+        ],
       ),
     );
   }
@@ -1199,27 +1260,69 @@ class _AtpvFormPageState extends State<AtpvFormPage> {
   Widget _buildSection({
     required String title,
     required Widget child,
+    IconData? icon,
+    String? subtitle,
   }) {
-    return Card(
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(20),
+    final theme = Theme.of(context);
+
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(28),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.05),
+            blurRadius: 32,
+            offset: const Offset(0, 18),
+          ),
+        ],
       ),
-      elevation: 1,
-      child: Padding(
-        padding: const EdgeInsets.fromLTRB(20, 20, 20, 24),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Text(
-              title,
-              style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                    fontWeight: FontWeight.w700,
+      padding: const EdgeInsets.fromLTRB(24, 24, 24, 30),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              if (icon != null)
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: theme.colorScheme.primary.withOpacity(0.12),
+                    borderRadius: BorderRadius.circular(16),
                   ),
-            ),
-            const SizedBox(height: 16),
-            child,
-          ],
-        ),
+                  child: Icon(
+                    icon,
+                    color: theme.colorScheme.primary,
+                  ),
+                ),
+              if (icon != null) const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      title,
+                      style: theme.textTheme.titleMedium?.copyWith(
+                        fontWeight: FontWeight.w700,
+                        color: theme.colorScheme.primary,
+                      ),
+                    ),
+                    if (subtitle != null) ...[
+                      const SizedBox(height: 4),
+                      Text(
+                        subtitle,
+                        style: theme.textTheme.bodySmall,
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 20),
+          child,
+        ],
       ),
     );
   }
@@ -1610,35 +1713,40 @@ class _AtpvFormPageState extends State<AtpvFormPage> {
             color: Colors.grey.shade700,
           ),
         ),
-        const SizedBox(height: 4),
-        Row(
-          children: [
-            Expanded(
-              child: RadioListTile<int>(
-                value: 1,
-                groupValue: groupValue,
-                dense: true,
-                contentPadding: EdgeInsets.zero,
-                title: const Text('CPF'),
-                onChanged: (value) {
-                  if (value != null) onChanged(value);
-                },
+        const SizedBox(height: 8),
+        Container(
+          decoration: BoxDecoration(
+            color: const Color(0xFFF8FAFF),
+            borderRadius: BorderRadius.circular(18),
+          ),
+          child: Row(
+            children: [
+              Expanded(
+                child: RadioListTile<int>(
+                  value: 1,
+                  groupValue: groupValue,
+                  dense: true,
+                  contentPadding: const EdgeInsets.symmetric(horizontal: 8),
+                  title: const Text('CPF'),
+                  onChanged: (value) {
+                    if (value != null) onChanged(value);
+                  },
+                ),
               ),
-            ),
-            const SizedBox(width: 8),
-            Expanded(
-              child: RadioListTile<int>(
-                value: 2,
-                groupValue: groupValue,
-                dense: true,
-                contentPadding: EdgeInsets.zero,
-                title: const Text('CNPJ'),
-                onChanged: (value) {
-                  if (value != null) onChanged(value);
-                },
+              Expanded(
+                child: RadioListTile<int>(
+                  value: 2,
+                  groupValue: groupValue,
+                  dense: true,
+                  contentPadding: const EdgeInsets.symmetric(horizontal: 8),
+                  title: const Text('CNPJ'),
+                  onChanged: (value) {
+                    if (value != null) onChanged(value);
+                  },
+                ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       ],
     );
@@ -1681,6 +1789,13 @@ class _AtpvFormPageState extends State<AtpvFormPage> {
         ),
       );
     }
+
+    captchaContent = Center(
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 260),
+        child: captchaContent,
+      ),
+    );
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -1763,56 +1878,49 @@ class _AtpvFormPageState extends State<AtpvFormPage> {
       }
     }
 
-    return Card(
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-      elevation: 0,
-      child: Padding(
-        padding: const EdgeInsets.all(20),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
+    return _buildSection(
+      title: 'Resultado da consulta',
+      subtitle: 'Dados retornados pelo Detran',
+      icon: Icons.receipt_long_outlined,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          if (displayEntries.isNotEmpty)
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: displayEntries
+                  .map(
+                    (entry) => Padding(
+                      padding: const EdgeInsets.only(bottom: 12),
+                      child: _buildSummaryRow(
+                        context,
+                        label: entry.key,
+                        value: entry.value,
+                      ),
+                    ),
+                  )
+                  .toList(),
+            ),
+          if (displayEntries.isNotEmpty) const SizedBox(height: 12),
+          if (_consultaComunicacoes.isNotEmpty) ...[
             Text(
-              'Resultado da consulta',
-              style: theme.textTheme.titleMedium?.copyWith(
+              'Comunicações de venda',
+              style: theme.textTheme.titleSmall?.copyWith(
                 fontWeight: FontWeight.w700,
+                color: theme.colorScheme.primary,
               ),
             ),
-            const SizedBox(height: 16),
-            if (displayEntries.isNotEmpty)
-              Column(
-                children: displayEntries
-                    .map(
-                      (entry) => Padding(
-                        padding: const EdgeInsets.only(bottom: 12),
-                        child: _buildSummaryRow(
-                          context,
-                          label: entry.key,
-                          value: entry.value,
-                        ),
-                      ),
-                    )
-                    .toList(),
+            const SizedBox(height: 12),
+            ..._consultaComunicacoes.map(_buildCommunicationCard).toList(),
+          ] else ...[
+            Text(
+              'Nenhuma comunicação de venda encontrada para os dados informados.',
+              style: theme.textTheme.bodyMedium?.copyWith(
+                color: Colors.grey.shade600,
               ),
-            const SizedBox(height: 16),
-            if (_consultaComunicacoes.isNotEmpty) ...[
-              Text(
-                'Comunicações de venda',
-                style: theme.textTheme.titleSmall?.copyWith(
-                  fontWeight: FontWeight.w700,
-                ),
-              ),
-              const SizedBox(height: 12),
-              ..._consultaComunicacoes.map(_buildCommunicationCard).toList(),
-            ] else ...[
-              Text(
-                'Nenhuma comunicação de venda encontrada para os dados informados.',
-                style: theme.textTheme.bodyMedium?.copyWith(
-                  color: Colors.grey.shade600,
-                ),
-              ),
-            ],
+            ),
           ],
-        ),
+        ],
       ),
     );
   }
@@ -1829,6 +1937,246 @@ class UpperCaseTextFormatter extends TextInputFormatter {
     return newValue.copyWith(
       text: newValue.text.toUpperCase(),
       selection: newValue.selection,
+    );
+  }
+}
+
+class _AtpvPdfDownloadRequest {
+  const _AtpvPdfDownloadRequest({
+    required this.placa,
+    required this.renavam,
+    required this.captcha,
+  });
+
+  final String placa;
+  final String renavam;
+  final String captcha;
+}
+
+class _DownloadPdfDialog extends StatefulWidget {
+  const _DownloadPdfDialog({
+    required this.baseService,
+  });
+
+  final BaseEstadualService baseService;
+
+  @override
+  State<_DownloadPdfDialog> createState() => _DownloadPdfDialogState();
+}
+
+class _DownloadPdfDialogState extends State<_DownloadPdfDialog> {
+  final _formKey = GlobalKey<FormState>();
+  final _plateController = TextEditingController();
+  final _renavamController = TextEditingController();
+  final _captchaController = TextEditingController();
+
+  Uint8List? _captchaBytes;
+  bool _loadingCaptcha = false;
+  bool _submitting = false;
+  String? _captchaError;
+
+  @override
+  void initState() {
+    super.initState();
+    _refreshCaptcha();
+  }
+
+  @override
+  void dispose() {
+    _plateController.dispose();
+    _renavamController.dispose();
+    _captchaController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _refreshCaptcha() async {
+    setState(() {
+      _loadingCaptcha = true;
+      _captchaBytes = null;
+      _captchaError = null;
+    });
+
+    try {
+      final captchaValue = await widget.baseService.fetchCaptcha();
+      Uint8List? bytes;
+      try {
+        bytes = base64Decode(captchaValue);
+      } catch (_) {
+        bytes = null;
+      }
+      if (bytes == null || bytes.isEmpty) {
+        setState(() {
+          _captchaError = 'Captcha inválido. Recarregue.';
+        });
+      } else {
+        setState(() {
+          _captchaBytes = bytes;
+        });
+      }
+    } catch (_) {
+      setState(() {
+        _captchaError = 'Erro ao carregar captcha.';
+      });
+    } finally {
+      if (mounted) {
+        setState(() {
+          _loadingCaptcha = false;
+        });
+      }
+    }
+  }
+
+  void _submit() {
+    final form = _formKey.currentState;
+    if (form == null) return;
+    if (!form.validate()) return;
+
+    setState(() {
+      _submitting = true;
+    });
+
+    Navigator.of(context).pop(
+      _AtpvPdfDownloadRequest(
+        placa: _plateController.text.trim().toUpperCase(),
+        renavam: _renavamController.text.trim(),
+        captcha: _captchaController.text.trim().toUpperCase(),
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+
+    Widget captchaWidget;
+    if (_loadingCaptcha) {
+      captchaWidget = const SizedBox(
+        height: 80,
+        child: Center(child: CircularProgressIndicator()),
+      );
+    } else if (_captchaBytes != null) {
+      captchaWidget = ClipRRect(
+        borderRadius: BorderRadius.circular(12),
+        child: Image.memory(
+          _captchaBytes!,
+          height: 80,
+          fit: BoxFit.cover,
+        ),
+      );
+    } else {
+      captchaWidget = Container(
+        height: 80,
+        decoration: BoxDecoration(
+          color: Colors.grey.shade200,
+          borderRadius: BorderRadius.circular(12),
+        ),
+        child: Center(
+          child: Text(
+            _captchaError ?? 'Captcha não carregado.',
+            style: theme.textTheme.bodySmall?.copyWith(
+              color: Colors.grey.shade600,
+            ),
+          ),
+        ),
+      );
+    }
+
+    return AlertDialog(
+      title: const Text('Baixar PDF já emitido'),
+      content: SingleChildScrollView(
+        child: Form(
+          key: _formKey,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              TextFormField(
+                controller: _plateController,
+                decoration: const InputDecoration(labelText: 'Placa'),
+                textCapitalization: TextCapitalization.characters,
+                inputFormatters: [
+                  const UpperCaseTextFormatter(),
+                  FilteringTextInputFormatter.allow(RegExp('[A-Za-z0-9]')),
+                  LengthLimitingTextInputFormatter(7),
+                ],
+                validator: (value) {
+                  final text = value?.trim() ?? '';
+                  if (text.length != 7) {
+                    return 'Informe uma placa válida.';
+                  }
+                  return null;
+                },
+              ),
+              const SizedBox(height: 16),
+              TextFormField(
+                controller: _renavamController,
+                decoration: const InputDecoration(labelText: 'Renavam'),
+                keyboardType: TextInputType.number,
+                inputFormatters: [
+                  FilteringTextInputFormatter.digitsOnly,
+                  LengthLimitingTextInputFormatter(11),
+                ],
+                validator: (value) {
+                  final text = value?.trim() ?? '';
+                  if (text.length < 9) {
+                    return 'Informe um Renavam válido.';
+                  }
+                  return null;
+                },
+              ),
+              const SizedBox(height: 16),
+              captchaWidget,
+              const SizedBox(height: 12),
+              Row(
+                children: [
+                  Expanded(
+                    child: TextFormField(
+                      controller: _captchaController,
+                      decoration: const InputDecoration(labelText: 'Captcha'),
+                      textCapitalization: TextCapitalization.characters,
+                      validator: (value) {
+                        if (value == null || value.trim().isEmpty) {
+                          return 'Informe o captcha.';
+                        }
+                        return null;
+                      },
+                    ),
+                  ),
+                  IconButton(
+                    onPressed: _loadingCaptcha ? null : _refreshCaptcha,
+                    icon: const Icon(Icons.refresh),
+                    tooltip: 'Recarregar captcha',
+                  ),
+                ],
+              ),
+              if (_captchaError != null) ...[
+                const SizedBox(height: 8),
+                Text(
+                  _captchaError!,
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: Colors.red.shade700,
+                  ),
+                ),
+              ],
+            ],
+          ),
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: _submitting ? null : () => Navigator.of(context).pop(),
+          child: const Text('Cancelar'),
+        ),
+        FilledButton(
+          onPressed: _submitting ? null : _submit,
+          child: _submitting
+              ? const SizedBox(
+                  height: 18,
+                  width: 18,
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                )
+              : const Text('Baixar PDF'),
+        ),
+      ],
     );
   }
 }

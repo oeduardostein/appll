@@ -7,6 +7,7 @@ import 'package:flutter/services.dart';
 import 'package:frontend_app/services/atpv_service.dart';
 import 'package:frontend_app/services/base_estadual_service.dart';
 import 'package:frontend_app/ui/pages/atpv/atpv_form_page.dart';
+import 'package:frontend_app/ui/pages/atpv/widgets/atpv_top_bar.dart';
 import 'package:frontend_app/ui/widgets/app_error_dialog.dart';
 
 class AtpvOptionsPage extends StatefulWidget {
@@ -50,37 +51,137 @@ class _AtpvOptionsPageState extends State<AtpvOptionsPage> {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Emissão da ATPV-e'),
+      backgroundColor: theme.scaffoldBackgroundColor,
+      appBar: const AtpvTopBar(
+        title: 'Preenchimento da ATPV-e',
+        subtitle: 'Escolha o próximo passo',
       ),
       body: SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 32),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              Text(
-                'Escolha como deseja prosseguir:',
-                style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                      fontWeight: FontWeight.w600,
+        child: Center(
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 32),
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 520),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Text(
+                    'Como deseja prosseguir?',
+                    textAlign: TextAlign.center,
+                    style: theme.textTheme.headlineSmall?.copyWith(
+                      fontSize: 22,
+                      color: theme.colorScheme.primary,
                     ),
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    'Você pode consultar uma intenção de venda existente ou preencher o formulário completo.',
+                    textAlign: TextAlign.center,
+                    style: theme.textTheme.bodyMedium,
+                  ),
+                  const SizedBox(height: 32),
+                  _buildOptionCard(
+                    icon: Icons.search_outlined,
+                    title: 'Consultar intenção de venda',
+                    description:
+                        'Use a placa e o Renavam para recuperar dados já informados ao Detran.',
+                    buttonLabel: 'Consultar agora',
+                    onPressed: _handleConsultation,
+                    primary: true,
+                  ),
+                  const SizedBox(height: 20),
+                  _buildOptionCard(
+                    icon: Icons.description_outlined,
+                    title: 'Preencher formulário',
+                    description:
+                        'Prefere informar tudo do zero? Abra o formulário completo de emissão.',
+                    buttonLabel: 'Ir para o formulário',
+                    onPressed: _handleForm,
+                  ),
+                ],
               ),
-              const SizedBox(height: 24),
-              FilledButton.icon(
-                onPressed: _handleConsultation,
-                icon: const Icon(Icons.search_outlined),
-                label: const Text('Consultar intenção de venda'),
-              ),
-              const SizedBox(height: 12),
-              OutlinedButton.icon(
-                onPressed: _handleForm,
-                icon: const Icon(Icons.description_outlined),
-                label: const Text('Formulário de emissão da ATPV-e'),
-              ),
-            ],
+            ),
           ),
         ),
+      ),
+    );
+  }
+
+  Widget _buildOptionCard({
+    required IconData icon,
+    required String title,
+    required String description,
+    required String buttonLabel,
+    required VoidCallback onPressed,
+    bool primary = false,
+  }) {
+    final theme = Theme.of(context);
+
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(28),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.05),
+            blurRadius: 32,
+            offset: const Offset(0, 18),
+          ),
+        ],
+      ),
+      padding: const EdgeInsets.fromLTRB(24, 24, 24, 30),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Container(
+            width: 64,
+            height: 64,
+            decoration: BoxDecoration(
+              color: theme.colorScheme.primary.withOpacity(0.12),
+              borderRadius: BorderRadius.circular(18),
+            ),
+            child: Icon(icon, color: theme.colorScheme.primary, size: 30),
+          ),
+          const SizedBox(height: 18),
+          Text(
+            title,
+            style: theme.textTheme.titleMedium?.copyWith(
+              fontWeight: FontWeight.w700,
+              color: theme.colorScheme.primary,
+            ),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            description,
+            style: theme.textTheme.bodyMedium,
+          ),
+          const SizedBox(height: 20),
+          primary
+              ? FilledButton(
+                  onPressed: onPressed,
+                  child: Text(buttonLabel),
+                )
+              : OutlinedButton(
+                  onPressed: onPressed,
+                  style: OutlinedButton.styleFrom(
+                    minimumSize: const Size.fromHeight(52),
+                    side: BorderSide(
+                      color: theme.colorScheme.primary,
+                      width: 1.4,
+                    ),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(16),
+                    ),
+                  ),
+                  child: Text(
+                    buttonLabel,
+                    style: TextStyle(color: theme.colorScheme.primary),
+                  ),
+                ),
+        ],
       ),
     );
   }

@@ -22,14 +22,12 @@ class GravameService {
 
   Future<Map<String, dynamic>> consultar({
     required String placa,
-    required String renavam,
     required String uf,
     required String captcha,
   }) async {
     final uri = _gravameUri.replace(
       queryParameters: {
         'placa': placa,
-        'renavam': renavam,
         'uf': uf,
         'captcha': captcha,
       },

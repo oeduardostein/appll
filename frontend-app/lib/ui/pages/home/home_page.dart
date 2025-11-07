@@ -237,7 +237,6 @@ class _HomePageState extends State<HomePage> {
         fetchCaptcha: () => _baseEstadualService.fetchCaptcha(),
         captchaErrorResolver: _mapBaseEstadualCaptchaError,
         plateValidator: _isValidPlate,
-        renavamValidator: _isValidRenavam,
         ufCodes: _brazilUfCodes,
       ),
     );
@@ -284,7 +283,6 @@ class _HomePageState extends State<HomePage> {
         fetchCaptcha: fetchCaptcha,
         captchaErrorResolver: captchaErrorResolver,
         plateValidator: _isValidPlate,
-        renavamValidator: _isValidRenavam,
       ),
     );
   }
@@ -1294,7 +1292,6 @@ class _HomePageState extends State<HomePage> {
     try {
       final result = await _gravameService.consultar(
         placa: request.plate,
-        renavam: request.renavam,
         uf: request.uf,
         captcha: request.captcha,
       );
@@ -1304,14 +1301,13 @@ class _HomePageState extends State<HomePage> {
       _registerPesquisa(
         nome: 'Gravame',
         placa: request.plate,
-        renavam: request.renavam,
         opcaoPesquisa: request.uf,
       );
       Navigator.of(context).push(
         MaterialPageRoute(
           builder: (_) => GravamePage(
             placa: request.plate,
-            renavam: request.renavam,
+            renavam: null,
             uf: request.uf,
             payload: result,
           ),
@@ -2632,14 +2628,12 @@ class _VehicleLookupDialog extends StatefulWidget {
     required this.plateValidator,
     this.submitLabel = "Consultar",
     this.captchaLabel = "Informe o captcha",
-    required this.renavamValidator,
     this.captchaErrorResolver,
   });
 
   final String title;
   final Future<String> Function() fetchCaptcha;
   final bool Function(String value) plateValidator;
-  final bool Function(String value) renavamValidator;
   final String Function(Object error)? captchaErrorResolver;
   final String submitLabel;
   final String captchaLabel;
@@ -2651,7 +2645,6 @@ class _VehicleLookupDialog extends StatefulWidget {
 class _VehicleLookupDialogState extends State<_VehicleLookupDialog> {
   final _formKey = GlobalKey<FormState>();
   late final TextEditingController _plateController;
-  late final TextEditingController _renavamController;
   late final TextEditingController _captchaController;
 
   bool _isLoadingCaptcha = false;
@@ -2662,7 +2655,6 @@ class _VehicleLookupDialogState extends State<_VehicleLookupDialog> {
   void initState() {
     super.initState();
     _plateController = TextEditingController();
-    _renavamController = TextEditingController();
     _captchaController = TextEditingController();
     _refreshCaptcha();
   }
@@ -2670,7 +2662,6 @@ class _VehicleLookupDialogState extends State<_VehicleLookupDialog> {
   @override
   void dispose() {
     _plateController.dispose();
-    _renavamController.dispose();
     _captchaController.dispose();
     super.dispose();
   }
@@ -2712,7 +2703,7 @@ class _VehicleLookupDialogState extends State<_VehicleLookupDialog> {
     Navigator.of(context).pop(
       _BaseEstadualQuery(
         placa: _plateController.text.trim().toUpperCase(),
-        renavam: _renavamController.text.trim(),
+        renavam: '',
         captcha: _captchaController.text.trim().toUpperCase(),
       ),
     );
@@ -2779,28 +2770,6 @@ class _VehicleLookupDialogState extends State<_VehicleLookupDialog> {
                     final normalized = text.replaceAll('-', '');
                     if (!widget.plateValidator(normalized)) {
                       return 'Placa inválida';
-                    }
-                    return null;
-                  },
-                ),
-                const SizedBox(height: 16),
-                TextFormField(
-                  controller: _renavamController,
-                  decoration: const InputDecoration(
-                    labelText: 'Renavam',
-                  ),
-                  keyboardType: TextInputType.number,
-                  inputFormatters: [
-                    FilteringTextInputFormatter.digitsOnly,
-                    LengthLimitingTextInputFormatter(11),
-                  ],
-                  validator: (value) {
-                    final text = value?.trim() ?? '';
-                    if (text.isEmpty) {
-                      return 'Informe o renavam';
-                    }
-                    if (!widget.renavamValidator(text)) {
-                      return 'Renavam inválido';
                     }
                     return null;
                   },
@@ -2923,14 +2892,12 @@ class _GravameDialog extends StatefulWidget {
     required this.fetchCaptcha,
     required this.ufCodes,
     required this.plateValidator,
-    required this.renavamValidator,
     this.captchaErrorResolver,
   });
 
   final Future<String> Function() fetchCaptcha;
   final List<String> ufCodes;
   final bool Function(String value) plateValidator;
-  final bool Function(String value) renavamValidator;
   final String Function(Object error)? captchaErrorResolver;
 
   @override
@@ -2940,7 +2907,6 @@ class _GravameDialog extends StatefulWidget {
 class _GravameDialogState extends State<_GravameDialog> {
   final _formKey = GlobalKey<FormState>();
   late final TextEditingController _plateController;
-  late final TextEditingController _renavamController;
   late final TextEditingController _captchaController;
 
   String? _selectedUf;
@@ -2952,7 +2918,6 @@ class _GravameDialogState extends State<_GravameDialog> {
   void initState() {
     super.initState();
     _plateController = TextEditingController();
-    _renavamController = TextEditingController();
     _captchaController = TextEditingController();
     _refreshCaptcha();
   }
@@ -2960,7 +2925,6 @@ class _GravameDialogState extends State<_GravameDialog> {
   @override
   void dispose() {
     _plateController.dispose();
-    _renavamController.dispose();
     _captchaController.dispose();
     super.dispose();
   }
@@ -3000,7 +2964,6 @@ class _GravameDialogState extends State<_GravameDialog> {
     Navigator.of(context).pop(
       _GravameRequest(
         plate: _plateController.text.trim().toUpperCase(),
-        renavam: _renavamController.text.trim(),
         uf: _selectedUf!.toUpperCase(),
         captcha: _captchaController.text.trim().toUpperCase(),
       ),
@@ -3048,7 +3011,7 @@ class _GravameDialogState extends State<_GravameDialog> {
                 ),
                 const SizedBox(height: 12),
                 Text(
-                  'Informe placa, renavam, UF e captcha para consultar o gravame.',
+                  'Informe placa, UF e captcha para consultar o gravame.',
                   style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                         color: const Color(0xFF475467),
                       ),
@@ -3075,28 +3038,6 @@ class _GravameDialogState extends State<_GravameDialog> {
                     final normalized = text.replaceAll('-', '');
                     if (!widget.plateValidator(normalized)) {
                       return 'Placa inválida';
-                    }
-                    return null;
-                  },
-                ),
-                const SizedBox(height: 16),
-                TextFormField(
-                  controller: _renavamController,
-                  decoration: const InputDecoration(
-                    labelText: 'Renavam',
-                  ),
-                  keyboardType: TextInputType.number,
-                  inputFormatters: [
-                    FilteringTextInputFormatter.digitsOnly,
-                    LengthLimitingTextInputFormatter(11),
-                  ],
-                  validator: (value) {
-                    final text = value?.trim() ?? '';
-                    if (text.isEmpty) {
-                      return 'Informe o renavam';
-                    }
-                    if (!widget.renavamValidator(text)) {
-                      return 'Renavam inválido';
                     }
                     return null;
                   },
@@ -3775,13 +3716,11 @@ class _CrlvEmissionRequest {
 class _GravameRequest {
   const _GravameRequest({
     required this.plate,
-    required this.renavam,
     required this.uf,
     required this.captcha,
   });
 
   final String plate;
-  final String renavam;
   final String uf;
   final String captcha;
 }

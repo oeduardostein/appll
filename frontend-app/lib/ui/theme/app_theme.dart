@@ -91,9 +91,23 @@ class AppTheme {
           foregroundColor: Colors.white,
           textStyle: const TextStyle(
             fontWeight: FontWeight.w600,
-            fontSize: 16,
+            fontSize: 15,
           ),
-          minimumSize: const Size.fromHeight(52),
+          minimumSize: const Size(0, 50),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+          ),
+        ),
+      ),
+      outlinedButtonTheme: OutlinedButtonThemeData(
+        style: OutlinedButton.styleFrom(
+          textStyle: const TextStyle(
+            fontWeight: FontWeight.w600,
+            fontSize: 15,
+          ),
+          minimumSize: const Size(0, 50),
+          side: const BorderSide(color: _primaryColor, width: 1.2),
+          foregroundColor: _primaryColor,
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(16),
           ),
@@ -104,7 +118,7 @@ class AppTheme {
           foregroundColor: _secondaryColor,
           textStyle: const TextStyle(
             fontWeight: FontWeight.w600,
-            fontSize: 14,
+            fontSize: 13,
           ),
         ),
       ),

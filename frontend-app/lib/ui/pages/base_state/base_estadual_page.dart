@@ -1,7 +1,11 @@
 import 'dart:convert';
+import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:pdf/pdf.dart';
+import 'package:pdf/widgets.dart' as pw;
+import 'package:share_plus/share_plus.dart';
 
 class BaseEstadualPage extends StatelessWidget {
   const BaseEstadualPage({
@@ -336,6 +340,7 @@ class _BaseEstadualStructuredScreen extends StatelessWidget {
                 _BlueHeader(
                   title: title,
                   onBack: () => Navigator.of(context).pop(),
+                  onShare: () => _shareBaseEstadualPdf(context, data),
                 ),
                 Expanded(
                   child: SingleChildScrollView(
@@ -912,14 +917,7 @@ class _VehicleInfoPage extends StatelessWidget {
     return _BaseEstadualDetailScaffold(
       title: 'Informações do veículo',
       children: content,
-      onShare: () => _copyJsonToClipboard(
-        context,
-        {
-          'veiculo': data.veiculo,
-          'proprietario': data.proprietario,
-          'crv_crlv_atualizacao': data.crvCrlvAtualizacao,
-        },
-      ),
+      onShare: () => _shareBaseEstadualPdf(context, data),
       emptyMessage: 'Nenhuma informação do veículo disponível.',
     );
   }
@@ -991,14 +989,7 @@ class _GravameInfoPage extends StatelessWidget {
     return _BaseEstadualDetailScaffold(
       title: 'Gravame',
       children: content,
-      onShare: () => _copyJsonToClipboard(
-        context,
-        {
-          'gravames': data.gravames,
-          'gravames_datas': data.gravamesDatas,
-          'intencao_gravame': data.intencaoGravame,
-        },
-      ),
+      onShare: () => _shareBaseEstadualPdf(context, data),
       emptyMessage: 'Nenhuma informação de gravame encontrada.',
     );
   }
@@ -1205,12 +1196,7 @@ class _DebitosMultasPage extends StatelessWidget {
       children: [
         _DebitosSummaryCard(data: data),
       ],
-      onShare: () => _copyJsonToClipboard(
-        context,
-        {
-          'debitos_multas': data.debitosMultas,
-        },
-      ),
+      onShare: () => _shareBaseEstadualPdf(context, data),
       emptyMessage: 'Nenhum débito informado.',
     );
   }
@@ -1461,12 +1447,7 @@ class _RestricoesInfoPage extends StatelessWidget {
     return _BaseEstadualDetailScaffold(
       title: 'Restrições',
       children: content,
-      onShare: () => _copyJsonToClipboard(
-        context,
-        {
-          'restricoes': data.restricoes,
-        },
-      ),
+      onShare: () => _shareBaseEstadualPdf(context, data),
       emptyMessage: 'Nenhuma restrição informada.',
     );
   }
@@ -1519,13 +1500,7 @@ class _ComunicacaoVendasPage extends StatelessWidget {
     return _BaseEstadualDetailScaffold(
       title: 'Comunicações de venda',
       children: content,
-      onShare: () => _copyJsonToClipboard(
-        context,
-        {
-          'comunicacao_vendas': data.comunicacaoVendas,
-          'comunicacao_vendas_datas': data.comunicacaoVendasDatas,
-        },
-      ),
+      onShare: () => _shareBaseEstadualPdf(context, data),
       emptyMessage: 'Nenhuma comunicação de venda registrada.',
     );
   }
@@ -1638,6 +1613,408 @@ Future<void> _copyJsonToClipboard(
         content: Text('Dados copiados para a área de transferência.'),
       ),
     );
+}
+
+Future<void> _shareBaseEstadualPdf(
+  BuildContext context,
+  _BaseEstadualStructuredPayload data,
+) async {
+  bool dialogOpened = false;
+  showDialog<void>(
+    context: context,
+    barrierDismissible: false,
+    builder: (_) => const Center(child: CircularProgressIndicator()),
+  );
+  dialogOpened = true;
+
+  try {
+    final generator = _BaseEstadualPdfGenerator();
+    final bytes = await generator.generate(data);
+    if (dialogOpened && context.mounted) {
+      Navigator.of(context, rootNavigator: true).pop();
+      dialogOpened = false;
+    }
+
+    final placa = _formatDisplayValue(data.veiculo['placa']);
+    final sanitized = placa.replaceAll(RegExp(r'[^A-Za-z0-9]'), '');
+    final filename =
+        'pesquisa_base_estadual_${sanitized.isEmpty ? 'consulta' : sanitized}.pdf';
+
+    await Share.shareXFiles(
+      [
+        XFile.fromData(
+          bytes,
+          mimeType: 'application/pdf',
+          name: filename,
+        ),
+      ],
+      text: 'Pesquisa Base Estadual',
+      subject: 'Pesquisa Base Estadual',
+    );
+
+    if (context.mounted) {
+      ScaffoldMessenger.of(context)
+        ..clearSnackBars()
+        ..showSnackBar(
+          const SnackBar(
+            content: Text('PDF gerado. Escolha o app para compartilhar.'),
+          ),
+        );
+    }
+  } catch (error) {
+    if (dialogOpened && context.mounted) {
+      Navigator.of(context, rootNavigator: true).pop();
+    }
+    if (context.mounted) {
+      ScaffoldMessenger.of(context)
+        ..clearSnackBars()
+        ..showSnackBar(
+          SnackBar(
+            content: Text(
+              'Não foi possível gerar o PDF (${error.toString()}).',
+            ),
+          ),
+        );
+    }
+  }
+}
+
+class _PdfField {
+  const _PdfField({required this.label, required this.value});
+
+  final String label;
+  final String value;
+}
+
+class _PdfSection {
+  const _PdfSection({required this.title, required this.fields});
+
+  final String title;
+  final List<_PdfField> fields;
+}
+
+class _BaseEstadualPdfGenerator {
+  Future<Uint8List> generate(_BaseEstadualStructuredPayload data) async {
+    final doc = pw.Document();
+    final logo = await _loadLogo();
+    final sections = _buildSections(data);
+
+    doc.addPage(
+      pw.MultiPage(
+        pageFormat: PdfPageFormat.a4,
+        margin: const pw.EdgeInsets.fromLTRB(32, 28, 32, 36),
+        build: (context) => [
+          _buildHeader(logo, data),
+          pw.SizedBox(height: 18),
+          ...sections.map(_buildSection),
+        ],
+      ),
+    );
+
+    return doc.save();
+  }
+
+  Future<pw.MemoryImage?> _loadLogo() async {
+    try {
+      final data = await rootBundle.load('assets/images/logoLL.png');
+      return pw.MemoryImage(data.buffer.asUint8List());
+    } catch (_) {
+      return null;
+    }
+  }
+
+  pw.Widget _buildHeader(
+    pw.MemoryImage? logo,
+    _BaseEstadualStructuredPayload data,
+  ) {
+    final now = DateTime.now();
+    final dateFormatted =
+        '${_twoDigits(now.day)}/${_twoDigits(now.month)}/${now.year} - '
+        '${_twoDigits(now.hour)}:${_twoDigits(now.minute)}:${_twoDigits(now.second)}';
+    final placa = _formatDisplayValue(data.veiculo['placa']);
+    final renavam = _formatDisplayValue(data.veiculo['renavam']);
+
+    return pw.Column(
+      crossAxisAlignment: pw.CrossAxisAlignment.start,
+      children: [
+        pw.Row(
+          crossAxisAlignment: pw.CrossAxisAlignment.start,
+          children: [
+            if (logo != null)
+              pw.Container(
+                width: 70,
+                height: 70,
+                decoration: pw.BoxDecoration(
+                  borderRadius: pw.BorderRadius.circular(16),
+                ),
+                child: pw.Image(logo),
+              ),
+            if (logo != null) pw.SizedBox(width: 16),
+            pw.Expanded(
+              child: pw.Column(
+                crossAxisAlignment: pw.CrossAxisAlignment.start,
+                children: [
+                  pw.Text(
+                    'LL DESPACHANTE',
+                    style: pw.TextStyle(
+                      fontSize: 18,
+                      fontWeight: pw.FontWeight.bold,
+                      color: PdfColors.blue900,
+                    ),
+                  ),
+                  pw.Text(
+                    'AV. DES. PLÍNIO DE CARVALHO PINTO, 05 - ENSEADA - (13) 99730-1533 / 11 3367-8400\nGUARUJÁ - SP',
+                    style: const pw.TextStyle(fontSize: 10),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+        pw.SizedBox(height: 14),
+        pw.Center(
+          child: pw.Column(
+            children: [
+              pw.Text(
+                'PESQUISA BASE ESTADUAL',
+                style: pw.TextStyle(
+                  fontSize: 14,
+                  fontWeight: pw.FontWeight.bold,
+                  color: PdfColors.blue800,
+                ),
+              ),
+              pw.Text(
+                'Data da pesquisa: $dateFormatted',
+                style: const pw.TextStyle(fontSize: 10),
+              ),
+            ],
+          ),
+        ),
+        pw.SizedBox(height: 10),
+        pw.Text(
+          'Placa: $placa   |   Renavam: $renavam',
+          style: const pw.TextStyle(fontSize: 11),
+        ),
+      ],
+    );
+  }
+
+  pw.Widget _buildSection(_PdfSection section) {
+    return pw.Container(
+      margin: const pw.EdgeInsets.only(bottom: 16),
+      padding: const pw.EdgeInsets.all(14),
+      decoration: pw.BoxDecoration(
+        borderRadius: pw.BorderRadius.circular(10),
+        border: pw.Border.all(color: PdfColors.blueGrey300, width: 0.6),
+      ),
+      child: pw.Column(
+        crossAxisAlignment: pw.CrossAxisAlignment.start,
+        children: [
+          pw.Text(
+            section.title,
+            style: pw.TextStyle(
+              fontSize: 12,
+              fontWeight: pw.FontWeight.bold,
+              color: PdfColors.blue800,
+            ),
+          ),
+          pw.SizedBox(height: 8),
+          _buildFieldsGrid(section.fields),
+        ],
+      ),
+    );
+  }
+
+  pw.Widget _buildFieldsGrid(List<_PdfField> fields) {
+    final rows = <pw.TableRow>[];
+    for (var i = 0; i < fields.length; i += 2) {
+      final first = fields[i];
+      final second = i + 1 < fields.length ? fields[i + 1] : null;
+      rows.add(
+        pw.TableRow(
+          children: [
+            _buildFieldCell(first),
+            if (second != null) _buildFieldCell(second) else pw.Container(),
+          ],
+        ),
+      );
+    }
+
+    return pw.Table(
+      columnWidths: const {
+        0: pw.FlexColumnWidth(1),
+        1: pw.FlexColumnWidth(1),
+      },
+      defaultVerticalAlignment: pw.TableCellVerticalAlignment.middle,
+      children: rows,
+    );
+  }
+
+  pw.Widget _buildFieldCell(_PdfField field) {
+    return pw.Padding(
+      padding: const pw.EdgeInsets.all(4),
+      child: pw.Column(
+        crossAxisAlignment: pw.CrossAxisAlignment.start,
+        children: [
+          pw.Text(
+            field.label,
+            style: pw.TextStyle(
+              fontSize: 9,
+              fontWeight: pw.FontWeight.bold,
+              color: PdfColors.blueGrey700,
+            ),
+          ),
+          pw.SizedBox(height: 2),
+          pw.Text(
+            field.value,
+            style: const pw.TextStyle(fontSize: 10),
+          ),
+        ],
+      ),
+    );
+  }
+
+  List<_PdfSection> _buildSections(_BaseEstadualStructuredPayload data) {
+    final sections = <_PdfSection>[];
+
+    sections.add(
+      _PdfSection(
+        title: 'Identificação do veículo',
+        fields: _filterFields([
+          _field('Proprietário', data.proprietario?['nome']),
+          _field(
+            'CPF/CNPJ',
+            data.proprietario?['cpf_cnpj'] ??
+                data.proprietario?['documento'] ??
+                data.proprietario?['cpf'] ??
+                data.proprietario?['cnpj'],
+          ),
+          _field('Placa', data.veiculo['placa']),
+          _field('Renavam', data.veiculo['renavam']),
+          _field('Chassi', data.veiculo['chassi']),
+          _field('Município', data.veiculo['municipio']),
+          _field('UF', data.veiculo['uf']),
+          _field('Data da inclusão', data.veiculo['data_inclusao']),
+          _field('Exercício licenciamento',
+              data.crvCrlvAtualizacao?['exercicio_licenciamento']),
+          _field('Data licenciamento',
+              data.crvCrlvAtualizacao?['data_licenciamento']),
+          _field('Data emissão CRV', data.veiculo['data_emissao_crv']),
+          _field('Número do motor', data.veiculo['numero_motor']),
+          _field('Proprietário anterior', data.veiculo['proprietario_anterior']),
+        ]),
+      ),
+    );
+
+    sections.add(
+      _PdfSection(
+        title: 'Características do veículo',
+        fields: _filterFields([
+          _field('Marca/Modelo', data.veiculo['marca']),
+          _field('Ano fabricação', data.veiculo['ano_fabricacao']),
+          _field('Ano modelo', data.veiculo['ano_modelo']),
+          _field('Tipo', data.veiculo['tipo']),
+          _field('Cor', data.veiculo['cor']),
+          _field('Procedência', data.veiculo['procedencia']),
+          _field('Categoria', data.veiculo['categoria']),
+          _field('Combustível', data.veiculo['combustivel']),
+          _field('Capacidade', data.veiculo['capacidade']),
+          _field('Cilindrada', data.veiculo['cilindrada']),
+          _field('Potência', data.veiculo['potencia']),
+          _field('Capac. carga', data.veiculo['capacidade_carga']),
+        ]),
+      ),
+    );
+
+    sections.add(
+      _PdfSection(
+        title: 'Gravame',
+        fields: _filterFields([
+          _field('Restrição financeira', data.gravames?['restricao_financeira']),
+          _field('Agente financeiro', data.gravames?['nome_agente']),
+          _field('Arrendatário/Financiado', data.gravames?['arrendatario']),
+          _field('CPF/CNPJ financiado', data.gravames?['cnpj_cpf_financiado']),
+          _field('Inclusão financiamento',
+              data.gravamesDatas?['inclusao_financiamento']),
+          _field('Agente intenção', data.intencaoGravame?['agente_financeiro']),
+          _field('Nome financiado', data.intencaoGravame?['nome_financiado']),
+          _field('CPF/CNPJ intenção', data.intencaoGravame?['cnpj_cpf']),
+          _field('Data inclusão intenção', data.intencaoGravame?['data_inclusao']),
+        ]),
+      ),
+    );
+
+    sections.add(
+      _PdfSection(
+        title: 'Restrições / Bloqueios',
+        fields: _filterFields([
+          _field('Furto', data.restricoes?['furto']),
+          _field('Guincho', data.restricoes?['bloqueio_guincho']),
+          _field('Administrativas', data.restricoes?['administrativas']),
+          _field('Judicial', data.restricoes?['judicial']),
+          _field('Tributária', data.restricoes?['tributaria']),
+          _field('RENAJUD', data.restricoes?['renajud']),
+          _field('Inspeção ambiental', data.restricoes?['inspecao_ambiental']),
+        ]),
+      ),
+    );
+
+    sections.add(
+      _PdfSection(
+        title: 'Multas e débitos',
+        fields: _filterFields([
+          _currencyField('DER', data.debitosMultas?['der']),
+          _currencyField('DETRAN', data.debitosMultas?['detran']),
+          _currencyField('DERSA', data.debitosMultas?['dersa']),
+          _currencyField('CETESB', data.debitosMultas?['cetesb']),
+          _currencyField('RENAINF', data.debitosMultas?['renainf']),
+          _currencyField('Municipais', data.debitosMultas?['municipais']),
+          _currencyField('IPVA', data.debitosMultas?['ipva']),
+          _currencyField('Polícia Rod. Fed.', data.debitosMultas?['prf']),
+        ]),
+      ),
+    );
+
+    sections.add(
+      _PdfSection(
+        title: 'Comunicação de venda',
+        fields: _filterFields([
+          _field('Status', data.comunicacaoVendas?['status']),
+          _field('Inclusão', data.comunicacaoVendas?['inclusao']),
+          _field('Tipo doc. comprador',
+              data.comunicacaoVendas?['tipo_doc_comprador']),
+          _field('CPF/CNPJ comprador',
+              data.comunicacaoVendas?['cnpj_cpf_comprador']),
+          _field('Origem', data.comunicacaoVendas?['origem']),
+          _field('Data venda', data.comunicacaoVendasDatas?['venda']),
+          _field('Nota fiscal', data.comunicacaoVendasDatas?['nota_fiscal']),
+          _field('Protocolo Detran',
+              data.comunicacaoVendasDatas?['protocolo_detran']),
+        ]),
+      ),
+    );
+
+    return sections.where((section) => section.fields.isNotEmpty).toList();
+  }
+
+  List<_PdfField> _filterFields(List<_PdfField?> items) {
+    return items.whereType<_PdfField>().toList();
+  }
+
+  _PdfField? _field(String label, dynamic value) {
+    final text = _formatDisplayValue(value);
+    if (text == '—') return null;
+    return _PdfField(label: label, value: text);
+  }
+
+  _PdfField? _currencyField(String label, dynamic value) {
+    if (value == null) return null;
+    final text = value.toString().trim();
+    if (text.isEmpty) return null;
+    return _PdfField(label: label, value: 'R\$ $text');
+  }
+
+  String _twoDigits(int value) => value.toString().padLeft(2, '0');
 }
 
 List<Widget> _buildInfoRows(

@@ -364,6 +364,44 @@
         .admin-field--inline input {
             flex: 1 1 160px;
         }
+
+        .admin-permissions-grid {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            align-items: center;
+        }
+
+        .admin-permission-chip {
+            position: relative;
+            display: inline-flex;
+            align-items: center;
+            padding: 8px 14px;
+            border-radius: 999px;
+            border: 1px solid #d7deeb;
+            background: var(--surface);
+            cursor: pointer;
+            font-size: 13px;
+            font-weight: 600;
+            color: var(--text-default);
+            transition: all 160ms ease;
+        }
+
+        .admin-permission-chip input {
+            opacity: 0;
+            position: absolute;
+            pointer-events: none;
+        }
+
+        .admin-permission-chip span {
+            line-height: 1.2;
+        }
+
+        .admin-permission-chip.is-checked {
+            border-color: rgba(11, 78, 162, 0.4);
+            background: rgba(11, 78, 162, 0.08);
+            color: var(--brand-primary);
+        }
     </style>
 
     <header style="margin-bottom: 32px;">
@@ -542,6 +580,14 @@
                     </select>
                 </div>
 
+                <div class="admin-field">
+                    <label>Acessos liberados</label>
+                    <div class="admin-permissions-grid" data-create-permissions></div>
+                    <p class="admin-modal__hint">
+                        Escolha as telas do aplicativo que o usuário poderá acessar.
+                    </p>
+                </div>
+
                 <p class="admin-modal__hint">
                     O usuário receberá um e-mail com as credenciais cadastradas.
                 </p>
@@ -588,6 +634,11 @@
                         <option value="1">Ativo</option>
                         <option value="0">Inativo</option>
                     </select>
+                </div>
+
+                <div class="admin-field">
+                    <label>Permissões de acesso</label>
+                    <div class="admin-permissions-grid" data-edit-permissions></div>
                 </div>
 
                 <p class="admin-modal__hint">
@@ -754,12 +805,17 @@
     </script>
 
     <script>
+        window.availablePermissions = @json($availablePermissions);
+    </script>
+
+    <script>
         (() => {
             const defaultFilters = {
                 status: 'all',
                 created_from: '',
                 created_to: '',
             };
+            const availablePermissions = window.availablePermissions ?? [];
 
             const state = {
                 users: window.adminUsersState?.data ?? [],
@@ -812,6 +868,8 @@
                 bulkDeleteForm: document.getElementById('bulk-delete-form'),
                 bulkStatusCount: document.querySelector('[data-bulk-status-count]'),
                 bulkDeleteCount: document.querySelector('[data-bulk-delete-count]'),
+                createPermissionsContainer: document.querySelector('[data-create-permissions]'),
+                editPermissionsContainer: document.querySelector('[data-edit-permissions]'),
             };
 
             let currentUser = null;
@@ -856,6 +914,70 @@
                     return '{{ url('/admin/users/bulk') }}';
                 },
             };
+
+            function buildPermissionOptions(container, prefix) {
+                if (!container) {
+                    return;
+                }
+
+                container.innerHTML = '';
+                availablePermissions.forEach((permission) => {
+                    const chip = document.createElement('label');
+                    chip.className = 'admin-permission-chip';
+                    chip.dataset.permissionId = permission.id;
+
+                    const checkbox = document.createElement('input');
+                    checkbox.type = 'checkbox';
+                    checkbox.value = permission.id;
+                    checkbox.id = `${prefix}-permission-${permission.id}`;
+
+                    const text = document.createElement('span');
+                    text.textContent = permission.name;
+
+                    checkbox.addEventListener('change', () => {
+                        chip.classList.toggle('is-checked', checkbox.checked);
+                    });
+
+                    chip.appendChild(checkbox);
+                    chip.appendChild(text);
+                    container.appendChild(chip);
+                });
+            }
+
+            function setPermissionSelections(container, selected) {
+                if (!container) {
+                    return;
+                }
+                const selectedIds = new Set(
+                    (selected ?? [])
+                        .map((id) => Number(id))
+                        .filter((id) => !Number.isNaN(id)),
+                );
+
+                container.querySelectorAll('label.admin-permission-chip').forEach((chip) => {
+                    const input = chip.querySelector('input[type="checkbox"]');
+                    if (!input) {
+                        return;
+                    }
+                    const id = Number(input.value);
+                    const isChecked = selectedIds.has(id);
+                    input.checked = isChecked;
+                    chip.classList.toggle('is-checked', isChecked);
+                });
+            }
+
+            function getSelectedPermissions(container) {
+                if (!container) {
+                    return [];
+                }
+
+                return Array.from(container.querySelectorAll('input[type="checkbox"]:checked'))
+                    .map((input) => Number(input.value))
+                    .filter((id) => !Number.isNaN(id));
+            }
+
+            buildPermissionOptions(elements.createPermissionsContainer, 'create');
+            buildPermissionOptions(elements.editPermissionsContainer, 'edit');
 
             function formatUserCount(count) {
                 return `${count} usuário${count === 1 ? '' : 's'} selecionado${count === 1 ? '' : 's'}`;
@@ -1199,6 +1321,7 @@
             function resetCreateForm() {
                 elements.createForm.reset();
                 setFormError('create', '');
+                setPermissionSelections(elements.createPermissionsContainer, []);
             }
 
             function openEditModal(user) {
@@ -1219,6 +1342,7 @@
                 if (elements.editLastAccess) {
                     elements.editLastAccess.textContent = user.last_login_label ?? 'Nunca acessou';
                 }
+                setPermissionSelections(elements.editPermissionsContainer, user.permission_ids ?? []);
 
                 setFormError('edit', '');
                 openModal('edit');
@@ -1262,6 +1386,7 @@
                     email: String(formData.get('email') ?? '').trim(),
                     password: String(formData.get('password') ?? ''),
                     is_active: formData.get('is_active') === '1',
+                    permissions: getSelectedPermissions(elements.createPermissionsContainer),
                 };
 
                 setSubmitting(elements.createForm, true);
@@ -1298,6 +1423,7 @@
                     name: String(formData.get('name') ?? '').trim(),
                     email: String(formData.get('email') ?? '').trim(),
                     is_active: formData.get('is_active') === '1',
+                    permissions: getSelectedPermissions(elements.editPermissionsContainer),
                 };
 
                 const password = String(formData.get('password') ?? '');

@@ -48,6 +48,9 @@ class UserController extends Controller
         $stats = $this->buildStats(clone $usersQuery);
 
         $users = $usersQuery
+            ->with([
+                'permissions:id,name,slug',
+            ])
             ->withCount(['pesquisas as credits_used'])
             ->latest('created_at')
             ->paginate($perPage);
@@ -77,12 +80,16 @@ class UserController extends Controller
             'password' => ['required', 'string', 'min:8'],
             'is_active' => ['required', 'boolean'],
             'last_login_at' => ['nullable', 'date'],
+            'permissions' => ['nullable', 'array'],
+            'permissions.*' => ['integer', Rule::exists('permissions', 'id')],
         ]);
 
         $user = new User();
         $user->fill(Arr::only($validated, ['name', 'email', 'is_active', 'last_login_at']));
         $user->password = $validated['password'];
         $user->save();
+        $this->syncPermissions($user, $validated['permissions'] ?? []);
+        $user->load('permissions');
 
         return (new UserResource($user))
             ->response()
@@ -97,6 +104,8 @@ class UserController extends Controller
             'password' => ['nullable', 'string', 'min:8'],
             'is_active' => ['required', 'boolean'],
             'last_login_at' => ['nullable', 'date'],
+            'permissions' => ['nullable', 'array'],
+            'permissions.*' => ['integer', Rule::exists('permissions', 'id')],
         ]);
 
         $payload = Arr::only($validated, ['name', 'email', 'is_active', 'last_login_at']);
@@ -108,6 +117,8 @@ class UserController extends Controller
         }
 
         $user->save();
+        $this->syncPermissions($user, $validated['permissions'] ?? []);
+        $user->load('permissions');
 
         return (new UserResource($user))->response();
     }
@@ -232,5 +243,20 @@ class UserController extends Controller
         } catch (\Throwable $e) {
             return '';
         }
+    }
+
+    /**
+     * @param array<int, int|string> $permissionIds
+     */
+    private function syncPermissions(User $user, array $permissionIds): void
+    {
+        $ids = collect($permissionIds)
+            ->map(static fn ($id) => (int) $id)
+            ->filter(static fn ($id) => $id > 0)
+            ->unique()
+            ->values()
+            ->all();
+
+        $user->permissions()->sync($ids);
     }
 }
