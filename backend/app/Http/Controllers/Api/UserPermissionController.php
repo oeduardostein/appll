@@ -21,7 +21,8 @@ class UserPermissionController extends Controller
         }
 
         $permissions = $user->permissions()
-            ->get(['id', 'name', 'slug'])
+            ->select('permissions.id', 'permissions.name', 'permissions.slug')
+            ->get()
             ->map(fn ($permission) => [
                 'id' => $permission->id,
                 'name' => $permission->name,
