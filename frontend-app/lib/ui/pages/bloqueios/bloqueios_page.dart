@@ -1136,7 +1136,7 @@ class _BloqueiosPdfGenerator {
                     ),
                   ),
                   pw.Text(
-                    'AV. DES. PLÍNIO DE CARVALHO PINTO, 05 - ENSEADA - (13) 99730-1533 / 11 3367-8400\nGUARUJÁ - SP',
+                    'Telefone: (13) 99773-1533',
                     style: const pw.TextStyle(fontSize: 10),
                   ),
                 ],
