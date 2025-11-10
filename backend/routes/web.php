@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\AccountDeletionController;
 use App\Http\Controllers\Admin\AuthController;
 use App\Http\Controllers\Admin\ClientController;
 use App\Http\Controllers\Admin\CreditManagementController;
@@ -14,6 +15,8 @@ Route::get('/', function () {
 });
 
 Route::view('/politica-de-privacidade', 'privacy-policy')->name('privacy-policy');
+Route::get('/excluir-conta', [AccountDeletionController::class, 'show'])->name('account-deletion.form');
+Route::post('/excluir-conta', [AccountDeletionController::class, 'destroy'])->name('account-deletion.submit');
 
 Route::prefix('admin')->name('admin.')->group(function () {
     Route::get('/login', [AuthController::class, 'showLoginForm'])->name('login');

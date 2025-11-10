@@ -4,7 +4,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>Política de Privacidade | Appll</title>
+    <title>Política de Privacidade | LL Despachante</title>
     <style>
         :root {
             color-scheme: light dark;
@@ -71,68 +71,106 @@
 <body>
     <div class="container">
         <header>
-            <h1>Política de Privacidade</h1>
+            <h1>Política de Privacidade – LL Despachante</h1>
             <p>Atualizada em {{ now()->format('d/m/Y') }}</p>
         </header>
 
         <section class="card">
+            <h2>1. Introdução</h2>
             <p>
-                Esta Política de Privacidade descreve como o Appll coleta, utiliza, armazena e protege os dados
-                pessoais de clientes, parceiros e visitantes da nossa plataforma e do aplicativo móvel. Ao utilizar
-                nossos serviços você concorda com as práticas descritas abaixo.
+                A privacidade dos nossos usuários é uma prioridade para o LL Despachante. Esta Política de Privacidade
+                explica como coletamos, utilizamos, armazenamos e protegemos as informações pessoais de quem usa nosso
+                aplicativo. O uso do LL Despachante implica a concordância com os termos abaixo.
             </p>
 
-            <h2>1. Dados que coletamos</h2>
+            <h2>2. Informações que Coletamos</h2>
+            <p>O LL Despachante coleta os seguintes tipos de informações:</p>
+            <h3>2.1. Informações fornecidas pelo usuário</h3>
             <ul>
-                <li>Informações cadastrais como nome, email, CPF/CNPJ e dados de contato.</li>
-                <li>Dados de uso do aplicativo, logs de acesso e preferências de navegação.</li>
-                <li>Documentos e comprovantes necessários para execução dos serviços contratados.</li>
+                <li>Nome completo;</li>
+                <li>E-mail e/ou telefone;</li>
+                <li>CPF (quando informado para cadastro);</li>
+                <li>Dados de login (usuário e senha);</li>
+                <li>Outras informações inseridas voluntariamente pelo usuário no aplicativo.</li>
             </ul>
-
-            <h2>2. Como utilizamos os dados</h2>
+            <h3>2.2. Informações coletadas automaticamente</h3>
             <ul>
-                <li>Para criar e gerenciar contas de acesso ao Appll.</li>
-                <li>Para prestar os serviços solicitados, como consultas, emissões e acompanhamento de processos.</li>
-                <li>Para comunicar atualizações, alertas operacionais e ofertas relevantes.</li>
-                <li>Para cumprir obrigações legais e regulatórias.</li>
+                <li>Endereço IP e identificadores do dispositivo;</li>
+                <li>Data e hora de acesso;</li>
+                <li>Dados de uso e navegação no aplicativo (ex.: telas acessadas, tempo de uso);</li>
+                <li>Consultas realizadas (ex.: placas pesquisadas, resultados obtidos).</li>
             </ul>
-
-            <h2>3. Compartilhamento</h2>
+            <h3>2.3. Dados de veículos</h3>
             <p>
-                Os dados podem ser compartilhados com órgãos públicos, parceiros e fornecedores que nos auxiliam a
-                executar as atividades do Appll, sempre observando contratos de confidencialidade e a legislação
-                aplicável.
+                As informações sobre veículos (placa, RENAVAM, chassi, modelo, etc.) são utilizadas exclusivamente para
+                consulta. O LL Despachante não armazena permanentemente esses dados, a menos que o usuário opte por
+                salvá-los em seu histórico de consultas.
             </p>
 
-            <h2>4. Direitos dos titulares</h2>
+            <h2>3. Finalidade do Uso das Informações</h2>
+            <p>As informações são utilizadas para:</p>
+            <ul>
+                <li>Permitir o funcionamento do aplicativo e a realização de consultas veiculares;</li>
+                <li>Manter o cadastro e autenticação do usuário;</li>
+                <li>Melhorar a experiência e desempenho do app;</li>
+                <li>Enviar comunicações relevantes sobre o uso do serviço (ex.: notificações de atualização);</li>
+                <li>Cumprir obrigações legais ou regulatórias.</li>
+            </ul>
+            <p>O LL Despachante não compartilha nem vende dados pessoais a terceiros.</p>
+
+            <h2>4. Compartilhamento de Dados</h2>
+            <p>Os dados do usuário podem ser compartilhados apenas quando:</p>
+            <ul>
+                <li>Necessário para o funcionamento técnico do aplicativo (ex.: serviços de hospedagem e banco de dados);</li>
+                <li>Requisitado por autoridade judicial ou órgão público competente, conforme a lei;</li>
+                <li>Autorizado expressamente pelo próprio usuário.</li>
+            </ul>
+            <p>Todos os parceiros seguem padrões de segurança e confidencialidade compatíveis com a LGPD.</p>
+
+            <h2>5. Armazenamento e Segurança dos Dados</h2>
             <p>
-                Você pode solicitar acesso, correção, anonimização ou exclusão dos seus dados pessoais, bem como
-                obter informações sobre o uso que fazemos deles. Entre em contato pelos canais abaixo para exercer os
-                seus direitos.
+                Adotamos medidas de segurança técnicas e administrativas para proteger as informações contra acessos não
+                autorizados, perda, alteração ou destruição. Os dados são armazenados em servidores seguros e acessíveis
+                apenas a pessoas autorizadas.
             </p>
 
-            <h2>5. Segurança e armazenamento</h2>
+            <h2>6. Direitos do Usuário</h2>
+            <p>Em conformidade com a Lei nº 13.709/2018 (LGPD), o usuário tem direito a:</p>
+            <ul>
+                <li>Confirmar a existência de tratamento de seus dados;</li>
+                <li>Acessar, corrigir ou excluir informações pessoais;</li>
+                <li>Revogar o consentimento para uso de dados;</li>
+                <li>Solicitar a portabilidade de seus dados para outro serviço.</li>
+            </ul>
+            <p>Para exercer esses direitos, o usuário pode entrar em contato pelo e-mail abaixo.</p>
+
+            <h2>7. Retenção das Informações</h2>
             <p>
-                Adotamos controles técnicos e administrativos para proteger suas informações contra acessos
-                não autorizados, perda, alteração ou destruição. Seus dados são armazenados em ambientes controlados
-                e com acesso restrito.
+                As informações pessoais são mantidas pelo tempo necessário para as finalidades descritas nesta política
+                ou conforme exigido por lei. Os dados de conta podem ser excluídos a qualquer momento mediante
+                solicitação do usuário.
             </p>
 
-            <h2>6. Atualizações desta política</h2>
+            <h2>8. Alterações nesta Política</h2>
             <p>
-                Podemos atualizar esta Política de Privacidade a qualquer momento para refletir melhorias no serviço,
-                exigências legais ou mudanças operacionais. A versão vigente estará sempre disponível nesta página.
+                Podemos atualizar esta Política de Privacidade periodicamente. Recomenda-se revisar esta página
+                regularmente para manter-se informado sobre as mudanças. Alterações relevantes serão comunicadas dentro
+                do próprio aplicativo.
             </p>
 
-            <h2>7. Contato</h2>
+            <h2>9. Contato</h2>
             <p>
-                Em caso de dúvidas sobre esta política ou sobre o tratamento dos seus dados pessoais, envie um email
-                para <a href="mailto:contato@appll.com.br">contato@appll.com.br</a>.
+                Em caso de dúvidas, solicitações ou reclamações sobre o tratamento de dados pessoais, entre em contato
+                com nosso Encarregado de Proteção de Dados (DPO):
             </p>
+            <ul>
+                <li>E-mail: <a href="mailto:suporte@llgrupo.com">suporte@llgrupo.com</a></li>
+                <li>Responsável: Lucas Barbosa de Lima</li>
+            </ul>
         </section>
 
         <footer>
-            &copy; {{ now()->year }} Appll Despachante. Todos os direitos reservados.
+            &copy; {{ now()->year }} LL Despachante. Todos os direitos reservados.
         </footer>
     </div>
 </body>
