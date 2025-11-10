@@ -13,6 +13,8 @@ Route::get('/', function () {
     return redirect()->route('admin.login');
 });
 
+Route::view('/politica-de-privacidade', 'privacy-policy')->name('privacy-policy');
+
 Route::prefix('admin')->name('admin.')->group(function () {
     Route::get('/login', [AuthController::class, 'showLoginForm'])->name('login');
     Route::post('/login', [AuthController::class, 'login'])->name('login.submit');

@@ -14,6 +14,7 @@ class RegisterRequest extends FormRequest
         $this->merge([
             'username' => trim((string) $this->input('username')),
             'email' => trim((string) $this->input('email')),
+            'accepted_privacy_policy' => $this->boolean('accepted_privacy_policy'),
         ]);
     }
 
@@ -36,6 +37,7 @@ class RegisterRequest extends FormRequest
             'username' => ['required', 'string', 'min:3', 'max:255', 'unique:users,name'],
             'email' => ['required', 'string', 'email', 'max:255', 'unique:users,email'],
             'password' => ['required', 'string', 'min:6', 'confirmed'],
+            'accepted_privacy_policy' => ['accepted'],
         ];
     }
 }

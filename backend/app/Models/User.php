@@ -26,6 +26,7 @@ class User extends Authenticatable
         'credits',
         'last_login_at',
         'codigo',
+        'privacy_policy_accepted_at',
     ];
 
     /**
@@ -52,6 +53,7 @@ class User extends Authenticatable
             'is_active' => 'boolean',
             'credits' => 'integer',
             'last_login_at' => 'datetime',
+            'privacy_policy_accepted_at' => 'datetime',
         ];
     }
 

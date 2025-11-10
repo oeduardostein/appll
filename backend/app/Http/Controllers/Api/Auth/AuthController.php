@@ -25,6 +25,7 @@ class AuthController extends Controller
             'name' => $data['username'],
             'email' => $data['email'],
             'password' => $data['password'],
+            'privacy_policy_accepted_at' => now(),
         ]);
 
         $token = $this->issueToken($user);

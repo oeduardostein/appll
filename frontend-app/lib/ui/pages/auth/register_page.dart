@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import 'package:frontend_app/services/auth_service.dart';
+import 'package:frontend_app/utils/app_links.dart';
 
 import '../home/home_page.dart';
 import '../shared/loading_dialog.dart';
@@ -27,6 +29,7 @@ class _RegisterPageState extends State<RegisterPage> {
   final _authService = AuthService();
   bool _obscurePassword = true;
   bool _obscureConfirmPassword = true;
+  bool _acceptedPrivacyPolicy = false;
 
   @override
   void dispose() {
@@ -53,6 +56,7 @@ class _RegisterPageState extends State<RegisterPage> {
         email: _emailController.text.trim(),
         password: _passwordController.text,
         passwordConfirmation: _confirmPasswordController.text,
+        acceptedPrivacyPolicy: _acceptedPrivacyPolicy,
       );
       if (!mounted) return;
       Navigator.of(context, rootNavigator: true).pop();
@@ -79,6 +83,18 @@ class _RegisterPageState extends State<RegisterPage> {
       ..showSnackBar(
         SnackBar(content: Text(message)),
       );
+  }
+
+  Future<void> _openPrivacyPolicy() async {
+    final uri = Uri.parse(AppLinks.privacyPolicy);
+    final launched = await launchUrl(
+      uri,
+      mode: LaunchMode.externalApplication,
+    );
+
+    if (!launched && mounted) {
+      _showErrorMessage('Não foi possível abrir a Política de Privacidade.');
+    }
   }
 
   String? _validateEmail(String? value) {
@@ -215,6 +231,75 @@ class _RegisterPageState extends State<RegisterPage> {
                             },
                           ),
                           const SizedBox(height: 24),
+                          FormField<bool>(
+                            initialValue: _acceptedPrivacyPolicy,
+                            validator: (value) {
+                              if (value != true) {
+                                return 'Confirme que leu a Política de Privacidade.';
+                              }
+                              return null;
+                            },
+                            builder: (state) {
+                              final hasError = state.hasError;
+                              return Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Row(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      Checkbox(
+                                        value: state.value ?? false,
+                                        onChanged: (value) {
+                                          final newValue = value ?? false;
+                                          state.didChange(newValue);
+                                          setState(() {
+                                            _acceptedPrivacyPolicy = newValue;
+                                          });
+                                        },
+                                      ),
+                                      const SizedBox(width: 8),
+                                      Expanded(
+                                        child: Wrap(
+                                          crossAxisAlignment: WrapCrossAlignment.center,
+                                          runSpacing: 4,
+                                          children: [
+                                            Text(
+                                              'Li e concordo com a ',
+                                              style: theme.textTheme.bodyMedium,
+                                            ),
+                                            TextButton(
+                                              onPressed: _openPrivacyPolicy,
+                                              style: TextButton.styleFrom(
+                                                padding: EdgeInsets.zero,
+                                                minimumSize: const Size(0, 0),
+                                                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                                              ),
+                                              child: const Text('Política de Privacidade'),
+                                            ),
+                                            Text(
+                                              ' do Appll.',
+                                              style: theme.textTheme.bodyMedium,
+                                            ),
+                                          ],
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                  if (hasError)
+                                    Padding(
+                                      padding: const EdgeInsets.only(left: 12, top: 4),
+                                      child: Text(
+                                        state.errorText ?? '',
+                                        style: theme.textTheme.bodySmall?.copyWith(
+                                          color: theme.colorScheme.error,
+                                        ),
+                                      ),
+                                    ),
+                                ],
+                              );
+                            },
+                          ),
+                          const SizedBox(height: 16),
                           FilledButton(
                             onPressed: _submit,
                             child: const Text('Criar conta'),

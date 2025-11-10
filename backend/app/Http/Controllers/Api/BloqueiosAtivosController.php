@@ -16,10 +16,11 @@ class BloqueiosAtivosController extends Controller
     /**
      * Consulta Bloqueios Ativos (RENAJUD) e retorna JSON com os campos visíveis no HTML.
      * Ex.: GET /api/bloqueios-ativos?opcaoPesquisa=1&chassi=9C2JC4810BR016583&captcha=AB12
+     * Também aceita captchaResponse como alias de captcha.
      */
     public function __invoke(Request $request): Response
     {
-        // ---------- Parser em closure para evitar "redeclare" ----------
+        // ---------- Parser em closure (evita "Cannot redeclare") ----------
         $parse = function (string $html): string {
             // Normalizar encoding p/ DOM (página declara ISO-8859-1)
             if (stripos($html, 'charset=iso-8859-1') !== false || stripos($html, 'charset=iso8859-1') !== false) {
@@ -60,7 +61,7 @@ class BloqueiosAtivosController extends Controller
                 return $n ? $getTxt($n) : null;
             };
 
-            // Timestamp do rodapé (ex.: 03/11/2025 13:22:10)
+            // Timestamp do rodapé (ex.: 03/11/2025 16:26:42)
             $bodyText = $xp->query('//body')->item(0);
             $allText  = $getTxt($bodyText);
             $dataHora = null;
@@ -68,25 +69,54 @@ class BloqueiosAtivosController extends Controller
                 $dataHora = $m[1];
             }
 
-            // ===== Campos do seu HTML =====
+            // ===== Campos do HTML enviado =====
             // Bloco: "Dados de Consulta a Bloqueios RENAJUD"
-            $placa          = $findValueByLabel('Placa');
-            $municipioPlaca = $findValueByLabel('Município Placa') ?? $findValueByLabel('Munic\u00edpio Placa') ?? $findValueByLabel('Municipio Placa');
-            $chassi         = $findValueByLabel('Chassi');
+            $placa = $findValueByLabel('Placa');
+
+            // Permitir variações com/sem acento em "Município Placa"
+            $municipioPlaca = $findValueByLabel('Município Placa')
+                            ?? $findValueByLabel('Municipio Placa');
+
+            $chassi = $findValueByLabel('Chassi');
 
             // Bloco: "Quantidade de Bloqueios"
-            $qtdEncontradas = $findValueByLabel('Quantidade de Ocorrências Encontradas') ?? $findValueByLabel('Quantidade de Ocorr\u00eancias Encontradas');
-            $qtdExibidas    = $findValueByLabel('Quantidade de Ocorrências Exibidas')   ?? $findValueByLabel('Quantidade de Ocorr\u00eancias Exibidas');
+            $qtdEncontradas = $findValueByLabel('Quantidade de Ocorrências Encontradas')
+                            ?? $findValueByLabel('Quantidade de Ocorr\u00eancias Encontradas') // tolerância
+                            ?? $findValueByLabel('Quantidade de Ocorrencias Encontradas');
+
+            $qtdExibidas = $findValueByLabel('Quantidade de Ocorrências Exibidas')
+                         ?? $findValueByLabel('Quantidade de Ocorr\u00eancias Exibidas')
+                         ?? $findValueByLabel('Quantidade de Ocorrencias Exibidas');
 
             // Bloco: "Informações de Bloqueios RENAJUD"
-            $dataInclusao   = $findValueByLabel('Data da Inclusão')   ?? $findValueByLabel('Data da Inclus\u00e3o');
-            $horaInclusao   = $findValueByLabel('Hora da Inclusão')   ?? $findValueByLabel('Hora da Inclus\u00e3o');
-            $tipoRestricao  = $findValueByLabel('Tipo de Restrição Judicial') ?? $findValueByLabel('Tipo de Restri\u00e7\u00e3o Judicial');
-            $codTribunal    = $findValueByLabel('Código do Tribunal') ?? $findValueByLabel('C\u00f3digo do Tribunal');
-            $codOrgaoJud    = $findValueByLabel('Código do Órgão Judicial') ?? $findValueByLabel('C\u00f3digo do \u00d3rg\u00e3o Judicial');
-            $numProcesso    = $findValueByLabel('Número do Processo') ?? $findValueByLabel('N\u00famero do Processo');
-            // "Nome do Órgão Judicial" ocupa toda a linha (colspan): o query acima já cobre com fallback q3
-            $nomeOrgaoJud   = $findValueByLabel('Nome do Órgão Judicial') ?? $findValueByLabel('Nome do \u00d3rg\u00e3o Judicial');
+            $dataInclusao  = $findValueByLabel('Data da Inclusão')
+                           ?? $findValueByLabel('Data da Inclus\u00e3o')
+                           ?? $findValueByLabel('Data da Inclusao');
+
+            $horaInclusao  = $findValueByLabel('Hora da Inclusão')
+                           ?? $findValueByLabel('Hora da Inclus\u00e3o')
+                           ?? $findValueByLabel('Hora da Inclusao');
+
+            $tipoRestricao = $findValueByLabel('Tipo de Restrição Judicial')
+                           ?? $findValueByLabel('Tipo de Restri\u00e7\u00e3o Judicial')
+                           ?? $findValueByLabel('Tipo de Restricao Judicial');
+
+            $codTribunal   = $findValueByLabel('Código do Tribunal')
+                           ?? $findValueByLabel('C\u00f3digo do Tribunal')
+                           ?? $findValueByLabel('Codigo do Tribunal');
+
+            $codOrgaoJud   = $findValueByLabel('Código do Órgão Judicial')
+                           ?? $findValueByLabel('C\u00f3digo do \u00d3rg\u00e3o Judicial')
+                           ?? $findValueByLabel('Codigo do Orgao Judicial');
+
+            $numProcesso   = $findValueByLabel('Número do Processo')
+                           ?? $findValueByLabel('N\u00famero do Processo')
+                           ?? $findValueByLabel('Numero do Processo');
+
+            // "Nome do Órgão Judicial" ocupa toda a linha (colspan): o fallback q3 cobre
+            $nomeOrgaoJud  = $findValueByLabel('Nome do Órgão Judicial')
+                           ?? $findValueByLabel('Nome do \u00d3rg\u00e3o Judicial')
+                           ?? $findValueByLabel('Nome do Orgao Judicial');
 
             // Montagem do JSON com a mesma semântica do HTML
             $out = [
@@ -136,8 +166,14 @@ class BloqueiosAtivosController extends Controller
         // ---------- Entrada ----------
         $opcao   = $request->query('opcaoPesquisa');
         $chassi  = $request->query('chassi');
+
+        // Compatibilidade: aceitar captcha ou captchaResponse
         $captcha = $request->query('captcha');
-        // validação conforme seu script legado
+        if (!$captcha) {
+            $captcha = $request->query('captchaResponse');
+        }
+
+        // validação conforme seu script legado / front atual
         if (!in_array((string)$opcao, ['1', '2'], true)) {
             return response()->json(['message' => 'Valor inválido para opcaoPesquisa. Apenas 1 ou 2.'], Response::HTTP_UNPROCESSABLE_ENTITY);
         }
@@ -176,11 +212,11 @@ class BloqueiosAtivosController extends Controller
             'method'          => 'pesquisar',
             'opcaoPesquisa'   => (string)$opcao,
             'chassi'          => strtoupper($chassi),
-            'captchaResponse' => strtoupper($captcha),
+            'captchaResponse' => strtoupper($captcha), // servidor espera esse nome
         ];
 
         $response = Http::withHeaders($headers)
-            ->withOptions(['verify' => false])
+            ->withOptions(['verify' => false]) // em produção, prefira manter verify=true
             ->withCookies([
                 'dataUsuarPublic' => 'Mon Mar 24 2025 08:14:44 GMT-0300 (Horário Padrão de Brasília)',
                 'JSESSIONID'      => $token,
@@ -188,7 +224,7 @@ class BloqueiosAtivosController extends Controller
             ->asForm()
             ->post('https://www.e-crvsp.sp.gov.br/gever/GVR/pesquisa/bloqueiosAtivos.do', $form);
 
-        // ---------- Saída JSON (campos do HTML que você mandou) ----------
+        // ---------- Saída JSON ----------
         $body = $parse($response->body());
 
         return response($body, Response::HTTP_OK)

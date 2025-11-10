@@ -101,6 +101,7 @@ class AuthService {
     required String email,
     required String password,
     required String passwordConfirmation,
+    required bool acceptedPrivacyPolicy,
   }) async {
     final uri = _buildUri('/api/auth/register');
     final response = await _client.post(
@@ -111,6 +112,7 @@ class AuthService {
         'email': email,
         'password': password,
         'password_confirmation': passwordConfirmation,
+        'accepted_privacy_policy': acceptedPrivacyPolicy,
       }),
     );
 
