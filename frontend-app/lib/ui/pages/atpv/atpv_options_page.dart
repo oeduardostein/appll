@@ -19,26 +19,60 @@ class AtpvOptionsPage extends StatefulWidget {
 
 class _AtpvOptionsPageState extends State<AtpvOptionsPage> {
   Future<void> _handleConsultation() async {
-    final result = await showDialog<_AtpvConsultationResult>(
+    final input = await showDialog<_AtpvConsultationRequest>(
       context: context,
       barrierDismissible: false,
-      builder: (_) => const _ConsultIntencaoVendaDialog(),
-    );
-
-    if (result == null || !mounted) return;
-
-    Navigator.of(context).push(
-      MaterialPageRoute(
-        builder: (_) => AtpvFormPage(
-          initialPlate: result.plate,
-          initialRenavam: result.renavam,
-          initialCaptchaValue: result.captcha,
-          initialCaptchaBytes: result.captchaBytes,
-          initialConsultaPayload: result.payload,
-          initialConsultaComunicacoes: result.comunicacoes,
-        ),
+      builder: (_) => const _ConsultIntencaoVendaDialog(
+        requireCaptcha: false,
       ),
     );
+
+    if (input == null || !mounted) return;
+
+    final autoResult = await _executeAtpvConsultation(
+      request: input,
+      autoSolve: true,
+    );
+
+    if (!mounted) return;
+
+    if (autoResult.data != null) {
+      _openAtpvForm(autoResult.data!);
+      return;
+    }
+
+    if (autoResult.requiresManual) {
+      ScaffoldMessenger.of(context)
+        ..clearSnackBars()
+        ..showSnackBar(
+          const SnackBar(
+            content:
+                Text('Não foi possível resolver o captcha automaticamente.'),
+          ),
+        );
+
+      final manualInput = await showDialog<_AtpvConsultationRequest>(
+        context: context,
+        barrierDismissible: false,
+        builder: (_) => _ConsultIntencaoVendaDialog(
+          requireCaptcha: true,
+          initialRequest: input,
+        ),
+      );
+
+      if (manualInput == null || !mounted) return;
+
+      final manualResult = await _executeAtpvConsultation(
+        request: manualInput,
+        autoSolve: false,
+        captchaOverride: manualInput.captcha,
+      );
+
+      if (!mounted) return;
+      if (manualResult.data != null) {
+        _openAtpvForm(manualResult.data!);
+      }
+    }
   }
 
   void _handleForm() {
@@ -47,6 +81,119 @@ class _AtpvOptionsPageState extends State<AtpvOptionsPage> {
         builder: (_) => const AtpvFormPage(),
       ),
     );
+  }
+
+  void _openAtpvForm(_AtpvConsultationResult result) {
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => AtpvFormPage(
+          initialPlate: result.plate,
+          initialRenavam: result.renavam,
+          initialConsultaPayload: result.payload,
+          initialConsultaComunicacoes: result.comunicacoes,
+        ),
+      ),
+    );
+  }
+
+  Future<({bool requiresManual, _AtpvConsultationResult? data})>
+      _executeAtpvConsultation({
+    required _AtpvConsultationRequest request,
+    required bool autoSolve,
+    String? captchaOverride,
+  }) async {
+    final baseService = BaseEstadualService();
+    final atpvService = AtpvService();
+
+    showDialog<void>(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) => const Center(
+        child: CircularProgressIndicator(),
+      ),
+    );
+
+    try {
+      final captcha = autoSolve
+          ? await baseService.solveCaptcha()
+          : (captchaOverride ?? request.captcha);
+      final normalizedCaptcha = captcha.trim().toUpperCase();
+      if (!autoSolve && normalizedCaptcha.isEmpty) {
+        throw BaseEstadualException('Informe o captcha para continuar.');
+      }
+
+      final result = await atpvService.consultarIntencaoVenda(
+        renavam: request.renavam,
+        placa: request.plate,
+        captcha: normalizedCaptcha,
+      );
+
+      final comunicacoes = (result['comunicacao_vendas'] is List)
+          ? (result['comunicacao_vendas'] as List)
+              .whereType<Map>()
+              .map(
+                (item) => item.map(
+                  (key, value) => MapEntry(key.toString(), value),
+                ),
+              )
+              .toList(growable: false)
+          : const <Map<String, dynamic>>[];
+
+      if (!mounted) {
+        return (requiresManual: false, data: null);
+      }
+      Navigator.of(context, rootNavigator: true).pop();
+
+      return (
+        requiresManual: false,
+        data: _AtpvConsultationResult(
+          plate: request.plate,
+          renavam: request.renavam,
+          captcha: normalizedCaptcha,
+          captchaBytes: null,
+          payload: result,
+          comunicacoes: comunicacoes,
+        ),
+      );
+    } on BaseEstadualException catch (e) {
+      if (!mounted) {
+        return (requiresManual: false, data: null);
+      }
+      Navigator.of(context, rootNavigator: true).pop();
+
+      if (autoSolve && (e.statusCode ?? 0) >= 500) {
+        return (requiresManual: true, data: null);
+      }
+
+      await AppErrorDialog.show(
+        context,
+        title: 'Ops, algo deu errado',
+        message: e.message,
+      );
+      return (requiresManual: false, data: null);
+    } on AtpvException catch (e) {
+      if (!mounted) {
+        return (requiresManual: false, data: null);
+      }
+      Navigator.of(context, rootNavigator: true).pop();
+      await AppErrorDialog.show(
+        context,
+        title: 'Ops, algo deu errado',
+        message: e.message,
+      );
+      return (requiresManual: false, data: null);
+    } catch (_) {
+      if (!mounted) {
+        return (requiresManual: false, data: null);
+      }
+      Navigator.of(context, rootNavigator: true).pop();
+      await AppErrorDialog.show(
+        context,
+        title: 'Ops, algo deu errado',
+        message: 'Falha ao consultar intenção de venda.',
+      );
+      return (requiresManual: false, data: null);
+    }
   }
 
   @override
@@ -188,7 +335,13 @@ class _AtpvOptionsPageState extends State<AtpvOptionsPage> {
 }
 
 class _ConsultIntencaoVendaDialog extends StatefulWidget {
-  const _ConsultIntencaoVendaDialog();
+  const _ConsultIntencaoVendaDialog({
+    this.requireCaptcha = true,
+    this.initialRequest,
+  });
+
+  final bool requireCaptcha;
+  final _AtpvConsultationRequest? initialRequest;
 
   @override
   State<_ConsultIntencaoVendaDialog> createState() =>
@@ -198,22 +351,26 @@ class _ConsultIntencaoVendaDialog extends StatefulWidget {
 class _ConsultIntencaoVendaDialogState
     extends State<_ConsultIntencaoVendaDialog> {
   final _formKey = GlobalKey<FormState>();
-  final _plateController = TextEditingController();
-  final _renavamController = TextEditingController();
+  late final TextEditingController _plateController;
+  late final TextEditingController _renavamController;
   final _captchaController = TextEditingController();
 
   final BaseEstadualService _baseEstadualService = BaseEstadualService();
-  final AtpvService _atpvService = AtpvService();
 
   Uint8List? _captchaBytes;
   bool _loadingCaptcha = false;
-  bool _submitting = false;
   String? _captchaError;
 
   @override
   void initState() {
     super.initState();
-    _refreshCaptcha();
+    _plateController =
+        TextEditingController(text: widget.initialRequest?.plate ?? '');
+    _renavamController =
+        TextEditingController(text: widget.initialRequest?.renavam ?? '');
+    if (widget.requireCaptcha) {
+      _refreshCaptcha();
+    }
   }
 
   @override
@@ -225,6 +382,8 @@ class _ConsultIntencaoVendaDialogState
   }
 
   Future<void> _refreshCaptcha() async {
+    if (!widget.requireCaptcha) return;
+
     setState(() {
       _loadingCaptcha = true;
       _captchaError = null;
@@ -271,60 +430,19 @@ class _ConsultIntencaoVendaDialogState
       return;
     }
 
-    setState(() {
-      _submitting = true;
-    });
-
     final placa = _plateController.text.trim().toUpperCase();
     final renavam = _renavamController.text.trim();
-    final captcha = _captchaController.text.trim().toUpperCase();
+    final captcha = widget.requireCaptcha
+        ? _captchaController.text.trim().toUpperCase()
+        : '';
 
-    try {
-      final result = await _atpvService.consultarIntencaoVenda(
+    Navigator.of(context).pop(
+      _AtpvConsultationRequest(
+        plate: placa,
         renavam: renavam,
-        placa: placa,
         captcha: captcha,
-      );
-
-      final comunicacoes = (result['comunicacao_vendas'] is List)
-          ? (result['comunicacao_vendas'] as List)
-              .whereType<Map>()
-              .map((item) => item.map(
-                    (key, value) => MapEntry(key.toString(), value),
-                  ))
-              .toList(growable: false)
-          : const <Map<String, dynamic>>[];
-
-      if (!mounted) return;
-      Navigator.of(context).pop(
-        _AtpvConsultationResult(
-          plate: placa,
-          renavam: renavam,
-          captcha: captcha,
-          captchaBytes: _captchaBytes,
-          payload: result,
-          comunicacoes: comunicacoes,
-        ),
-      );
-    } on AtpvException catch (e) {
-      await AppErrorDialog.show(
-        context,
-        title: 'Ops, algo deu errado',
-        message: e.message,
-      );
-    } catch (_) {
-      await AppErrorDialog.show(
-        context,
-        title: 'Ops, algo deu errado',
-        message: 'Falha ao consultar intenção de venda.',
-      );
-    } finally {
-      if (mounted) {
-        setState(() {
-          _submitting = false;
-        });
-      }
-    }
+      ),
+    );
   }
 
   @override
@@ -412,58 +530,81 @@ class _ConsultIntencaoVendaDialogState
                   return null;
                 },
               ),
-              const SizedBox(height: 16),
-              captchaContent,
-              const SizedBox(height: 12),
-              Row(
-                children: [
-                  Expanded(
-                    child: TextFormField(
-                      controller: _captchaController,
-                      textCapitalization: TextCapitalization.characters,
-                      decoration: const InputDecoration(labelText: 'Captcha'),
-                      validator: (value) {
-                        final text = value?.trim() ?? '';
-                        if (text.isEmpty) {
-                          return 'Informe o captcha.';
-                        }
-                        return null;
-                      },
+              if (widget.requireCaptcha) ...[
+                const SizedBox(height: 16),
+                captchaContent,
+                const SizedBox(height: 12),
+                Row(
+                  children: [
+                    Expanded(
+                      child: TextFormField(
+                        controller: _captchaController,
+                        textCapitalization: TextCapitalization.characters,
+                        decoration: const InputDecoration(labelText: 'Captcha'),
+                        validator: (value) {
+                          if (!widget.requireCaptcha) {
+                            return null;
+                          }
+                          final text = value?.trim() ?? '';
+                          if (text.isEmpty) {
+                            return 'Informe o captcha.';
+                          }
+                          return null;
+                        },
+                      ),
                     ),
-                  ),
-                  const SizedBox(width: 12),
-                  IconButton(
-                    onPressed: _loadingCaptcha ? null : _refreshCaptcha,
-                    tooltip: 'Recarregar captcha',
-                    icon: const Icon(Icons.refresh),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 8),
-              Text(
-                'O captcha diferencia maiúsculas e minúsculas.',
-                style: theme.textTheme.bodySmall?.copyWith(
-                  color: Colors.grey.shade600,
+                    const SizedBox(width: 12),
+                    IconButton(
+                      onPressed: _loadingCaptcha ? null : _refreshCaptcha,
+                      tooltip: 'Recarregar captcha',
+                      icon: const Icon(Icons.refresh),
+                    ),
+                  ],
                 ),
-              ),
+                const SizedBox(height: 8),
+                Text(
+                  'O captcha diferencia maiúsculas e minúsculas.',
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: Colors.grey.shade600,
+                  ),
+                ),
+              ] else ...[
+                const SizedBox(height: 12),
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: theme.colorScheme.primary.withOpacity(0.08),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Row(
+                    children: [
+                      Icon(
+                        Icons.auto_fix_high_outlined,
+                        color: theme.colorScheme.primary,
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Text(
+                          'Resolveremos o captcha automaticamente após enviar os dados.',
+                          style: theme.textTheme.bodySmall,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
             ],
           ),
         ),
       ),
       actions: [
         TextButton(
-          onPressed: _submitting ? null : () => Navigator.of(context).pop(),
+          onPressed: () => Navigator.of(context).pop(),
           child: const Text('Cancelar'),
         ),
         FilledButton(
-          onPressed: _submitting ? null : _submit,
-          child: _submitting
-              ? const SizedBox(
-                  height: 18,
-                  width: 18,
-                  child: CircularProgressIndicator(strokeWidth: 2),
-                )
-              : const Text('Consultar'),
+          onPressed: _submit,
+          child: const Text('Consultar'),
         ),
       ],
     );
@@ -486,4 +627,16 @@ class _AtpvConsultationResult {
   final Uint8List? captchaBytes;
   final Map<String, dynamic> payload;
   final List<Map<String, dynamic>> comunicacoes;
+}
+
+class _AtpvConsultationRequest {
+  const _AtpvConsultationRequest({
+    required this.plate,
+    required this.renavam,
+    required this.captcha,
+  });
+
+  final String plate;
+  final String renavam;
+  final String captcha;
 }

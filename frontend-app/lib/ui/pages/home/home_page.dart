@@ -285,15 +285,25 @@ class _HomePageState extends State<HomePage> {
     );
   }
 
-  Future<_BaseEstadualQuery?> _showBinDialog() {
+  Future<_BaseEstadualQuery?> _showBinDialog({
+    bool requireCaptcha = true,
+    String? initialPlate,
+    String? initialRenavam,
+  }) {
     return _showVehicleLookupDialog(
       title: 'Pesquisa BIN',
       fetchCaptcha: () => _binService.fetchCaptcha(),
       captchaErrorResolver: _mapBinCaptchaError,
+      requireCaptcha: requireCaptcha,
+      initialPlate: initialPlate,
+      initialRenavam: initialRenavam,
     );
   }
 
-  Future<_GravameRequest?> _showGravameDialog() {
+  Future<_GravameRequest?> _showGravameDialog({
+    bool requireCaptcha = true,
+    String? initialPlate,
+  }) {
     return showDialog<_GravameRequest>(
       context: context,
       barrierDismissible: false,
@@ -301,11 +311,16 @@ class _HomePageState extends State<HomePage> {
         fetchCaptcha: () => _baseEstadualService.fetchCaptcha(),
         captchaErrorResolver: _mapBaseEstadualCaptchaError,
         plateValidator: _isValidPlate,
+        requireCaptcha: requireCaptcha,
+        initialPlate: initialPlate,
       ),
     );
   }
 
-  Future<_FichaConsultaRequest?> _showFichaCadastralConsultaDialog() {
+  Future<_FichaConsultaRequest?> _showFichaCadastralConsultaDialog({
+    bool requireCaptcha = true,
+    String? initialPlate,
+  }) {
     return showDialog<_FichaConsultaRequest>(
       context: context,
       barrierDismissible: false,
@@ -313,6 +328,8 @@ class _HomePageState extends State<HomePage> {
         fetchCaptcha: () => _baseEstadualService.fetchCaptcha(),
         captchaErrorResolver: _mapBaseEstadualCaptchaError,
         plateValidator: _isValidPlate,
+        requireCaptcha: requireCaptcha,
+        initialPlate: initialPlate,
       ),
     );
   }
@@ -425,10 +442,12 @@ class _HomePageState extends State<HomePage> {
     }
   }
 
-  Future<void> _handleBaseOutrosEstadosFlow() async {
-    final query = await _showBaseOutrosEstadosDialog();
-    if (query == null || !mounted) return;
-
+  Future<bool> _executeBaseOutrosEstadosQuery({
+    required String chassi,
+    required String uf,
+    required bool autoSolve,
+    String? captchaOverride,
+  }) async {
     showDialog<void>(
       context: context,
       barrierDismissible: false,
@@ -436,52 +455,75 @@ class _HomePageState extends State<HomePage> {
     );
 
     try {
+      final captcha = autoSolve
+          ? await _baseEstadualService.solveCaptcha()
+          : (captchaOverride ?? '');
+
+      if (!autoSolve && captcha.isEmpty) {
+        throw BaseEstadualException('Informe o captcha para continuar.');
+      }
+
       final result = await _baseEstadualService.consultarOutrosEstados(
-        chassi: query.chassi,
-        uf: query.uf,
-        captcha: query.captcha,
+        chassi: chassi,
+        uf: uf,
+        captcha: captcha,
       );
-      if (!mounted) return;
+
+      if (!mounted) return true;
       Navigator.of(context, rootNavigator: true).pop();
-      if (!mounted) return;
+      if (!mounted) return true;
+
       _registerPesquisa(
         nome: 'Base outros estados',
-        chassi: query.chassi,
-        opcaoPesquisa: query.uf,
+        chassi: chassi,
+        opcaoPesquisa: uf,
       );
+
       final htmlResponse = result['html'];
       if (htmlResponse is String && htmlResponse.isNotEmpty) {
         await _showBaseOutrosEstadosHtmlDialog(
-          chassi: query.chassi,
+          chassi: chassi,
           html: htmlResponse,
         );
       } else {
+        if (!mounted) return true;
         Navigator.of(context).push(
           MaterialPageRoute(
             builder: (_) => BaseOutrosEstadosPage(
-              chassi: query.chassi,
+              chassi: chassi,
               payload: result,
             ),
           ),
         );
       }
+
+      return true;
     } on BaseEstadualException catch (e) {
-      if (!mounted) return;
+      if (!mounted) return true;
       Navigator.of(context, rootNavigator: true).pop();
+
+      if (autoSolve && (e.statusCode ?? 0) >= 500) {
+        return false;
+      }
+
       _showErrorMessage(e.message);
+      return true;
     } catch (_) {
-      if (!mounted) return;
+      if (!mounted) return true;
       Navigator.of(context, rootNavigator: true).pop();
       _showErrorMessage(
         'Não foi possível consultar a base de outros estados.',
       );
+      return true;
     }
   }
 
-  Future<void> _handleBinFlow() async {
-    final query = await _showBinDialog();
-    if (query == null || !mounted) return;
-
+  Future<bool> _executeBinQuery({
+    required String placa,
+    required String renavam,
+    required bool autoSolve,
+    String? captchaOverride,
+  }) async {
     showDialog<void>(
       context: context,
       barrierDismissible: false,
@@ -489,43 +531,69 @@ class _HomePageState extends State<HomePage> {
     );
 
     try {
+      final captcha = autoSolve
+          ? await _baseEstadualService.solveCaptcha()
+          : (captchaOverride ?? '');
+
+      if (!autoSolve && captcha.isEmpty) {
+        throw BinException('Informe o captcha para continuar.');
+      }
+
       final result = await _binService.consultar(
-        placa: query.placa,
-        renavam: query.renavam,
-        captcha: query.captcha,
+        placa: placa,
+        renavam: renavam,
+        captcha: captcha,
       );
-      if (!mounted) return;
+
+      if (!mounted) return true;
       Navigator.of(context, rootNavigator: true).pop();
-      if (!mounted) return;
+      if (!mounted) return true;
+
       _registerPesquisa(
         nome: 'BIN',
-        placa: query.placa,
-        renavam: query.renavam,
+        placa: placa,
+        renavam: renavam,
       );
+
       Navigator.of(context).push(
         MaterialPageRoute(
           builder: (_) => BinResultPage(
-            placa: query.placa,
-            renavam: query.renavam,
+            placa: placa,
+            renavam: renavam,
             payload: result,
           ),
         ),
       );
+
+      return true;
+    } on BaseEstadualException catch (e) {
+      if (!mounted) return true;
+      Navigator.of(context, rootNavigator: true).pop();
+
+      if (autoSolve && (e.statusCode ?? 0) >= 500) {
+        return false;
+      }
+
+      _showErrorMessage(e.message);
+      return true;
     } on BinException catch (e) {
-      if (!mounted) return;
+      if (!mounted) return true;
       Navigator.of(context, rootNavigator: true).pop();
       _showErrorMessage(e.message);
+      return true;
     } catch (_) {
-      if (!mounted) return;
+      if (!mounted) return true;
       Navigator.of(context, rootNavigator: true).pop();
       _showErrorMessage('Não foi possível concluir a pesquisa BIN.');
+      return true;
     }
   }
 
-  Future<void> _handleRenainfFlow() async {
-    final request = await _showRenainfDialog();
-    if (request == null || !mounted) return;
-
+  Future<bool> _executeGravameQuery({
+    required String placa,
+    required bool autoSolve,
+    String? captchaOverride,
+  }) async {
     showDialog<void>(
       context: context,
       barrierDismissible: false,
@@ -533,6 +601,87 @@ class _HomePageState extends State<HomePage> {
     );
 
     try {
+      final captcha = autoSolve
+          ? await _baseEstadualService.solveCaptcha()
+          : (captchaOverride ?? '');
+
+      if (!autoSolve && captcha.isEmpty) {
+        throw GravameException('Informe o captcha para continuar.');
+      }
+
+      final normalizedCaptcha = captcha.trim().toUpperCase();
+
+      final result = await _gravameService.consultar(
+        placa: placa,
+        captcha: normalizedCaptcha,
+      );
+
+      if (!mounted) return true;
+      Navigator.of(context, rootNavigator: true).pop();
+      if (!mounted) return true;
+
+      _registerPesquisa(
+        nome: 'Gravame',
+        placa: placa,
+      );
+
+      Navigator.of(context).push(
+        MaterialPageRoute(
+          builder: (_) => GravamePage(
+            placa: placa,
+            renavam: null,
+            uf: null,
+            payload: result,
+          ),
+        ),
+      );
+
+      return true;
+    } on BaseEstadualException catch (e) {
+      if (!mounted) return true;
+      Navigator.of(context, rootNavigator: true).pop();
+
+      if (autoSolve && (e.statusCode ?? 0) >= 500) {
+        return false;
+      }
+
+      _showErrorMessage(e.message);
+      return true;
+    } on GravameException catch (e) {
+      if (!mounted) return true;
+      Navigator.of(context, rootNavigator: true).pop();
+      _showErrorMessage(e.message);
+      return true;
+    } catch (_) {
+      if (!mounted) return true;
+      Navigator.of(context, rootNavigator: true).pop();
+      _showErrorMessage('Não foi possível consultar o gravame.');
+      return true;
+    }
+  }
+
+  Future<bool> _executeRenainfQuery({
+    required _RenainfRequest request,
+    required bool autoSolve,
+    String? captchaOverride,
+  }) async {
+    showDialog<void>(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) => const LoadingDialog(),
+    );
+
+    try {
+      final captcha = autoSolve
+          ? await _baseEstadualService.solveCaptcha()
+          : (captchaOverride ?? request.captcha);
+
+      if (!autoSolve && (captcha.isEmpty)) {
+        throw RenainfException('Informe o captcha para continuar.');
+      }
+
+      final normalizedCaptcha = captcha.trim().toUpperCase();
+
       final result = await _renainfService.consultar(
         plate: request.plate,
         statusCode: request.statusCode,
@@ -540,62 +689,448 @@ class _HomePageState extends State<HomePage> {
         uf: request.uf,
         startDate: request.startDate,
         endDate: request.endDate,
-        captcha: request.captcha,
+        captcha: normalizedCaptcha,
       );
-      if (!mounted) return;
+
+      if (!mounted) return true;
       Navigator.of(context, rootNavigator: true).pop();
-      if (!mounted) return;
+      if (!mounted) return true;
+
       _registerPesquisa(
         nome: 'RENAINF',
         placa: request.plate,
         opcaoPesquisa: '${request.statusCode}-${request.statusLabel}',
       );
+
       Navigator.of(context).push(
         MaterialPageRoute(
           builder: (_) => RenainfPage(result: result),
         ),
       );
+
+      return true;
+    } on BaseEstadualException catch (e) {
+      if (!mounted) return true;
+      Navigator.of(context, rootNavigator: true).pop();
+
+      if (autoSolve && (e.statusCode ?? 0) >= 500) {
+        return false;
+      }
+
+      _showErrorMessage(e.message);
+      return true;
     } on RenainfException catch (e) {
-      if (!mounted) return;
+      if (!mounted) return true;
       Navigator.of(context, rootNavigator: true).pop();
       _showErrorMessage(e.message);
+      return true;
     } catch (_) {
-      if (!mounted) return;
+      if (!mounted) return true;
       Navigator.of(context, rootNavigator: true).pop();
       _showErrorMessage('Não foi possível consultar o RENAINF.');
+      return true;
     }
   }
 
-  Future<void> _handleEcrvProcessFlow() async {
-    final consultaRequest = await _showFichaCadastralConsultaDialog();
-    if (consultaRequest == null || !mounted) return;
-
+  Future<bool> _executeBloqueiosAtivosQuery({
+    required String origin,
+    required String chassi,
+    required String opcaoPesquisa,
+    required bool autoSolve,
+    String? captchaOverride,
+  }) async {
     showDialog<void>(
       context: context,
       barrierDismissible: false,
       builder: (_) => const LoadingDialog(),
     );
 
-    Map<String, dynamic> fichaResult;
     try {
-      fichaResult = await _fichaCadastralService.consultarFicha(
-        placa: consultaRequest.plate,
-        captcha: consultaRequest.captcha,
+      final captcha = autoSolve
+          ? await _baseEstadualService.solveCaptcha()
+          : (captchaOverride ?? '');
+
+      if (!autoSolve && captcha.isEmpty) {
+        throw BaseEstadualException('Informe o captcha para continuar.');
+      }
+
+      final result = await _baseEstadualService.consultarBloqueiosAtivos(
+        origin: origin,
+        captcha: captcha.trim().toUpperCase(),
+        chassi: chassi,
+        opcaoPesquisa: opcaoPesquisa,
       );
+
+      if (!mounted) return true;
+      Navigator.of(context, rootNavigator: true).pop();
+      if (!mounted) return true;
+
+      _registerPesquisa(
+        nome: 'Bloqueios ativos',
+        chassi: chassi,
+        opcaoPesquisa: opcaoPesquisa,
+      );
+
+      Navigator.of(context).push(
+        MaterialPageRoute(
+          builder: (_) => BloqueiosPage(
+            origin: origin,
+            chassi: chassi,
+            payload: result,
+          ),
+        ),
+      );
+
+      return true;
+    } on BaseEstadualException catch (e) {
+      if (!mounted) return true;
+      Navigator.of(context, rootNavigator: true).pop();
+
+      if (autoSolve && (e.statusCode ?? 0) >= 500) {
+        return false;
+      }
+
+      _showErrorMessage(e.message);
+      return true;
+    } catch (_) {
+      if (!mounted) return true;
+      Navigator.of(context, rootNavigator: true).pop();
+      _showErrorMessage('Não foi possível consultar os bloqueios ativos.');
+      return true;
+    }
+  }
+
+  Future<bool> _executeCrlvEmission({
+    required _CrlvEmissionRequest request,
+    required bool autoSolve,
+    String? captchaOverride,
+  }) async {
+    showDialog<void>(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) => const LoadingDialog(),
+    );
+
+    try {
+      final captcha = autoSolve
+          ? await _baseEstadualService.solveCaptcha()
+          : (captchaOverride ?? request.captcha);
+
+      final normalizedCaptcha = captcha.trim().toUpperCase();
+      if (!autoSolve && normalizedCaptcha.isEmpty) {
+        throw BaseEstadualException('Informe o captcha para continuar.');
+      }
+
+      final rawDigits = request.document.replaceAll(RegExp(r'[^0-9]'), '');
+      final isCpf = rawDigits.length <= 11;
+      final formattedCpf = _formatCpf(rawDigits);
+      final formattedCnpj = _formatCnpj(rawDigits);
+      final cpf = isCpf ? (formattedCpf ?? request.document) : '';
+      final cnpj = isCpf ? '' : (formattedCnpj ?? request.document);
+      final opcao = isCpf ? '1' : '2';
+
+      final pdfBytes = await _baseEstadualService.emitirCrlv(
+        placa: request.plate,
+        renavam: request.renavam,
+        cpf: cpf,
+        cnpj: cnpj,
+        captchaResponse: normalizedCaptcha,
+        opcaoPesquisa: opcao,
+      );
+
+      if (!mounted) return true;
+      Navigator.of(context, rootNavigator: true).pop();
+      if (!mounted) return true;
+
+      _registerPesquisa(
+        nome: 'Emissão do CRLV-e',
+        placa: request.plate,
+        renavam: request.renavam,
+        opcaoPesquisa: opcao,
+      );
+
+      final pdfResult = await _saveAndOpenPdf(pdfBytes, request.plate);
+      if (!mounted) return true;
+      if (pdfResult.opened) {
+        _showSuccessMessage('CRLV-e emitido com sucesso.');
+      } else {
+        final fallbackMessage = pdfResult.path != null
+            ? 'CRLV-e emitido. Abra o arquivo manualmente em ${pdfResult.path}.'
+            : kIsWeb
+                ? 'CRLV-e emitido. Baixe o PDF utilizando o aplicativo móvel.'
+                : 'CRLV-e emitido, mas não foi possível abrir o PDF automaticamente.';
+        _showErrorMessage(fallbackMessage);
+      }
+
+      return true;
+    } on BaseEstadualException catch (e) {
+      if (!mounted) return true;
+      Navigator.of(context, rootNavigator: true).pop();
+
+      if (autoSolve && (e.statusCode ?? 0) >= 500) {
+        return false;
+      }
+
+      _showErrorMessage(e.message);
+      return true;
+    } catch (_) {
+      if (!mounted) return true;
+      Navigator.of(context, rootNavigator: true).pop();
+      _showErrorMessage('Não foi possível emitir o CRLV-e.');
+      return true;
+    }
+  }
+
+  Future<_CaptchaOperationResult<Map<String, dynamic>>>
+      _executeFichaConsulta({
+    required String placa,
+    required bool autoSolve,
+    String? captchaOverride,
+  }) async {
+    showDialog<void>(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) => const LoadingDialog(),
+    );
+
+    try {
+      final captcha = autoSolve
+          ? await _baseEstadualService.solveCaptcha()
+          : (captchaOverride ?? '');
+
+      if (!autoSolve && captcha.isEmpty) {
+        throw FichaCadastralException('Informe o captcha para continuar.');
+      }
+
+      final result = await _fichaCadastralService.consultarFicha(
+        placa: placa,
+        captcha: captcha.trim().toUpperCase(),
+      );
+
+      if (!mounted) return const _CaptchaOperationResult.failure();
+      Navigator.of(context, rootNavigator: true).pop();
+      if (!mounted) return const _CaptchaOperationResult.failure();
+
+      return _CaptchaOperationResult<Map<String, dynamic>>.success(result);
+    } on BaseEstadualException catch (e) {
+      if (!mounted) return const _CaptchaOperationResult.failure();
+      Navigator.of(context, rootNavigator: true).pop();
+
+      if (autoSolve && (e.statusCode ?? 0) >= 500) {
+        return const _CaptchaOperationResult<Map<String, dynamic>>.manual();
+      }
+
+      _showErrorMessage(e.message);
+      return const _CaptchaOperationResult<Map<String, dynamic>>.failure();
     } on FichaCadastralException catch (e) {
-      if (!mounted) return;
+      if (!mounted) return const _CaptchaOperationResult.failure();
       Navigator.of(context, rootNavigator: true).pop();
       _showErrorMessage(e.message);
-      return;
+      return const _CaptchaOperationResult<Map<String, dynamic>>.failure();
     } catch (_) {
-      if (!mounted) return;
+      if (!mounted) return const _CaptchaOperationResult.failure();
       Navigator.of(context, rootNavigator: true).pop();
       _showErrorMessage('Não foi possível consultar a ficha cadastral.');
+      return const _CaptchaOperationResult<Map<String, dynamic>>.failure();
+    }
+  }
+
+  Future<_CaptchaOperationResult<Map<String, dynamic>>>
+      _executeFichaAndamento({
+    required String numeroFicha,
+    required String anoFicha,
+    required String placa,
+    required bool autoSolve,
+    String? captchaOverride,
+  }) async {
+    showDialog<void>(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) => const LoadingDialog(),
+    );
+
+    try {
+      final captcha = autoSolve
+          ? await _baseEstadualService.solveCaptcha()
+          : (captchaOverride ?? '');
+
+      if (!autoSolve && captcha.isEmpty) {
+        throw FichaCadastralException('Informe o captcha para continuar.');
+      }
+
+      final result = await _fichaCadastralService.consultarAndamento(
+        numeroFicha: numeroFicha,
+        anoFicha: anoFicha,
+        captcha: captcha.trim().toUpperCase(),
+        placa: placa,
+      );
+
+      if (!mounted) return const _CaptchaOperationResult.failure();
+      Navigator.of(context, rootNavigator: true).pop();
+      if (!mounted) return const _CaptchaOperationResult.failure();
+
+      return _CaptchaOperationResult<Map<String, dynamic>>.success(result);
+    } on BaseEstadualException catch (e) {
+      if (!mounted) return const _CaptchaOperationResult.failure();
+      Navigator.of(context, rootNavigator: true).pop();
+
+      if (autoSolve && (e.statusCode ?? 0) >= 500) {
+        return const _CaptchaOperationResult<Map<String, dynamic>>.manual();
+      }
+
+      _showErrorMessage(e.message);
+      return const _CaptchaOperationResult<Map<String, dynamic>>.failure();
+    } on FichaCadastralException catch (e) {
+      if (!mounted) return const _CaptchaOperationResult.failure();
+      Navigator.of(context, rootNavigator: true).pop();
+      _showErrorMessage(e.message);
+      return const _CaptchaOperationResult<Map<String, dynamic>>.failure();
+    } catch (_) {
+      if (!mounted) return const _CaptchaOperationResult.failure();
+      Navigator.of(context, rootNavigator: true).pop();
+      _showErrorMessage('Não foi possível consultar o andamento do processo.');
+      return const _CaptchaOperationResult<Map<String, dynamic>>.failure();
+    }
+  }
+
+  Future<void> _handleBaseOutrosEstadosFlow() async {
+    final query = await _showBaseOutrosEstadosDialog(requireCaptcha: false);
+    if (query == null || !mounted) return;
+
+    final autoCompleted = await _executeBaseOutrosEstadosQuery(
+      chassi: query.chassi,
+      uf: query.uf,
+      autoSolve: true,
+    );
+
+    if (!mounted || autoCompleted) return;
+
+    _showErrorMessage(
+      'Não foi possível resolver o captcha automaticamente. Informe-o manualmente.',
+    );
+
+    final manualQuery = await _showBaseOutrosEstadosDialog(
+      requireCaptcha: true,
+      initialChassi: query.chassi,
+      initialUf: query.uf,
+    );
+
+    if (manualQuery == null || !mounted) {
       return;
     }
 
+    await _executeBaseOutrosEstadosQuery(
+      chassi: manualQuery.chassi,
+      uf: manualQuery.uf,
+      autoSolve: false,
+      captchaOverride: manualQuery.captcha,
+    );
+  }
+
+  Future<void> _handleBinFlow() async {
+    final query = await _showBinDialog(requireCaptcha: false);
+    if (query == null || !mounted) return;
+
+    final autoCompleted = await _executeBinQuery(
+      placa: query.placa,
+      renavam: query.renavam,
+      autoSolve: true,
+    );
+
+    if (!mounted || autoCompleted) return;
+
+    _showErrorMessage(
+      'Não foi possível resolver o captcha automaticamente. Informe-o manualmente.',
+    );
+
+    final manualQuery = await _showBinDialog(
+      requireCaptcha: true,
+      initialPlate: query.placa,
+      initialRenavam: query.renavam,
+    );
+
+    if (manualQuery == null || !mounted) {
+      return;
+    }
+
+    await _executeBinQuery(
+      placa: manualQuery.placa,
+      renavam: manualQuery.renavam,
+      autoSolve: false,
+      captchaOverride: manualQuery.captcha,
+    );
+  }
+
+  Future<void> _handleRenainfFlow() async {
+    final request = await _showRenainfDialog(requireCaptcha: false);
+    if (request == null || !mounted) return;
+
+    final autoCompleted = await _executeRenainfQuery(
+      request: request,
+      autoSolve: true,
+    );
+
+    if (!mounted || autoCompleted) return;
+
+    _showErrorMessage(
+      'Não foi possível resolver o captcha automaticamente. Informe-o manualmente.',
+    );
+
+    final manualRequest = await _showRenainfDialog(
+      requireCaptcha: true,
+      initialRequest: request,
+    );
+
+    if (manualRequest == null || !mounted) return;
+
+    await _executeRenainfQuery(
+      request: manualRequest,
+      autoSolve: false,
+      captchaOverride: manualRequest.captcha,
+    );
+  }
+
+  Future<void> _handleEcrvProcessFlow() async {
+    final initialConsultaRequest =
+        await _showFichaCadastralConsultaDialog(requireCaptcha: false);
+    if (initialConsultaRequest == null || !mounted) return;
+
+    var effectiveConsultaRequest = initialConsultaRequest;
+
+    final consultaAttempt = await _executeFichaConsulta(
+      placa: effectiveConsultaRequest.plate,
+      autoSolve: true,
+    );
     if (!mounted) return;
-    Navigator.of(context, rootNavigator: true).pop();
+
+    Map<String, dynamic>? fichaResult;
+
+    if (consultaAttempt.requiresManual) {
+      _showErrorMessage(
+        'Não foi possível resolver o captcha automaticamente. Informe-o manualmente.',
+      );
+      final manualConsulta = await _showFichaCadastralConsultaDialog(
+        requireCaptcha: true,
+        initialPlate: effectiveConsultaRequest.plate,
+      );
+      if (manualConsulta == null || !mounted) return;
+      effectiveConsultaRequest = manualConsulta;
+      final manualResult = await _executeFichaConsulta(
+        placa: manualConsulta.plate,
+        autoSolve: false,
+        captchaOverride: manualConsulta.captcha,
+      );
+      if (!mounted) return;
+      fichaResult = manualResult.data;
+      if (fichaResult == null) {
+        return;
+      }
+    } else {
+      fichaResult = consultaAttempt.data;
+      if (fichaResult == null) {
+        return;
+      }
+    }
 
     final fichaPayload = _asMap(fichaResult['payload']);
     final fichaNormalized =
@@ -615,44 +1150,47 @@ class _HomePageState extends State<HomePage> {
       return;
     }
 
-    final andamentoRequest = await _showFichaAndamentoDialog(
+    final andamentoAttempt = await _executeFichaAndamento(
       numeroFicha: numeroFicha,
       anoFicha: anoFicha,
+      placa: effectiveConsultaRequest.plate,
+      autoSolve: true,
     );
-    if (andamentoRequest == null || !mounted) return;
+    if (!mounted) return;
 
-    showDialog<void>(
-      context: context,
-      barrierDismissible: false,
-      builder: (_) => const LoadingDialog(),
-    );
+    Map<String, dynamic>? andamentoResult;
 
-    Map<String, dynamic> andamentoResult;
-    try {
-      andamentoResult = await _fichaCadastralService.consultarAndamento(
+    if (andamentoAttempt.requiresManual) {
+      _showErrorMessage(
+        'Não foi possível resolver o captcha automaticamente. Informe-o manualmente.',
+      );
+      final andamentoRequest = await _showFichaAndamentoDialog(
         numeroFicha: numeroFicha,
         anoFicha: anoFicha,
-        captcha: andamentoRequest.captcha,
-        placa: consultaRequest.plate,
       );
-    } on FichaCadastralException catch (e) {
+      if (andamentoRequest == null || !mounted) return;
+      final manualAndamento = await _executeFichaAndamento(
+        numeroFicha: andamentoRequest.numeroFicha,
+        anoFicha: andamentoRequest.anoFicha,
+        placa: effectiveConsultaRequest.plate,
+        autoSolve: false,
+        captchaOverride: andamentoRequest.captcha,
+      );
       if (!mounted) return;
-      Navigator.of(context, rootNavigator: true).pop();
-      _showErrorMessage(e.message);
-      return;
-    } catch (_) {
-      if (!mounted) return;
-      Navigator.of(context, rootNavigator: true).pop();
-      _showErrorMessage('Não foi possível consultar o andamento do processo.');
-      return;
+      andamentoResult = manualAndamento.data;
+      if (andamentoResult == null) {
+        return;
+      }
+    } else {
+      andamentoResult = andamentoAttempt.data;
+      if (andamentoResult == null) {
+        return;
+      }
     }
-
-    if (!mounted) return;
-    Navigator.of(context, rootNavigator: true).pop();
 
     _registerPesquisa(
       nome: 'Processo e-CRVsp',
-      placa: consultaRequest.plate,
+      placa: effectiveConsultaRequest.plate,
       renavam: renavamFicha,
       chassi: chassiFicha,
     );
@@ -660,60 +1198,47 @@ class _HomePageState extends State<HomePage> {
     Navigator.of(context).push(
       MaterialPageRoute(
         builder: (_) => EcrvProcessPage(
-          placa: consultaRequest.plate,
+          placa: effectiveConsultaRequest.plate,
           numeroFicha: numeroFicha,
           anoFicha: anoFicha,
           fichaPayload: fichaPayload ?? const {},
           andamentoPayload:
-              _asMap(andamentoResult['payload']) ?? andamentoResult,
+              _asMap(andamentoResult!['payload']) ?? andamentoResult,
         ),
       ),
     );
   }
 
   Future<void> _handleBloqueiosAtivosFlow() async {
-    final request = await _showBloqueiosAtivosDialog();
+    final request = await _showBloqueiosAtivosDialog(requireCaptcha: false);
     if (request == null || !mounted) return;
 
-    showDialog<void>(
-      context: context,
-      barrierDismissible: false,
-      builder: (_) => const LoadingDialog(),
+    final autoCompleted = await _executeBloqueiosAtivosQuery(
+      origin: request.origin,
+      chassi: request.chassi,
+      opcaoPesquisa: request.opcaoPesquisa,
+      autoSolve: true,
     );
 
-    try {
-      final result = await _baseEstadualService.consultarBloqueiosAtivos(
-        origin: request.origin,
-        captcha: request.captcha,
-        chassi: request.chassi,
-        opcaoPesquisa: request.opcaoPesquisa,
-      );
-      if (!mounted) return;
-      Navigator.of(context, rootNavigator: true).pop();
-      if (!mounted) return;
-      _registerPesquisa(
-        nome: 'Bloqueios ativos',
-        chassi: request.chassi,
-        opcaoPesquisa: request.opcaoPesquisa,
-      );
-      Navigator.of(context).push(
-        MaterialPageRoute(
-          builder: (_) => BloqueiosPage(
-            origin: request.origin,
-            chassi: request.chassi,
-            payload: result,
-          ),
-        ),
-      );
-    } on BaseEstadualException catch (e) {
-      if (!mounted) return;
-      Navigator.of(context, rootNavigator: true).pop();
-      _showErrorMessage(e.message);
-    } catch (_) {
-      if (!mounted) return;
-      Navigator.of(context, rootNavigator: true).pop();
-      _showErrorMessage('Não foi possível consultar os bloqueios ativos.');
-    }
+    if (!mounted || autoCompleted) return;
+
+    _showErrorMessage(
+      'Não foi possível resolver o captcha automaticamente. Informe-o manualmente.',
+    );
+
+    final manualRequest = await _showBloqueiosAtivosDialog(
+      requireCaptcha: true,
+      initialRequest: request,
+    );
+    if (manualRequest == null || !mounted) return;
+
+    await _executeBloqueiosAtivosQuery(
+      origin: manualRequest.origin,
+      chassi: manualRequest.chassi,
+      opcaoPesquisa: manualRequest.opcaoPesquisa,
+      autoSolve: false,
+      captchaOverride: manualRequest.captcha,
+    );
   }
 
   Future<void> _handlePrimaryActionTap(HomeAction action) async {
@@ -729,61 +1254,31 @@ class _HomePageState extends State<HomePage> {
   }
 
   Future<void> _handleCrlvEmissionFlow() async {
-    final request = await _showCrlvEmissionDialog();
+    final request = await _showCrlvEmissionDialog(requireCaptcha: false);
     if (request == null || !mounted) return;
-    showDialog<void>(
-      context: context,
-      barrierDismissible: false,
-      builder: (_) => const LoadingDialog(),
+
+    final autoCompleted = await _executeCrlvEmission(
+      request: request,
+      autoSolve: true,
     );
 
-    try {
-      final rawDigits = request.document.replaceAll(RegExp(r'[^0-9]'), '');
-      final isCpf = rawDigits.length <= 11;
-      final formattedCpf = _formatCpf(rawDigits);
-      final formattedCnpj = _formatCnpj(rawDigits);
-      final cpf = isCpf ? (formattedCpf ?? request.document) : '';
-      final cnpj = isCpf ? '' : (formattedCnpj ?? request.document);
-      final opcao = isCpf ? '1' : '2';
+    if (!mounted || autoCompleted) return;
 
-      final pdfBytes = await _baseEstadualService.emitirCrlv(
-        placa: request.plate,
-        renavam: request.renavam,
-        cpf: cpf,
-        cnpj: cnpj,
-        captchaResponse: request.captcha,
-        opcaoPesquisa: opcao,
-      );
-      if (!mounted) return;
-      Navigator.of(context, rootNavigator: true).pop();
-      if (!mounted) return;
-      _registerPesquisa(
-        nome: 'Emissão do CRLV-e',
-        placa: request.plate,
-        renavam: request.renavam,
-        opcaoPesquisa: opcao,
-      );
-      final pdfResult = await _saveAndOpenPdf(pdfBytes, request.plate);
-      if (!mounted) return;
-      if (pdfResult.opened) {
-        _showSuccessMessage('CRLV-e emitido com sucesso.');
-      } else {
-        final fallbackMessage = pdfResult.path != null
-            ? 'CRLV-e emitido. Abra o arquivo manualmente em ${pdfResult.path}.'
-            : kIsWeb
-                ? 'CRLV-e emitido. Baixe o PDF utilizando o aplicativo móvel.'
-                : 'CRLV-e emitido, mas não foi possível abrir o PDF automaticamente.';
-        _showErrorMessage(fallbackMessage);
-      }
-    } on BaseEstadualException catch (e) {
-      if (!mounted) return;
-      Navigator.of(context, rootNavigator: true).pop();
-      _showErrorMessage(e.message);
-    } catch (_) {
-      if (!mounted) return;
-      Navigator.of(context, rootNavigator: true).pop();
-      _showErrorMessage('Não foi possível emitir o CRLV-e.');
-    }
+    _showErrorMessage(
+      'Não foi possível resolver o captcha automaticamente. Informe-o manualmente.',
+    );
+
+    final manualRequest = await _showCrlvEmissionDialog(
+      requireCaptcha: true,
+      initialRequest: request,
+    );
+    if (manualRequest == null || !mounted) return;
+
+    await _executeCrlvEmission(
+      request: manualRequest,
+      autoSolve: false,
+      captchaOverride: manualRequest.captcha,
+    );
   }
 
   Future<void> _handleAtpvEmissionFlow() async {
@@ -831,11 +1326,20 @@ class _HomePageState extends State<HomePage> {
     }
   }
 
-  Future<_CrlvEmissionRequest?> _showCrlvEmissionDialog() async {
+  Future<_CrlvEmissionRequest?> _showCrlvEmissionDialog({
+    bool requireCaptcha = true,
+    _CrlvEmissionRequest? initialRequest,
+  }) async {
     final formKey = GlobalKey<FormState>();
-    final plateController = TextEditingController();
-    final renavamController = TextEditingController();
-    final documentController = TextEditingController();
+    final plateController = TextEditingController(
+      text: initialRequest?.plate ?? '',
+    );
+    final renavamController = TextEditingController(
+      text: initialRequest?.renavam ?? '',
+    );
+    final documentController = TextEditingController(
+      text: initialRequest?.document ?? '',
+    );
     final captchaController = TextEditingController();
 
     String? captchaBase64;
@@ -844,6 +1348,8 @@ class _HomePageState extends State<HomePage> {
     bool initialized = false;
 
     Future<void> refreshCaptcha(StateSetter setState) async {
+      if (!requireCaptcha) return;
+
       setState(() {
         isLoadingCaptcha = true;
         captchaError = null;
@@ -881,16 +1387,121 @@ class _HomePageState extends State<HomePage> {
             builder: (context, setState) {
               if (!initialized) {
                 initialized = true;
-                Future.microtask(() => refreshCaptcha(setState));
+                if (requireCaptcha) {
+                  Future.microtask(() => refreshCaptcha(setState));
+                }
               }
 
               Uint8List? captchaBytes;
-              if (captchaBase64 != null && captchaBase64!.isNotEmpty) {
+              if (requireCaptcha &&
+                  captchaBase64 != null &&
+                  captchaBase64!.isNotEmpty) {
                 try {
                   captchaBytes = base64Decode(captchaBase64!);
                 } catch (_) {
                   captchaError ??= 'Captcha recebido em formato inválido.';
                 }
+              }
+
+              final captchaWidgets = <Widget>[];
+              if (requireCaptcha) {
+                captchaWidgets.addAll([
+                  const SizedBox(height: 24),
+                  Container(
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(16),
+                      border: Border.all(
+                        color: Theme.of(context)
+                            .colorScheme
+                            .outline
+                            .withOpacity(0.2),
+                      ),
+                    ),
+                    padding: const EdgeInsets.all(16),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        Row(
+                          children: [
+                            Text(
+                              'Captcha',
+                              style: Theme.of(context)
+                                  .textTheme
+                                  .titleSmall
+                                  ?.copyWith(fontWeight: FontWeight.w600),
+                            ),
+                            const Spacer(),
+                            TextButton.icon(
+                              onPressed: isLoadingCaptcha
+                                  ? null
+                                  : () => refreshCaptcha(setState),
+                              icon: const Icon(Icons.refresh),
+                              label: const Text('Atualizar'),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 12),
+                        if (isLoadingCaptcha)
+                          const Center(
+                            child: Padding(
+                              padding: EdgeInsets.symmetric(vertical: 16),
+                              child: CircularProgressIndicator(),
+                            ),
+                          )
+                        else if (captchaError != null)
+                          Padding(
+                            padding: const EdgeInsets.symmetric(
+                              vertical: 8,
+                            ),
+                            child: Text(
+                              captchaError!,
+                              style: TextStyle(
+                                color: Theme.of(context).colorScheme.error,
+                              ),
+                            ),
+                          )
+                        else if (captchaBytes != null)
+                          Center(
+                            child: ClipRRect(
+                              borderRadius: BorderRadius.circular(8),
+                              child: Image.memory(
+                                captchaBytes,
+                                width: 180,
+                                height: 80,
+                                fit: BoxFit.contain,
+                              ),
+                            ),
+                          )
+                        else
+                          const SizedBox.shrink(),
+                        const SizedBox(height: 16),
+                        TextFormField(
+                          controller: captchaController,
+                          decoration: const InputDecoration(
+                            labelText: 'Digite o captcha',
+                          ),
+                          inputFormatters: [
+                            const _UpperCaseTextFormatter(),
+                            FilteringTextInputFormatter.allow(
+                              RegExp('[A-Za-z0-9]'),
+                            ),
+                            LengthLimitingTextInputFormatter(10),
+                          ],
+                          textCapitalization:
+                              TextCapitalization.characters,
+                          validator: (value) {
+                            final text = value?.trim() ?? '';
+                            if (text.isEmpty) {
+                              return 'Informe o captcha';
+                            }
+                            return null;
+                          },
+                        ),
+                      ],
+                    ),
+                  ),
+                ]);
               }
 
               return ConstrainedBox(
@@ -917,6 +1528,15 @@ class _HomePageState extends State<HomePage> {
                               icon: const Icon(Icons.close),
                             ),
                           ],
+                        ),
+                        const SizedBox(height: 16),
+                        Text(
+                          requireCaptcha
+                              ? 'Informe os dados e o captcha exibido para emitir o CRLV-e.'
+                              : 'Informe apenas os dados. Resolveremos o captcha automaticamente.',
+                          style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                                color: const Color(0xFF475467),
+                              ),
                         ),
                         const SizedBox(height: 16),
                         TextFormField(
@@ -987,106 +1607,12 @@ class _HomePageState extends State<HomePage> {
                             return null;
                           },
                         ),
-                        const SizedBox(height: 24),
-                        Container(
-                          decoration: BoxDecoration(
-                            color: Colors.white,
-                            borderRadius: BorderRadius.circular(16),
-                            border: Border.all(
-                              color: Theme.of(context)
-                                  .colorScheme
-                                  .outline
-                                  .withOpacity(0.2),
-                            ),
-                          ),
-                          padding: const EdgeInsets.all(16),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.stretch,
-                            children: [
-                              Row(
-                                children: [
-                                  Text(
-                                    'Captcha',
-                                    style: Theme.of(context)
-                                        .textTheme
-                                        .titleSmall
-                                        ?.copyWith(fontWeight: FontWeight.w600),
-                                  ),
-                                  const Spacer(),
-                                  TextButton.icon(
-                                    onPressed: isLoadingCaptcha
-                                        ? null
-                                        : () => refreshCaptcha(setState),
-                                    icon: const Icon(Icons.refresh),
-                                    label: const Text('Atualizar'),
-                                  ),
-                                ],
-                              ),
-                              const SizedBox(height: 12),
-                              if (isLoadingCaptcha)
-                                const Center(
-                                  child: Padding(
-                                    padding: EdgeInsets.symmetric(vertical: 16),
-                                    child: CircularProgressIndicator(),
-                                  ),
-                                )
-                              else if (captchaError != null)
-                                Padding(
-                                  padding:
-                                      const EdgeInsets.symmetric(vertical: 8),
-                                  child: Text(
-                                    captchaError!,
-                                    style: TextStyle(
-                                      color:
-                                          Theme.of(context).colorScheme.error,
-                                    ),
-                                  ),
-                                )
-                              else if (captchaBytes != null)
-                                Center(
-                                  child: ClipRRect(
-                                    borderRadius: BorderRadius.circular(8),
-                                    child: Image.memory(
-                                      captchaBytes,
-                                      width: 180,
-                                      height: 80,
-                                      fit: BoxFit.contain,
-                                    ),
-                                  ),
-                                )
-                              else
-                                const SizedBox.shrink(),
-                              const SizedBox(height: 16),
-                              TextFormField(
-                                controller: captchaController,
-                                decoration: const InputDecoration(
-                                  labelText: 'Digite o captcha',
-                                ),
-                                inputFormatters: [
-                                  const _UpperCaseTextFormatter(),
-                                  FilteringTextInputFormatter.allow(
-                                    RegExp('[A-Za-z0-9]'),
-                                  ),
-                                  LengthLimitingTextInputFormatter(10),
-                                ],
-                                textCapitalization:
-                                    TextCapitalization.characters,
-                                validator: (value) {
-                                  final text = value?.trim() ?? '';
-                                  if (text.isEmpty) {
-                                    return 'Informe o captcha';
-                                  }
-                                  return null;
-                                },
-                              ),
-                            ],
-                          ),
-                        ),
+                        ...captchaWidgets,
                         const SizedBox(height: 24),
                         FilledButton(
-                          onPressed: isLoadingCaptcha || captchaBase64 == null
-                              ? null
-                              : () {
+                          onPressed: (!requireCaptcha ||
+                                  (!isLoadingCaptcha && captchaBase64 != null))
+                              ? () {
                                   if (!formKey.currentState!.validate()) {
                                     return;
                                   }
@@ -1098,12 +1624,15 @@ class _HomePageState extends State<HomePage> {
                                       renavam: renavamController.text.trim(),
                                       document:
                                           documentController.text.trim(),
-                                      captcha: captchaController.text
-                                          .trim()
-                                          .toUpperCase(),
+                                      captcha: requireCaptcha
+                                          ? captchaController.text
+                                              .trim()
+                                              .toUpperCase()
+                                          : '',
                                     ),
                                   );
-                                },
+                                }
+                              : null,
                           child: const Text('Emitir'),
                         ),
                         const SizedBox(height: 12),
@@ -1134,11 +1663,20 @@ class _HomePageState extends State<HomePage> {
 
 
 
-  Future<_BaseOutrosEstadosQuery?> _showBaseOutrosEstadosDialog() async {
+  Future<_BaseOutrosEstadosQuery?> _showBaseOutrosEstadosDialog({
+    bool requireCaptcha = true,
+    String? initialChassi,
+    String? initialUf,
+  }) async {
     final formKey = GlobalKey<FormState>();
-    final chassiController = TextEditingController();
+    final chassiController = TextEditingController(
+      text: initialChassi ?? '',
+    );
     final captchaController = TextEditingController();
-    String? selectedUf;
+    String? selectedUf =
+        initialUf != null && _brazilUfCodes.contains(initialUf.toUpperCase())
+            ? initialUf.toUpperCase()
+            : null;
 
     String? captchaBase64;
     String? captchaError;
@@ -1146,6 +1684,8 @@ class _HomePageState extends State<HomePage> {
     bool initialized = false;
 
     Future<void> refreshCaptcha(StateSetter setState) async {
+      if (!requireCaptcha) return;
+
       setState(() {
         isLoadingCaptcha = true;
         captchaError = null;
@@ -1183,11 +1723,15 @@ class _HomePageState extends State<HomePage> {
             builder: (context, setState) {
               if (!initialized) {
                 initialized = true;
-                Future.microtask(() => refreshCaptcha(setState));
+                if (requireCaptcha) {
+                  Future.microtask(() => refreshCaptcha(setState));
+                }
               }
 
               Uint8List? captchaBytes;
-              if (captchaBase64 != null && captchaBase64!.isNotEmpty) {
+              if (requireCaptcha &&
+                  captchaBase64 != null &&
+                  captchaBase64!.isNotEmpty) {
                 try {
                   captchaBytes = base64Decode(captchaBase64!);
                 } catch (_) {
@@ -1209,8 +1753,9 @@ class _HomePageState extends State<HomePage> {
                         children: [
                           Text(
                             'Base de outros estados',
-                            style: theme.textTheme.titleMedium
-                                ?.copyWith(fontWeight: FontWeight.w700),
+                            style: theme.textTheme.titleMedium?.copyWith(
+                              fontWeight: FontWeight.w700,
+                            ),
                           ),
                           const Spacer(),
                           IconButton(
@@ -1223,7 +1768,9 @@ class _HomePageState extends State<HomePage> {
                       ),
                       const SizedBox(height: 12),
                       Text(
-                        'Informe o chassi e o captcha exibido para consultar a base de outros estados.',
+                        requireCaptcha
+                            ? 'Informe o chassi, UF e o captcha exibido para consultar.'
+                            : 'Informe o chassi e a UF. O captcha será resolvido automaticamente.',
                         style: theme.textTheme.bodyMedium?.copyWith(
                           color: const Color(0xFF475467),
                         ),
@@ -1280,103 +1827,104 @@ class _HomePageState extends State<HomePage> {
                           return null;
                         },
                       ),
-                      const SizedBox(height: 20),
-                      Container(
-                        decoration: BoxDecoration(
-                          color: Colors.white,
-                          borderRadius: BorderRadius.circular(16),
-                          border: Border.all(
-                            color: Theme.of(context)
-                                .colorScheme
-                                .outline
-                                .withOpacity(0.2),
+                      if (requireCaptcha) ...[
+                        const SizedBox(height: 20),
+                        Container(
+                          decoration: BoxDecoration(
+                            color: Colors.white,
+                            borderRadius: BorderRadius.circular(16),
+                            border: Border.all(
+                              color: theme.colorScheme.outline.withOpacity(0.2),
+                            ),
+                          ),
+                          padding: const EdgeInsets.all(16),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.stretch,
+                            children: [
+                              Row(
+                                children: [
+                                  Text(
+                                    'Captcha',
+                                    style: theme.textTheme.titleSmall?.copyWith(
+                                      fontWeight: FontWeight.w600,
+                                    ),
+                                  ),
+                                  const Spacer(),
+                                  TextButton.icon(
+                                    onPressed: isLoadingCaptcha
+                                        ? null
+                                        : () => refreshCaptcha(setState),
+                                    icon: const Icon(Icons.refresh),
+                                    label: const Text('Atualizar'),
+                                  ),
+                                ],
+                              ),
+                              const SizedBox(height: 12),
+                              if (isLoadingCaptcha)
+                                const Center(
+                                  child: Padding(
+                                    padding: EdgeInsets.symmetric(vertical: 16),
+                                    child: CircularProgressIndicator(),
+                                  ),
+                                )
+                              else if (captchaError != null)
+                                Padding(
+                                  padding:
+                                      const EdgeInsets.symmetric(vertical: 8),
+                                  child: Text(
+                                    captchaError!,
+                                    style: TextStyle(
+                                      color: theme.colorScheme.error,
+                                    ),
+                                  ),
+                                )
+                              else if (captchaBytes != null)
+                                Center(
+                                  child: ClipRRect(
+                                    borderRadius: BorderRadius.circular(8),
+                                    child: Image.memory(
+                                      captchaBytes,
+                                      width: 180,
+                                      height: 80,
+                                      fit: BoxFit.contain,
+                                    ),
+                                  ),
+                                ),
+                              const SizedBox(height: 16),
+                              TextFormField(
+                                controller: captchaController,
+                                decoration: const InputDecoration(
+                                  labelText: 'Digite o captcha',
+                                ),
+                                inputFormatters: [
+                                  const _UpperCaseTextFormatter(),
+                                  FilteringTextInputFormatter.allow(
+                                    RegExp('[A-Za-z0-9]'),
+                                  ),
+                                  LengthLimitingTextInputFormatter(10),
+                                ],
+                                textCapitalization:
+                                    TextCapitalization.characters,
+                                validator: (value) {
+                                  if (!requireCaptcha) {
+                                    return null;
+                                  }
+                                  final text = value?.trim() ?? '';
+                                  if (text.isEmpty) {
+                                    return 'Informe o captcha';
+                                  }
+                                  return null;
+                                },
+                              ),
+                            ],
                           ),
                         ),
-                        padding: const EdgeInsets.all(16),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.stretch,
-                          children: [
-                            Row(
-                              children: [
-                                Text(
-                                  'Captcha',
-                                  style: theme.textTheme.titleSmall
-                                      ?.copyWith(fontWeight: FontWeight.w600),
-                                ),
-                                const Spacer(),
-                                TextButton.icon(
-                                  onPressed: isLoadingCaptcha
-                                      ? null
-                                      : () => refreshCaptcha(setState),
-                                  icon: const Icon(Icons.refresh),
-                                  label: const Text('Atualizar'),
-                                ),
-                              ],
-                            ),
-                            const SizedBox(height: 12),
-                            if (isLoadingCaptcha)
-                              const Center(
-                                child: Padding(
-                                  padding: EdgeInsets.symmetric(vertical: 16),
-                                  child: CircularProgressIndicator(),
-                                ),
-                              )
-                            else if (captchaError != null)
-                              Padding(
-                                padding:
-                                    const EdgeInsets.symmetric(vertical: 8),
-                                child: Text(
-                                  captchaError!,
-                                  style: TextStyle(
-                                    color: theme.colorScheme.error,
-                                  ),
-                                ),
-                              )
-                            else if (captchaBytes != null)
-                              Center(
-                                child: ClipRRect(
-                                  borderRadius: BorderRadius.circular(8),
-                                  child: Image.memory(
-                                    captchaBytes,
-                                    width: 180,
-                                    height: 80,
-                                    fit: BoxFit.contain,
-                                  ),
-                                ),
-                              )
-                            else
-                              const SizedBox.shrink(),
-                            const SizedBox(height: 16),
-                            TextFormField(
-                              controller: captchaController,
-                              decoration: const InputDecoration(
-                                labelText: 'Digite o captcha',
-                              ),
-                              inputFormatters: [
-                                const _UpperCaseTextFormatter(),
-                                FilteringTextInputFormatter.allow(
-                                  RegExp('[A-Za-z0-9]'),
-                                ),
-                                LengthLimitingTextInputFormatter(10),
-                              ],
-                              textCapitalization:
-                                  TextCapitalization.characters,
-                              validator: (value) {
-                                final text = value?.trim() ?? '';
-                                if (text.isEmpty) {
-                                  return 'Informe o captcha';
-                                }
-                                return null;
-                              },
-                            ),
-                          ],
-                        ),
-                      ),
+                      ],
                       const SizedBox(height: 24),
                       FilledButton(
-                        onPressed: isLoadingCaptcha || captchaBase64 == null
-                            ? null
-                            : () {
+                        onPressed: (!requireCaptcha ||
+                                (!isLoadingCaptcha && captchaBase64 != null))
+                            ? () {
                                 if (!formKey.currentState!.validate()) {
                                   return;
                                 }
@@ -1390,12 +1938,15 @@ class _HomePageState extends State<HomePage> {
                                         .trim()
                                         .toUpperCase(),
                                     uf: selectedUf!,
-                                    captcha: captchaController.text
-                                        .trim()
-                                        .toUpperCase(),
+                                    captcha: requireCaptcha
+                                        ? captchaController.text
+                                            .trim()
+                                            .toUpperCase()
+                                        : '',
                                   ),
                                 );
-                              },
+                              }
+                            : null,
                         style: FilledButton.styleFrom(
                           minimumSize: const Size.fromHeight(52),
                           shape: RoundedRectangleBorder(
@@ -1422,46 +1973,32 @@ class _HomePageState extends State<HomePage> {
   }
 
   Future<void> _handleGravameFlow() async {
-    final request = await _showGravameDialog();
+    final request = await _showGravameDialog(requireCaptcha: false);
     if (request == null || !mounted) return;
 
-    showDialog<void>(
-      context: context,
-      barrierDismissible: false,
-      builder: (_) => const LoadingDialog(),
+    final autoCompleted = await _executeGravameQuery(
+      placa: request.plate,
+      autoSolve: true,
     );
 
-    try {
-      final result = await _gravameService.consultar(
-        placa: request.plate,
-        captcha: request.captcha,
-      );
-      if (!mounted) return;
-      Navigator.of(context, rootNavigator: true).pop();
-      if (!mounted) return;
-      _registerPesquisa(
-        nome: 'Gravame',
-        placa: request.plate,
-      );
-      Navigator.of(context).push(
-        MaterialPageRoute(
-          builder: (_) => GravamePage(
-            placa: request.plate,
-            renavam: null,
-            uf: null,
-            payload: result,
-          ),
-        ),
-      );
-    } on GravameException catch (e) {
-      if (!mounted) return;
-      Navigator.of(context, rootNavigator: true).pop();
-      _showErrorMessage(e.message);
-    } catch (_) {
-      if (!mounted) return;
-      Navigator.of(context, rootNavigator: true).pop();
-      _showErrorMessage('Não foi possível consultar o gravame.');
-    }
+    if (!mounted || autoCompleted) return;
+
+    _showErrorMessage(
+      'Não foi possível resolver o captcha automaticamente. Informe-o manualmente.',
+    );
+
+    final manualRequest = await _showGravameDialog(
+      requireCaptcha: true,
+      initialPlate: request.plate,
+    );
+
+    if (manualRequest == null || !mounted) return;
+
+    await _executeGravameQuery(
+      placa: manualRequest.plate,
+      autoSolve: false,
+      captchaOverride: manualRequest.captcha,
+    );
   }
 
   void _registerPesquisa({
@@ -1613,11 +2150,24 @@ class _HomePageState extends State<HomePage> {
     );
   }
 
-  Future<_RenainfRequest?> _showRenainfDialog() async {
+  Future<_RenainfRequest?> _showRenainfDialog({
+    bool requireCaptcha = true,
+    _RenainfRequest? initialRequest,
+  }) async {
     final formKey = GlobalKey<FormState>();
-    final plateController = TextEditingController();
-    final startDateController = TextEditingController();
-    final endDateController = TextEditingController();
+    final plateController = TextEditingController(
+      text: initialRequest?.plate ?? '',
+    );
+    final startDateController = TextEditingController(
+      text: initialRequest?.startDate != null
+          ? _formatDate(initialRequest!.startDate)
+          : '',
+    );
+    final endDateController = TextEditingController(
+      text: initialRequest?.endDate != null
+          ? _formatDate(initialRequest!.endDate)
+          : '',
+    );
     final captchaController = TextEditingController();
 
     const statusOptions = [
@@ -1625,11 +2175,18 @@ class _HomePageState extends State<HomePage> {
       {'label': 'Multas em cobrança', 'value': 1},
     ];
 
-    int? selectedStatusValue = 2;
-    String selectedStatusLabel = 'Todas';
-    String? selectedUf;
-    DateTime? startDate;
-    DateTime? endDate;
+    int? selectedStatusValue = initialRequest?.statusCode ?? 2;
+    String selectedStatusLabel = initialRequest?.statusLabel ??
+        (statusOptions.firstWhere(
+          (status) => status['value'] == selectedStatusValue,
+          orElse: () => statusOptions.first,
+        )['label']! as String);
+    String? selectedUf = initialRequest?.uf;
+    if (selectedUf != null) {
+      selectedUf = selectedUf.toUpperCase();
+    }
+    DateTime? startDate = initialRequest?.startDate;
+    DateTime? endDate = initialRequest?.endDate;
 
     String? captchaBase64;
     String? captchaError;
@@ -1637,6 +2194,8 @@ class _HomePageState extends State<HomePage> {
     bool initialized = false;
 
     Future<void> refreshCaptcha(StateSetter setState) async {
+      if (!requireCaptcha) return;
+
       setState(() {
         isLoadingCaptcha = true;
         captchaError = null;
@@ -1666,7 +2225,7 @@ class _HomePageState extends State<HomePage> {
       required StateSetter setState,
     }) async {
       final initialDate =
-          isStart ? startDate ?? DateTime.now() : endDate ?? DateTime.now();
+          isStart ? (startDate ?? DateTime.now()) : (endDate ?? DateTime.now());
       final firstDate = DateTime(DateTime.now().year - 5);
       final lastDate = DateTime.now();
 
@@ -1689,7 +2248,6 @@ class _HomePageState extends State<HomePage> {
         }
       });
 
-      // Trigger validation updates.
       formKey.currentState?.validate();
     }
 
@@ -1706,11 +2264,15 @@ class _HomePageState extends State<HomePage> {
             builder: (context, setState) {
               if (!initialized) {
                 initialized = true;
-                Future.microtask(() => refreshCaptcha(setState));
+                if (requireCaptcha) {
+                  Future.microtask(() => refreshCaptcha(setState));
+                }
               }
 
               Uint8List? captchaBytes;
-              if (captchaBase64 != null && captchaBase64!.isNotEmpty) {
+              if (requireCaptcha &&
+                  captchaBase64 != null &&
+                  captchaBase64!.isNotEmpty) {
                 try {
                   captchaBytes = base64Decode(captchaBase64!);
                 } catch (_) {
@@ -1726,14 +2288,15 @@ class _HomePageState extends State<HomePage> {
                   endDate != null &&
                   !startDate!.isAfter(endDate!);
               final captchaLoaded =
-                  captchaBase64 != null && captchaBase64!.isNotEmpty;
+                  !requireCaptcha || (captchaBase64 != null && captchaBase64!.isNotEmpty);
+              final captchaFilled = !requireCaptcha || captchaText.isNotEmpty;
 
               final readyToSubmit = plateValid &&
                   datesValid &&
                   selectedStatusValue != null &&
                   selectedUf != null &&
                   captchaLoaded &&
-                  captchaText.isNotEmpty &&
+                  captchaFilled &&
                   !isLoadingCaptcha;
 
               return Form(
@@ -1742,14 +2305,15 @@ class _HomePageState extends State<HomePage> {
                 child: SingleChildScrollView(
                   padding: const EdgeInsets.fromLTRB(20, 20, 20, 24),
                   child: Column(
-                    mainAxisSize: MainAxisSize.min,
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
                       Row(
                         children: [
                           Text(
-                            'RENAINF',
-                            style: Theme.of(context).textTheme.titleMedium
+                            'Consulta RENAINF',
+                            style: Theme.of(context)
+                                .textTheme
+                                .titleMedium
                                 ?.copyWith(fontWeight: FontWeight.w700),
                           ),
                           const Spacer(),
@@ -1903,117 +2467,130 @@ class _HomePageState extends State<HomePage> {
                           ),
                         ],
                       ),
-                      const SizedBox(height: 20),
-                      Container(
-                        decoration: BoxDecoration(
-                          color: Colors.white,
-                          borderRadius: BorderRadius.circular(16),
-                          border: Border.all(
-                            color: Theme.of(context)
-                                .colorScheme
-                                .outline
-                                .withOpacity(0.2),
+                      if (requireCaptcha) ...[
+                        const SizedBox(height: 20),
+                        Container(
+                          decoration: BoxDecoration(
+                            color: Colors.white,
+                            borderRadius: BorderRadius.circular(16),
+                            border: Border.all(
+                              color: Theme.of(context)
+                                  .colorScheme
+                                  .outline
+                                  .withOpacity(0.2),
+                            ),
+                          ),
+                          padding: const EdgeInsets.all(16),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.stretch,
+                            children: [
+                              Row(
+                                children: [
+                                  Text(
+                                    'Captcha',
+                                    style: Theme.of(context)
+                                        .textTheme
+                                        .titleSmall
+                                        ?.copyWith(fontWeight: FontWeight.w600),
+                                  ),
+                                  const Spacer(),
+                                  TextButton.icon(
+                                    onPressed: isLoadingCaptcha
+                                        ? null
+                                        : () => refreshCaptcha(setState),
+                                    icon: const Icon(Icons.refresh),
+                                    label: const Text('Atualizar'),
+                                  ),
+                                ],
+                              ),
+                              const SizedBox(height: 12),
+                              if (isLoadingCaptcha)
+                                const Center(
+                                  child: Padding(
+                                    padding: EdgeInsets.symmetric(vertical: 16),
+                                    child: CircularProgressIndicator(),
+                                  ),
+                                )
+                              else if (captchaError != null)
+                                Padding(
+                                  padding:
+                                      const EdgeInsets.symmetric(vertical: 8),
+                                  child: Text(
+                                    captchaError!,
+                                    style: TextStyle(
+                                      color: Theme.of(context).colorScheme.error,
+                                    ),
+                                  ),
+                                )
+                              else if (captchaBytes != null)
+                                Center(
+                                  child: ClipRRect(
+                                    borderRadius: BorderRadius.circular(8),
+                                    child: Image.memory(
+                                      captchaBytes,
+                                      width: 180,
+                                      height: 80,
+                                      fit: BoxFit.contain,
+                                    ),
+                                  ),
+                                ),
+                              const SizedBox(height: 16),
+                              TextFormField(
+                                controller: captchaController,
+                                decoration: const InputDecoration(
+                                  labelText: 'Digite o captcha',
+                                ),
+                                inputFormatters: [
+                                  const _UpperCaseTextFormatter(),
+                                  FilteringTextInputFormatter.allow(
+                                    RegExp('[A-Za-z0-9]'),
+                                  ),
+                                  LengthLimitingTextInputFormatter(10),
+                                ],
+                                textCapitalization:
+                                    TextCapitalization.characters,
+                                validator: (value) {
+                                  if (!requireCaptcha) {
+                                    return null;
+                                  }
+                                  final text = value?.trim() ?? '';
+                                  if (text.isEmpty) {
+                                    return 'Informe o captcha';
+                                  }
+                                  return null;
+                                },
+                              ),
+                            ],
                           ),
                         ),
-                        padding: const EdgeInsets.all(16),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.stretch,
-                          children: [
-                            Row(
-                              children: [
-                                Text(
-                                  'Captcha',
-                                  style: Theme.of(context)
-                                      .textTheme
-                                      .titleSmall
-                                      ?.copyWith(fontWeight: FontWeight.w600),
-                                ),
-                                const Spacer(),
-                                TextButton.icon(
-                                  onPressed: isLoadingCaptcha
-                                      ? null
-                                      : () => refreshCaptcha(setState),
-                                  icon: const Icon(Icons.refresh),
-                                  label: const Text('Atualizar'),
-                                ),
-                              ],
-                            ),
-                            const SizedBox(height: 12),
-                            if (isLoadingCaptcha)
-                              const Center(
-                                child: Padding(
-                                  padding: EdgeInsets.symmetric(vertical: 16),
-                                  child: CircularProgressIndicator(),
-                                ),
-                              )
-                            else if (captchaError != null)
-                              Padding(
-                                padding:
-                                    const EdgeInsets.symmetric(vertical: 8),
-                                child: Text(
-                                  captchaError!,
-                                  style: TextStyle(
-                                    color: Theme.of(context).colorScheme.error,
-                                  ),
-                                ),
-                              )
-                            else if (captchaBytes != null)
-                              Center(
-                                child: ClipRRect(
-                                  borderRadius: BorderRadius.circular(8),
-                                  child: Image.memory(
-                                    captchaBytes,
-                                    width: 180,
-                                    height: 80,
-                                    fit: BoxFit.contain,
-                                  ),
-                                ),
-                              )
-                            else
-                              const SizedBox.shrink(),
-                            const SizedBox(height: 16),
-                            TextFormField(
-                              controller: captchaController,
-                              decoration: const InputDecoration(
-                                labelText: 'Digite o captcha',
-                              ),
-                              inputFormatters: [
-                                const _UpperCaseTextFormatter(),
-                                FilteringTextInputFormatter.allow(
-                                  RegExp('[A-Za-z0-9]'),
-                                ),
-                                LengthLimitingTextInputFormatter(10),
-                              ],
-                              textCapitalization:
-                                  TextCapitalization.characters,
-                              validator: (value) {
-                                final text = value?.trim() ?? '';
-                                if (text.isEmpty) {
-                                  return 'Informe o captcha';
-                                }
-                                return null;
-                              },
-                              onChanged: (_) => setState(() {}),
-                            ),
-                          ],
-                        ),
-                      ),
+                      ],
                       const SizedBox(height: 24),
                       FilledButton(
                         onPressed: readyToSubmit
                             ? () {
-                                if (!(formKey.currentState?.validate() ??
-                                    false)) {
+                                if (!formKey.currentState!.validate()) {
+                                  return;
+                                }
+                                if (selectedUf == null ||
+                                    selectedStatusValue == null ||
+                                    startDate == null ||
+                                    endDate == null) {
                                   return;
                                 }
                                 FocusManager.instance.primaryFocus?.unfocus();
                                 Navigator.of(dialogContext).pop(
                                   _RenainfRequest(
-                                    plate: plateText,
+                                    plate: plateController.text
+                                        .trim()
+                                        .toUpperCase(),
                                     statusCode: selectedStatusValue!,
                                     statusLabel: selectedStatusLabel,
                                     uf: selectedUf!,
-                                    captcha: captchaText,
+                                    captcha: requireCaptcha
+                                        ? captchaController.text
+                                            .trim()
+                                            .toUpperCase()
+                                        : '',
                                     startDate: startDate!,
                                     endDate: endDate!,
                                   ),
@@ -2026,7 +2603,7 @@ class _HomePageState extends State<HomePage> {
                             borderRadius: BorderRadius.circular(16),
                           ),
                         ),
-                        child: const Text('Consultar'),
+                        child: const Text('Pesquisar'),
                       ),
                     ],
                   ),
@@ -2038,20 +2615,24 @@ class _HomePageState extends State<HomePage> {
       },
     );
 
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      plateController.dispose();
-      startDateController.dispose();
-      endDateController.dispose();
-      captchaController.dispose();
-    });
+    plateController.dispose();
+    startDateController.dispose();
+    endDateController.dispose();
+    captchaController.dispose();
+
     return result;
   }
 
-  Future<_BloqueiosAtivosRequest?> _showBloqueiosAtivosDialog() async {
-    final chassiController = TextEditingController();
+  Future<_BloqueiosAtivosRequest?> _showBloqueiosAtivosDialog({
+    bool requireCaptcha = true,
+    _BloqueiosAtivosRequest? initialRequest,
+  }) async {
+    final chassiController = TextEditingController(
+      text: initialRequest?.chassi ?? '',
+    );
     final captchaController = TextEditingController();
 
-    String selectedSource = 'DETRAN';
+    String selectedSource = initialRequest?.origin ?? 'DETRAN';
 
     String? captchaBase64;
     String? captchaError;
@@ -2059,6 +2640,8 @@ class _HomePageState extends State<HomePage> {
     bool initialized = false;
 
     Future<void> refreshCaptcha(StateSetter setState) async {
+      if (!requireCaptcha) return;
+
       setState(() {
         isLoadingCaptcha = true;
         captchaError = null;
@@ -2104,11 +2687,10 @@ class _HomePageState extends State<HomePage> {
               final chassiValid =
                   chassiText.isNotEmpty && _isValidChassi(chassiText);
               final captchaValue = captchaController.text.trim().toUpperCase();
-              final captchaValid = captchaValue.isNotEmpty;
-              final isValid = chassiValid &&
-                  captchaValid &&
-                  captchaBase64 != null &&
-                  !isLoadingCaptcha;
+              final captchaValid = !requireCaptcha || captchaValue.isNotEmpty;
+              final captchaReady = !requireCaptcha ||
+                  (captchaBase64 != null && !isLoadingCaptcha);
+              final isValid = chassiValid && captchaValid && captchaReady;
 
               Color backgroundFor(String source) =>
                   selectedSource == source
@@ -2221,103 +2803,106 @@ class _HomePageState extends State<HomePage> {
                         textCapitalization: TextCapitalization.characters,
                         onChanged: (_) => setState(() {}),
                       ),
-                      const SizedBox(height: 20),
-                      Container(
-                        decoration: BoxDecoration(
-                          color: Colors.white,
-                          borderRadius: BorderRadius.circular(16),
-                          border: Border.all(
-                            color: Theme.of(context)
-                                .colorScheme
-                                .outline
-                                .withOpacity(0.2),
+                      if (requireCaptcha) ...[
+                        const SizedBox(height: 20),
+                        Container(
+                          decoration: BoxDecoration(
+                            color: Colors.white,
+                            borderRadius: BorderRadius.circular(16),
+                            border: Border.all(
+                              color: Theme.of(context)
+                                  .colorScheme
+                                  .outline
+                                  .withOpacity(0.2),
+                            ),
+                          ),
+                          padding: const EdgeInsets.all(16),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.stretch,
+                            children: [
+                              Row(
+                                children: [
+                                  Text(
+                                    'Captcha',
+                                    style: Theme.of(context)
+                                        .textTheme
+                                        .titleSmall
+                                        ?.copyWith(fontWeight: FontWeight.w600),
+                                  ),
+                                  const Spacer(),
+                                  TextButton.icon(
+                                    onPressed: isLoadingCaptcha
+                                        ? null
+                                        : () => refreshCaptcha(setState),
+                                    icon: const Icon(Icons.refresh),
+                                    label: const Text('Atualizar'),
+                                  ),
+                                ],
+                              ),
+                              const SizedBox(height: 12),
+                              if (isLoadingCaptcha)
+                                const Center(
+                                  child: Padding(
+                                    padding: EdgeInsets.symmetric(vertical: 16),
+                                    child: CircularProgressIndicator(),
+                                  ),
+                                )
+                              else if (captchaError != null)
+                                Padding(
+                                  padding:
+                                      const EdgeInsets.symmetric(vertical: 8),
+                                  child: Text(
+                                    captchaError!,
+                                    style: TextStyle(
+                                      color:
+                                          Theme.of(context).colorScheme.error,
+                                    ),
+                                  ),
+                                )
+                              else if (captchaBytes != null)
+                                Center(
+                                  child: ClipRRect(
+                                    borderRadius: BorderRadius.circular(8),
+                                    child: Image.memory(
+                                      captchaBytes,
+                                      width: 180,
+                                      height: 80,
+                                      fit: BoxFit.contain,
+                                    ),
+                                  ),
+                                )
+                              else
+                                const SizedBox.shrink(),
+                              const SizedBox(height: 16),
+                              TextField(
+                                controller: captchaController,
+                                decoration: const InputDecoration(
+                                  labelText: 'Digite o captcha',
+                                ),
+                                inputFormatters: [
+                                  const _UpperCaseTextFormatter(),
+                                  FilteringTextInputFormatter.allow(
+                                    RegExp('[A-Za-z0-9]'),
+                                  ),
+                                  LengthLimitingTextInputFormatter(10),
+                                ],
+                                textCapitalization:
+                                    TextCapitalization.characters,
+                                onChanged: (_) => setState(() {}),
+                              ),
+                            ],
                           ),
                         ),
-                        padding: const EdgeInsets.all(16),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.stretch,
-                          children: [
-                            Row(
-                              children: [
-                                Text(
-                                  'Captcha',
-                                  style: Theme.of(context)
-                                      .textTheme
-                                      .titleSmall
-                                      ?.copyWith(fontWeight: FontWeight.w600),
-                                ),
-                                const Spacer(),
-                                TextButton.icon(
-                                  onPressed: isLoadingCaptcha
-                                      ? null
-                                      : () => refreshCaptcha(setState),
-                                  icon: const Icon(Icons.refresh),
-                                  label: const Text('Atualizar'),
-                                ),
-                              ],
-                            ),
-                            const SizedBox(height: 12),
-                            if (isLoadingCaptcha)
-                              const Center(
-                                child: Padding(
-                                  padding: EdgeInsets.symmetric(vertical: 16),
-                                  child: CircularProgressIndicator(),
-                                ),
-                              )
-                            else if (captchaError != null)
-                              Padding(
-                                padding:
-                                    const EdgeInsets.symmetric(vertical: 8),
-                                child: Text(
-                                  captchaError!,
-                                  style: TextStyle(
-                                    color: Theme.of(context).colorScheme.error,
-                                  ),
-                                ),
-                              )
-                            else if (captchaBytes != null)
-                              Center(
-                                child: ClipRRect(
-                                  borderRadius: BorderRadius.circular(8),
-                                  child: Image.memory(
-                                    captchaBytes,
-                                    width: 180,
-                                    height: 80,
-                                    fit: BoxFit.contain,
-                                  ),
-                                ),
-                              )
-                            else
-                              const SizedBox.shrink(),
-                            const SizedBox(height: 16),
-                            TextField(
-                              controller: captchaController,
-                              decoration: const InputDecoration(
-                                labelText: 'Digite o captcha',
-                              ),
-                              inputFormatters: [
-                                const _UpperCaseTextFormatter(),
-                                FilteringTextInputFormatter.allow(
-                                  RegExp('[A-Za-z0-9]'),
-                                ),
-                                LengthLimitingTextInputFormatter(10),
-                              ],
-                              textCapitalization:
-                                  TextCapitalization.characters,
-                              onChanged: (_) => setState(() {}),
-                            ),
-                          ],
-                        ),
-                      ),
+                      ],
                       const SizedBox(height: 24),
                       FilledButton(
                         onPressed: isValid
                             ? () {
                                 FocusManager.instance.primaryFocus?.unfocus();
-                              Navigator.of(dialogContext).pop(
+                                Navigator.of(dialogContext).pop(
                                   _BloqueiosAtivosRequest(
                                     origin: selectedSource,
-                                    captcha: captchaValue,
+                                    captcha: requireCaptcha ? captchaValue : '',
                                     chassi: chassiText,
                                     opcaoPesquisa:
                                         selectedSource == 'DETRAN' ? '1' : '2',
@@ -3193,11 +3778,15 @@ class _GravameDialog extends StatefulWidget {
     required this.fetchCaptcha,
     required this.plateValidator,
     this.captchaErrorResolver,
+    this.requireCaptcha = true,
+    this.initialPlate,
   });
 
   final Future<String> Function() fetchCaptcha;
   final bool Function(String value) plateValidator;
   final String Function(Object error)? captchaErrorResolver;
+  final bool requireCaptcha;
+  final String? initialPlate;
 
   @override
   State<_GravameDialog> createState() => _GravameDialogState();
@@ -3215,9 +3804,11 @@ class _GravameDialogState extends State<_GravameDialog> {
   @override
   void initState() {
     super.initState();
-    _plateController = TextEditingController();
+    _plateController = TextEditingController(text: widget.initialPlate ?? '');
     _captchaController = TextEditingController();
-    _refreshCaptcha();
+    if (widget.requireCaptcha) {
+      _refreshCaptcha();
+    }
   }
 
   @override
@@ -3228,6 +3819,8 @@ class _GravameDialogState extends State<_GravameDialog> {
   }
 
   Future<void> _refreshCaptcha() async {
+    if (!widget.requireCaptcha) return;
+
     setState(() {
       _isLoadingCaptcha = true;
       _captchaError = null;
@@ -3255,13 +3848,17 @@ class _GravameDialogState extends State<_GravameDialog> {
   }
 
   void _submit() {
-    if (_isLoadingCaptcha || _captchaBase64 == null) return;
+    if (widget.requireCaptcha) {
+      if (_isLoadingCaptcha || _captchaBase64 == null) return;
+    }
     if (!_formKey.currentState!.validate()) return;
 
     Navigator.of(context).pop(
       _GravameRequest(
         plate: _plateController.text.trim().toUpperCase(),
-        captcha: _captchaController.text.trim().toUpperCase(),
+        captcha: widget.requireCaptcha
+            ? _captchaController.text.trim().toUpperCase()
+            : '',
       ),
     );
   }
@@ -3269,7 +3866,9 @@ class _GravameDialogState extends State<_GravameDialog> {
   @override
   Widget build(BuildContext context) {
     Uint8List? captchaBytes;
-    if (_captchaBase64 != null && _captchaBase64!.isNotEmpty) {
+    if (widget.requireCaptcha &&
+        _captchaBase64 != null &&
+        _captchaBase64!.isNotEmpty) {
       try {
         captchaBytes = base64Decode(_captchaBase64!);
       } catch (_) {
@@ -3307,7 +3906,9 @@ class _GravameDialogState extends State<_GravameDialog> {
                 ),
                 const SizedBox(height: 12),
                 Text(
-                  'Informe placa e captcha para consultar o gravame.',
+                  widget.requireCaptcha
+                      ? 'Informe placa e captcha para consultar o gravame.'
+                      : 'Informe apenas a placa. Resolveremos o captcha automaticamente.',
                   style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                         color: const Color(0xFF475467),
                       ),
@@ -3338,101 +3939,110 @@ class _GravameDialogState extends State<_GravameDialog> {
                     return null;
                   },
                 ),
-                const SizedBox(height: 20),
-                Container(
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.circular(16),
-                    border: Border.all(
-                      color:
-                          Theme.of(context).colorScheme.outline.withOpacity(0.2),
+                if (widget.requireCaptcha) ...[
+                  const SizedBox(height: 20),
+                  Container(
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(16),
+                      border: Border.all(
+                        color: Theme.of(context)
+                            .colorScheme
+                            .outline
+                            .withOpacity(0.2),
+                      ),
+                    ),
+                    padding: const EdgeInsets.all(16),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        Row(
+                          children: [
+                            Text(
+                              'Captcha',
+                              style: Theme.of(context)
+                                  .textTheme
+                                  .titleSmall
+                                  ?.copyWith(fontWeight: FontWeight.w600),
+                            ),
+                            const Spacer(),
+                            TextButton.icon(
+                              onPressed:
+                                  _isLoadingCaptcha ? null : _refreshCaptcha,
+                              icon: const Icon(Icons.refresh),
+                              label: const Text('Atualizar'),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 12),
+                        if (_isLoadingCaptcha)
+                          const Center(
+                            child: Padding(
+                              padding: EdgeInsets.symmetric(vertical: 16),
+                              child: CircularProgressIndicator(),
+                            ),
+                          )
+                        else if (_captchaError != null)
+                          Padding(
+                            padding: const EdgeInsets.symmetric(vertical: 8),
+                            child: Text(
+                              _captchaError!,
+                              style: TextStyle(
+                                color: Theme.of(context).colorScheme.error,
+                              ),
+                            ),
+                          )
+                        else if (captchaBytes != null)
+                          Center(
+                            child: ClipRRect(
+                              borderRadius: BorderRadius.circular(8),
+                              child: Image.memory(
+                                captchaBytes,
+                                width: 180,
+                                height: 80,
+                                fit: BoxFit.contain,
+                                errorBuilder: (_, __, ___) {
+                                  return const Text(
+                                    'Não foi possível exibir o captcha.',
+                                  );
+                                },
+                              ),
+                            ),
+                          ),
+                        const SizedBox(height: 16),
+                        TextFormField(
+                          controller: _captchaController,
+                          decoration: const InputDecoration(
+                            labelText: 'Informe o captcha',
+                          ),
+                          inputFormatters: [
+                            const _UpperCaseTextFormatter(),
+                            FilteringTextInputFormatter.allow(
+                              RegExp('[A-Za-z0-9]'),
+                            ),
+                            LengthLimitingTextInputFormatter(10),
+                          ],
+                          textCapitalization: TextCapitalization.characters,
+                          validator: (value) {
+                            if (!widget.requireCaptcha) return null;
+                            final text = value?.trim() ?? '';
+                            if (text.isEmpty) {
+                              return 'Informe o captcha';
+                            }
+                            return null;
+                          },
+                        ),
+                      ],
                     ),
                   ),
-                  padding: const EdgeInsets.all(16),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      Row(
-                        children: [
-                          Text(
-                            'Captcha',
-                            style: Theme.of(context)
-                                .textTheme
-                                .titleSmall
-                                ?.copyWith(fontWeight: FontWeight.w600),
-                          ),
-                          const Spacer(),
-                          TextButton.icon(
-                            onPressed: _isLoadingCaptcha ? null : _refreshCaptcha,
-                            icon: const Icon(Icons.refresh),
-                            label: const Text('Atualizar'),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 12),
-                      if (_isLoadingCaptcha)
-                        const Center(
-                          child: Padding(
-                            padding: EdgeInsets.symmetric(vertical: 16),
-                            child: CircularProgressIndicator(),
-                          ),
-                        )
-                      else if (_captchaError != null)
-                        Padding(
-                          padding: const EdgeInsets.symmetric(vertical: 8),
-                          child: Text(
-                            _captchaError!,
-                            style: TextStyle(
-                              color: Theme.of(context).colorScheme.error,
-                            ),
-                          ),
-                        )
-                      else if (captchaBytes != null)
-                        Center(
-                          child: ClipRRect(
-                            borderRadius: BorderRadius.circular(8),
-                            child: Image.memory(
-                              captchaBytes,
-                              width: 180,
-                              height: 80,
-                              fit: BoxFit.contain,
-                              errorBuilder: (_, __, ___) {
-                                return const Text(
-                                  'Não foi possível exibir o captcha.',
-                                );
-                              },
-                            ),
-                          ),
-                        ),
-                      const SizedBox(height: 16),
-                      TextFormField(
-                        controller: _captchaController,
-                        decoration: const InputDecoration(
-                          labelText: 'Informe o captcha',
-                        ),
-                        inputFormatters: [
-                          const _UpperCaseTextFormatter(),
-                          FilteringTextInputFormatter.allow(
-                            RegExp('[A-Za-z0-9]'),
-                          ),
-                          LengthLimitingTextInputFormatter(10),
-                        ],
-                        textCapitalization: TextCapitalization.characters,
-                        validator: (value) {
-                          final text = value?.trim() ?? '';
-                          if (text.isEmpty) {
-                            return 'Informe o captcha';
-                          }
-                          return null;
-                        },
-                      ),
-                    ],
-                  ),
-                ),
+                ],
                 const SizedBox(height: 24),
                 FilledButton(
-                  onPressed:
-                      _isLoadingCaptcha || _captchaBase64 == null ? null : _submit,
+                  onPressed: widget.requireCaptcha
+                      ? (_isLoadingCaptcha || _captchaBase64 == null
+                          ? null
+                          : _submit)
+                      : _submit,
                   child: const Text('Consultar'),
                 ),
                 const SizedBox(height: 12),
@@ -3454,11 +4064,15 @@ class _FichaConsultaDialog extends StatefulWidget {
     required this.fetchCaptcha,
     required this.captchaErrorResolver,
     required this.plateValidator,
+    this.requireCaptcha = true,
+    this.initialPlate,
   });
 
   final Future<String> Function() fetchCaptcha;
   final String Function(Object error)? captchaErrorResolver;
   final bool Function(String value) plateValidator;
+  final bool requireCaptcha;
+  final String? initialPlate;
 
   @override
   State<_FichaConsultaDialog> createState() => _FichaConsultaDialogState();
@@ -3476,9 +4090,11 @@ class _FichaConsultaDialogState extends State<_FichaConsultaDialog> {
   @override
   void initState() {
     super.initState();
-    _plateController = TextEditingController();
+    _plateController = TextEditingController(text: widget.initialPlate ?? '');
     _captchaController = TextEditingController();
-    _refreshCaptcha();
+    if (widget.requireCaptcha) {
+      _refreshCaptcha();
+    }
   }
 
   @override
@@ -3489,6 +4105,8 @@ class _FichaConsultaDialogState extends State<_FichaConsultaDialog> {
   }
 
   Future<void> _refreshCaptcha() async {
+    if (!widget.requireCaptcha) return;
+
     setState(() {
       _isLoadingCaptcha = true;
       _captchaError = null;
@@ -3516,13 +4134,17 @@ class _FichaConsultaDialogState extends State<_FichaConsultaDialog> {
   }
 
   void _submit() {
-    if (_isLoadingCaptcha || _captchaBase64 == null) return;
+    if (widget.requireCaptcha) {
+      if (_isLoadingCaptcha || _captchaBase64 == null) return;
+    }
     if (!_formKey.currentState!.validate()) return;
 
     Navigator.of(context).pop(
       _FichaConsultaRequest(
         plate: _plateController.text.trim().toUpperCase(),
-        captcha: _captchaController.text.trim().toUpperCase(),
+        captcha: widget.requireCaptcha
+            ? _captchaController.text.trim().toUpperCase()
+            : '',
       ),
     );
   }
@@ -3530,7 +4152,9 @@ class _FichaConsultaDialogState extends State<_FichaConsultaDialog> {
   @override
   Widget build(BuildContext context) {
     Uint8List? captchaBytes;
-    if (_captchaBase64 != null && _captchaBase64!.isNotEmpty) {
+    if (widget.requireCaptcha &&
+        _captchaBase64 != null &&
+        _captchaBase64!.isNotEmpty) {
       try {
         captchaBytes = base64Decode(_captchaBase64!);
       } catch (_) {
@@ -3565,12 +4189,20 @@ class _FichaConsultaDialogState extends State<_FichaConsultaDialog> {
                   ],
                 ),
                 const SizedBox(height: 12),
-                Text(
-                  'Digite a placa e o captcha exibido para recuperar o número da ficha.',
-                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                        color: const Color(0xFF475467),
-                      ),
-                ),
+                if (widget.requireCaptcha)
+                  Text(
+                    'Digite a placa e o captcha exibido para recuperar o número da ficha.',
+                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                          color: const Color(0xFF475467),
+                        ),
+                  )
+                else
+                  Text(
+                    'Informe somente a placa. Resolveremos o captcha automaticamente.',
+                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                          color: const Color(0xFF475467),
+                        ),
+                  ),
                 const SizedBox(height: 20),
                 TextFormField(
                   controller: _plateController,
@@ -3595,96 +4227,104 @@ class _FichaConsultaDialogState extends State<_FichaConsultaDialog> {
                     return null;
                   },
                 ),
-                const SizedBox(height: 20),
-                Container(
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.circular(16),
-                    border: Border.all(
-                      color:
-                          Theme.of(context).colorScheme.outline.withOpacity(0.2),
+                if (widget.requireCaptcha) ...[
+                  const SizedBox(height: 20),
+                  Container(
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(16),
+                      border: Border.all(
+                        color: Theme.of(context)
+                            .colorScheme
+                            .outline
+                            .withOpacity(0.2),
+                      ),
+                    ),
+                    padding: const EdgeInsets.all(16),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        Row(
+                          children: [
+                            Text(
+                              'Captcha',
+                              style: Theme.of(context)
+                                  .textTheme
+                                  .titleSmall
+                                  ?.copyWith(fontWeight: FontWeight.w600),
+                            ),
+                            const Spacer(),
+                            TextButton.icon(
+                              onPressed:
+                                  _isLoadingCaptcha ? null : _refreshCaptcha,
+                              icon: const Icon(Icons.refresh),
+                              label: const Text('Atualizar'),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 12),
+                        if (_isLoadingCaptcha)
+                          const Center(
+                            child: Padding(
+                              padding: EdgeInsets.symmetric(vertical: 16),
+                              child: CircularProgressIndicator(),
+                            ),
+                          )
+                        else if (_captchaError != null)
+                          Padding(
+                            padding: const EdgeInsets.symmetric(vertical: 8),
+                            child: Text(
+                              _captchaError!,
+                              style: TextStyle(
+                                color: Theme.of(context).colorScheme.error,
+                              ),
+                            ),
+                          )
+                        else if (captchaBytes != null)
+                          Center(
+                            child: ClipRRect(
+                              borderRadius: BorderRadius.circular(8),
+                              child: Image.memory(
+                                captchaBytes,
+                                width: 180,
+                                height: 80,
+                                fit: BoxFit.contain,
+                              ),
+                            ),
+                          ),
+                        const SizedBox(height: 16),
+                        TextFormField(
+                          controller: _captchaController,
+                          decoration: const InputDecoration(
+                            labelText: 'Informe o captcha',
+                          ),
+                          inputFormatters: [
+                            const _UpperCaseTextFormatter(),
+                            FilteringTextInputFormatter.allow(
+                              RegExp('[A-Za-z0-9]'),
+                            ),
+                            LengthLimitingTextInputFormatter(10),
+                          ],
+                          textCapitalization: TextCapitalization.characters,
+                          validator: (value) {
+                            final text = value?.trim() ?? '';
+                            if (text.isEmpty) {
+                              return 'Informe o captcha';
+                            }
+                            return null;
+                          },
+                        ),
+                      ],
                     ),
                   ),
-                  padding: const EdgeInsets.all(16),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      Row(
-                        children: [
-                          Text(
-                            'Captcha',
-                            style: Theme.of(context)
-                                .textTheme
-                                .titleSmall
-                                ?.copyWith(fontWeight: FontWeight.w600),
-                          ),
-                          const Spacer(),
-                          TextButton.icon(
-                            onPressed: _isLoadingCaptcha ? null : _refreshCaptcha,
-                            icon: const Icon(Icons.refresh),
-                            label: const Text('Atualizar'),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 12),
-                      if (_isLoadingCaptcha)
-                        const Center(
-                          child: Padding(
-                            padding: EdgeInsets.symmetric(vertical: 16),
-                            child: CircularProgressIndicator(),
-                          ),
-                        )
-                      else if (_captchaError != null)
-                        Padding(
-                          padding: const EdgeInsets.symmetric(vertical: 8),
-                          child: Text(
-                            _captchaError!,
-                            style: TextStyle(
-                              color: Theme.of(context).colorScheme.error,
-                            ),
-                          ),
-                        )
-                      else if (captchaBytes != null)
-                        Center(
-                          child: ClipRRect(
-                            borderRadius: BorderRadius.circular(8),
-                            child: Image.memory(
-                              captchaBytes,
-                              width: 180,
-                              height: 80,
-                              fit: BoxFit.contain,
-                            ),
-                          ),
-                        ),
-                      const SizedBox(height: 16),
-                      TextFormField(
-                        controller: _captchaController,
-                        decoration: const InputDecoration(
-                          labelText: 'Informe o captcha',
-                        ),
-                        inputFormatters: [
-                          const _UpperCaseTextFormatter(),
-                          FilteringTextInputFormatter.allow(
-                            RegExp('[A-Za-z0-9]'),
-                          ),
-                          LengthLimitingTextInputFormatter(10),
-                        ],
-                        textCapitalization: TextCapitalization.characters,
-                        validator: (value) {
-                          final text = value?.trim() ?? '';
-                          if (text.isEmpty) {
-                            return 'Informe o captcha';
-                          }
-                          return null;
-                        },
-                      ),
-                    ],
-                  ),
-                ),
+                ],
                 const SizedBox(height: 24),
                 FilledButton(
-                  onPressed:
-                      _isLoadingCaptcha || _captchaBase64 == null ? null : _submit,
+                  onPressed: widget.requireCaptcha
+                      ? (_isLoadingCaptcha || _captchaBase64 == null
+                          ? null
+                          : _submit)
+                      : _submit,
                   child: const Text('Avançar'),
                 ),
                 const SizedBox(height: 12),
@@ -4050,6 +4690,23 @@ class _BloqueiosAtivosRequest {
   final String chassi;
   final String opcaoPesquisa;
 }
+
+class _CaptchaOperationResult<T> {
+  const _CaptchaOperationResult.success(this.data)
+      : requiresManual = false;
+
+  const _CaptchaOperationResult.manual()
+      : data = null,
+        requiresManual = true;
+
+  const _CaptchaOperationResult.failure()
+      : data = null,
+        requiresManual = false;
+
+  final T? data;
+  final bool requiresManual;
+}
+
 
 class _UpperCaseTextFormatter extends TextInputFormatter {
   const _UpperCaseTextFormatter();

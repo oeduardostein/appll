@@ -80,6 +80,7 @@ class _AtpvFormPageState extends State<AtpvFormPage> {
   String? _buyerMunicipioCode;
   Map<String, dynamic>? _signatureResponse;
   bool? _assinaturaDigital;
+  bool _manualCaptchaRequired = false;
 
   Map<String, dynamic>? _consultaPayload;
   List<Map<String, dynamic>> _consultaComunicacoes = const [];
@@ -112,7 +113,7 @@ class _AtpvFormPageState extends State<AtpvFormPage> {
     _buyerDocumentController.addListener(_handleBuyerDocumentInput);
     _buyerCepController.addListener(_handleCepInput);
     _saleValueController.addListener(_handleValorInput);
-    if (_captchaBytes == null) {
+    if (_manualCaptchaRequired && _captchaBytes == null) {
       WidgetsBinding.instance.addPostFrameCallback((_) => _refreshCaptcha());
     }
   }
@@ -145,6 +146,14 @@ class _AtpvFormPageState extends State<AtpvFormPage> {
   }
 
   Future<void> _refreshCaptcha() async {
+    if (!_manualCaptchaRequired) {
+      setState(() {
+        _captchaBytes = null;
+        _captchaError = null;
+      });
+      return;
+    }
+
     setState(() {
       _loadingCaptcha = true;
       _captchaError = null;
@@ -325,6 +334,17 @@ class _AtpvFormPageState extends State<AtpvFormPage> {
       return;
     }
 
+    String? captcha;
+    try {
+      captcha = await _obtainCaptchaValue();
+    } on BaseEstadualException catch (e) {
+      await _showErrorAlert(e.message);
+      return;
+    }
+    if (captcha == null) {
+      return;
+    }
+
     FocusScope.of(context).unfocus();
 
     setState(() {
@@ -343,7 +363,7 @@ class _AtpvFormPageState extends State<AtpvFormPage> {
       final result = await _atpvService.emitirAtpv(
         renavam: _renavamController.text.trim(),
         placa: _plateController.text.trim().toUpperCase(),
-        captcha: _captchaController.text.trim().toUpperCase(),
+        captcha: captcha,
         chassi: _chassiController.text.trim().isEmpty
             ? null
             : _chassiController.text.trim(),
@@ -402,7 +422,7 @@ class _AtpvFormPageState extends State<AtpvFormPage> {
 
       setState(() {
         _isSubmitting = false;
-        _lastCaptchaUsed = _captchaController.text.trim();
+        _lastCaptchaUsed = captcha;
       });
 
       final registroId = _parseRegistroId(result['registro_id']);
@@ -470,14 +490,24 @@ class _AtpvFormPageState extends State<AtpvFormPage> {
   }) async {
     final placa = (placaOverride ?? _plateController.text).trim().toUpperCase();
     final renavam = (renavamOverride ?? _renavamController.text).trim();
-    final captchaSource =
-        captchaOverride ?? (_lastCaptchaUsed ?? _captchaController.text);
-    final captcha = captchaSource.trim().toUpperCase();
+    String? captcha = captchaOverride?.trim().toUpperCase();
 
-    if (placa.isEmpty || renavam.isEmpty || captcha.isEmpty) {
+    if (captcha == null || captcha.isEmpty) {
+      try {
+        captcha = await _obtainCaptchaValue();
+      } on BaseEstadualException catch (e) {
+        await _showErrorAlert(e.message);
+        return;
+      }
+      if (captcha == null) {
+        return;
+      }
+    }
+
+    if (placa.isEmpty || renavam.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('Informe placa, renavam e captcha para baixar o PDF.'),
+          content: Text('Informe placa e renavam para baixar o PDF.'),
         ),
       );
       return;
@@ -508,6 +538,10 @@ class _AtpvFormPageState extends State<AtpvFormPage> {
 
       final result = await _saveAndOpenPdf(bytes, placa);
       if (!mounted) return;
+
+      setState(() {
+        _lastCaptchaUsed = captcha;
+      });
 
       if (result.opened) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -552,6 +586,43 @@ class _AtpvFormPageState extends State<AtpvFormPage> {
         Navigator.of(context, rootNavigator: true).pop();
       }
       await _showErrorAlert('Não foi possível baixar o PDF da ATPV-e.');
+    }
+  }
+
+  Future<String?> _obtainCaptchaValue() async {
+    if (_manualCaptchaRequired) {
+      final manualValue = _captchaController.text.trim().toUpperCase();
+      if (manualValue.isEmpty) {
+        setState(() {
+          _captchaError = 'Informe o captcha.';
+        });
+        return null;
+      }
+      return manualValue;
+    }
+
+    try {
+      final solution = await _baseEstadualService.solveCaptcha();
+      setState(() {
+        _lastCaptchaUsed = solution;
+      });
+      return solution.trim().toUpperCase();
+    } on BaseEstadualException catch (e) {
+      if ((e.statusCode ?? 0) >= 500) {
+        if (!mounted) return null;
+        setState(() {
+          _manualCaptchaRequired = true;
+          _captchaError = null;
+        });
+        await _refreshCaptcha();
+        if (mounted) {
+          await _showErrorAlert(
+            'Não foi possível resolver o captcha automaticamente. Digite-o manualmente.',
+          );
+        }
+        return null;
+      }
+      rethrow;
     }
   }
 
@@ -1754,6 +1825,53 @@ class _AtpvFormPageState extends State<AtpvFormPage> {
 
   Widget _buildCaptchaSection() {
     final theme = Theme.of(context);
+
+    if (!_manualCaptchaRequired) {
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: theme.colorScheme.primary.withOpacity(0.08),
+              borderRadius: BorderRadius.circular(16),
+            ),
+            child: Row(
+              children: [
+                Icon(
+                  Icons.auto_fix_high_outlined,
+                  color: theme.colorScheme.primary,
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Text(
+                    'Os captchas estão sendo resolvidos automaticamente.',
+                    style: theme.textTheme.bodyMedium,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            'Caso prefira digitar manualmente, ative essa opção abaixo.',
+            style: theme.textTheme.bodySmall?.copyWith(
+              color: Colors.grey.shade600,
+            ),
+          ),
+          const SizedBox(height: 12),
+          OutlinedButton(
+            onPressed: () {
+              setState(() {
+                _manualCaptchaRequired = true;
+              });
+              _refreshCaptcha();
+            },
+            child: const Text('Digitar captcha manualmente'),
+          ),
+        ],
+      );
+    }
 
     Widget captchaContent;
     if (_loadingCaptcha) {
