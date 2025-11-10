@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\Api\Auth\AuthController;
 use App\Http\Controllers\Api\CaptchaController;
+use App\Http\Controllers\Api\CaptchaSolveController;
 use App\Http\Controllers\Api\BaseEstadualController;
 use App\Http\Controllers\Api\AnotherBaseStateController;
 use App\Http\Controllers\Api\AtpvPdfController;
@@ -31,6 +32,7 @@ Route::prefix('auth')->group(function (): void {
 });
 
 Route::get('captcha', CaptchaController::class);
+Route::get('captcha/solve', CaptchaSolveController::class);
 Route::get('base-estadual', BaseEstadualController::class);
 Route::get('another-base-estadual', AnotherBaseStateController::class);
 Route::get('bin', BinController::class);

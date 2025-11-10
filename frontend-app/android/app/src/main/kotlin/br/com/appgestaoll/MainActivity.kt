@@ -1,4 +1,4 @@
-package com.example.frontend_app
+package br.com.appgestaoll
 
 import io.flutter.embedding.android.FlutterActivity
 

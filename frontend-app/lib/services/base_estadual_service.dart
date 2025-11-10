@@ -4,9 +4,10 @@ import 'dart:typed_data';
 import 'package:http/http.dart' as http;
 
 class BaseEstadualException implements Exception {
-  BaseEstadualException(this.message);
+  BaseEstadualException(this.message, {this.statusCode});
 
   final String message;
+  final int? statusCode;
 
   @override
   String toString() => 'BaseEstadualException: $message';
@@ -19,6 +20,10 @@ class BaseEstadualService {
 
   static final Uri _captchaUri = Uri.parse(
     'https://applldespachante.skalacode.com/api/captcha',
+  );
+
+  static final Uri _captchaSolveUri = Uri.parse(
+    'https://applldespachante.skalacode.com/api/captcha/solve',
   );
 
   static final Uri _consultaBaseUri = Uri.parse(
@@ -68,6 +73,31 @@ class BaseEstadualService {
     }
 
     throw BaseEstadualException('Formato de captcha inválido.');
+  }
+
+  Future<String> solveCaptcha() async {
+    final response = await _client.get(_captchaSolveUri);
+
+    if (response.statusCode != 200) {
+      throw BaseEstadualException(
+        'Falha ao resolver captcha automaticamente (HTTP ${response.statusCode}).',
+        statusCode: response.statusCode,
+      );
+    }
+
+    try {
+      final decoded = jsonDecode(response.body);
+      if (decoded is Map<String, dynamic>) {
+        final solution = decoded['solution'];
+        if (solution is String && solution.isNotEmpty) {
+          return solution.trim();
+        }
+      }
+      throw BaseEstadualException('Resposta inválida ao resolver captcha.');
+    } catch (error) {
+      if (error is BaseEstadualException) rethrow;
+      throw BaseEstadualException('Falha ao interpretar a resposta do captcha.');
+    }
   }
 
   Future<Map<String, dynamic>> consultar({

@@ -35,4 +35,8 @@ return [
         ],
     ],
 
+    'twocaptcha' => [
+        'key' => env('TWOCAPTCHA_API_KEY'),
+    ],
+
 ];
