@@ -15,7 +15,7 @@ class AtpvPdfController extends Controller
     {
         $user = $this->findUserFromRequest($request);
 
-        if (! $user) {
+        if (!$user) {
             return $this->unauthorizedResponse();
         }
 

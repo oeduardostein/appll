@@ -146,7 +146,6 @@ class EmitirAtpvController extends BaseAtpvController
                         $cepData = $cepResponse->json();
                         if (is_array($cepData) && !($cepData['erro'] ?? false)) {
                             $municipioCode = $this->stripNonDigits($cepData['siafi'] ?? '');
-                            dd($cepData['siafi']);
                         }
                     }
                 } catch (\Throwable $e) {

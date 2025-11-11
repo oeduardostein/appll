@@ -88,7 +88,7 @@ class AuthController extends Controller
     {
         $user = $this->findUserFromRequest($request);
 
-        if (! $user) {
+        if (!$user) {
             return $this->unauthorizedResponse();
         }
 
@@ -105,7 +105,7 @@ class AuthController extends Controller
     {
         $user = $this->findUserFromRequest($request);
 
-        if (! $user) {
+        if (!$user) {
             return $this->unauthorizedResponse();
         }
 
