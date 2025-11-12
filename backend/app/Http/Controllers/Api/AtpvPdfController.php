@@ -124,7 +124,7 @@ class AtpvPdfController extends Controller
     {
         $token = $this->extractTokenFromRequest($request);
 
-        if (! $token) {
+        if (!$token) {
             return null;
         }
 

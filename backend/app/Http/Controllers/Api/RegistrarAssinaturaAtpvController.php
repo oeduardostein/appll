@@ -14,7 +14,7 @@ class RegistrarAssinaturaAtpvController extends BaseAtpvController
     {
         $user = $this->findUserFromRequest($request);
 
-        if (! $user) {
+        if (!$user) {
             return $this->unauthorizedResponse();
         }
 

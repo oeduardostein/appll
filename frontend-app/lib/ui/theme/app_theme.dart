@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 /// Centralizes app-wide color and typography configuration.
 class AppTheme {
@@ -27,6 +28,15 @@ class AppTheme {
       scaffoldBackgroundColor: _backgroundColor,
       fontFamily: 'Roboto',
       useMaterial3: true,
+      appBarTheme: const AppBarTheme(
+        systemOverlayStyle: SystemUiOverlayStyle(
+          statusBarIconBrightness: Brightness.dark,
+          statusBarBrightness: Brightness.light,
+          systemStatusBarContrastEnforced: false,
+          systemNavigationBarIconBrightness: Brightness.dark,
+          systemNavigationBarContrastEnforced: false,
+        ),
+      ),
       textTheme: const TextTheme(
         headlineSmall: TextStyle(
           fontWeight: FontWeight.w700,

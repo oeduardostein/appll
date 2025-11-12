@@ -18,7 +18,7 @@ class PesquisaController extends Controller
     {
         $user = $this->findUserFromRequest($request);
 
-        if (! $user) {
+        if (!$user) {
             return $this->unauthorizedResponse();
         }
 
@@ -47,7 +47,7 @@ class PesquisaController extends Controller
     {
         $user = $this->findUserFromRequest($request);
 
-        if (! $user) {
+        if (!$user) {
             return $this->unauthorizedResponse();
         }
 
@@ -80,7 +80,7 @@ class PesquisaController extends Controller
     {
         $user = $this->findUserFromRequest($request);
 
-        if (! $user) {
+        if (!$user) {
             return $this->unauthorizedResponse();
         }
 
