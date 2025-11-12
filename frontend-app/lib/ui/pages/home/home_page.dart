@@ -8,6 +8,7 @@ import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:open_filex/open_filex.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:universal_io/io.dart' as io;
+import 'package:url_launcher/url_launcher.dart';
 
 import 'package:frontend_app/models/pesquisa_models.dart';
 import 'package:frontend_app/services/auth_service.dart';
@@ -3326,6 +3327,7 @@ class _HomePageState extends State<HomePage> {
                     monthlyCreditsLabel: monthlyCreditsLabel,
                     onLogout: () => _handleLogout(),
                   ),
+                  const _HomeDisclaimerNotice(),
                   Padding(
                     padding: const EdgeInsets.symmetric(
                       horizontal: 20,
@@ -3439,6 +3441,81 @@ class _HomePageState extends State<HomePage> {
             ),
           ],
         ),
+      ),
+    );
+  }
+}
+
+class _HomeDisclaimerNotice extends StatelessWidget {
+  const _HomeDisclaimerNotice();
+
+  static final Uri _ecrvPortalUri =
+      Uri.parse('https://www.e-crvsp.sp.gov.br/');
+
+  Future<void> _openPortal(BuildContext context) async {
+    final messenger = ScaffoldMessenger.maybeOf(context);
+    final launched = await launchUrl(
+      _ecrvPortalUri,
+      mode: LaunchMode.externalApplication,
+    );
+    if (!launched) {
+      messenger
+        ?..clearSnackBars()
+        ..showSnackBar(
+          const SnackBar(
+            content: Text('Não foi possível abrir o portal e-CRV SP.'),
+          ),
+        );
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final bodyStyle = theme.textTheme.bodyMedium?.copyWith(
+      color: const Color(0xFF1D1B20),
+    );
+
+    return Container(
+      margin: const EdgeInsets.fromLTRB(20, 16, 20, 0),
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: const Color(0xFFF0F4FF),
+        borderRadius: BorderRadius.circular(16),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'Aviso importante',
+            style: theme.textTheme.titleMedium?.copyWith(
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            'Este aplicativo não é afiliado nem representa qualquer órgão governamental.',
+            style: bodyStyle,
+          ),
+          const SizedBox(height: 8),
+          Text(
+            'As consultas exibidas aqui acessam diretamente as informações do portal oficial e-CRV SP (www.e-crvsp.sp.gov.br).',
+            style: bodyStyle,
+          ),
+          const SizedBox(height: 12),
+          Align(
+            alignment: Alignment.centerLeft,
+            child: TextButton.icon(
+              onPressed: () => _openPortal(context),
+              icon: const Icon(Icons.open_in_new, size: 18),
+              label: const Text('Acessar e-CRV SP'),
+              style: TextButton.styleFrom(
+                padding: EdgeInsets.zero,
+                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }
