@@ -3327,7 +3327,6 @@ class _HomePageState extends State<HomePage> {
                     monthlyCreditsLabel: monthlyCreditsLabel,
                     onLogout: () => _handleLogout(),
                   ),
-                  const _HomeDisclaimerNotice(),
                   Padding(
                     padding: const EdgeInsets.symmetric(
                       horizontal: 20,
@@ -3383,16 +3382,17 @@ class _HomePageState extends State<HomePage> {
                                         ? () => _toggleExpanded(action.title)
                                         : () => _handlePrimaryActionTap(action),
                                     onSubActionTap: (subAction) =>
-                                        _handleSubActionTap(action, subAction),
+                                      _handleSubActionTap(action, subAction),
                                   );
                                 },
                               ),
                             ),
+                        const _HomeDisclaimerNotice(),
                         const SizedBox(height: 8),
                         Text(
                           'Últimos veículos pesquisados',
-                          style: theme.textTheme.headlineSmall?.copyWith(
-                            fontSize: 18,
+                          style: theme.textTheme.titleMedium?.copyWith(
+                            fontSize: 16,
                           ),
                         ),
                         const SizedBox(height: 16),
@@ -3472,7 +3472,11 @@ class _HomeDisclaimerNotice extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final bodyStyle = theme.textTheme.bodyMedium?.copyWith(
+    final titleStyle = theme.textTheme.titleSmall?.copyWith(
+      fontWeight: FontWeight.w600,
+      color: const Color(0xFF1D1B20),
+    );
+    final bodyStyle = theme.textTheme.bodySmall?.copyWith(
       color: const Color(0xFF1D1B20),
     );
 
@@ -3488,9 +3492,7 @@ class _HomeDisclaimerNotice extends StatelessWidget {
         children: [
           Text(
             'Aviso importante',
-            style: theme.textTheme.titleMedium?.copyWith(
-              fontWeight: FontWeight.w600,
-            ),
+            style: titleStyle,
           ),
           const SizedBox(height: 8),
           Text(
