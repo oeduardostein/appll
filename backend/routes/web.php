@@ -15,6 +15,7 @@ Route::get('/', function () {
 });
 
 Route::view('/politica-de-privacidade', 'privacy-policy')->name('privacy-policy');
+Route::view('/suporte', 'support')->name('support');
 Route::get('/excluir-conta', [AccountDeletionController::class, 'show'])->name('account-deletion.form');
 Route::post('/excluir-conta', [AccountDeletionController::class, 'destroy'])->name('account-deletion.submit');
 
