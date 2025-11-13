@@ -30,17 +30,14 @@ import '../gravame/gravame_page.dart';
 import '../shared/loading_dialog.dart';
 import '../atpv/atpv_options_page.dart';
 import '../auth/login_page.dart';
+import '../profile/profile_page.dart';
 import 'home_models.dart';
 import 'widgets/home_action_card.dart';
 import 'widgets/home_header.dart';
 import 'widgets/recent_vehicle_card.dart';
 
 class HomePage extends StatefulWidget {
-  const HomePage({
-    super.key,
-    this.authService,
-    this.pesquisaService,
-  });
+  const HomePage({super.key, this.authService, this.pesquisaService});
 
   static const routeName = '/home';
 
@@ -179,7 +176,9 @@ class _HomePageState extends State<HomePage> {
     if (_allowedPermissionSlugs.contains(slug)) {
       return true;
     }
-    _showErrorMessage('Você não tem permissão para acessar esta funcionalidade.');
+    _showErrorMessage(
+      'Você não tem permissão para acessar esta funcionalidade.',
+    );
     return false;
   }
 
@@ -408,19 +407,12 @@ class _HomePageState extends State<HomePage> {
       Navigator.of(context, rootNavigator: true).pop();
       if (!mounted) return true;
 
-      _registerPesquisa(
-        nome: 'Base estadual',
-        placa: placa,
-        renavam: renavam,
-      );
+      _registerPesquisa(nome: 'Base estadual', placa: placa, renavam: renavam);
 
       Navigator.of(context).push(
         MaterialPageRoute(
-          builder: (_) => BaseEstadualPage(
-            placa: placa,
-            renavam: renavam,
-            payload: result,
-          ),
+          builder: (_) =>
+              BaseEstadualPage(placa: placa, renavam: renavam, payload: result),
         ),
       );
 
@@ -490,10 +482,8 @@ class _HomePageState extends State<HomePage> {
         if (!mounted) return true;
         Navigator.of(context).push(
           MaterialPageRoute(
-            builder: (_) => BaseOutrosEstadosPage(
-              chassi: chassi,
-              payload: result,
-            ),
+            builder: (_) =>
+                BaseOutrosEstadosPage(chassi: chassi, payload: result),
           ),
         );
       }
@@ -512,9 +502,7 @@ class _HomePageState extends State<HomePage> {
     } catch (_) {
       if (!mounted) return true;
       Navigator.of(context, rootNavigator: true).pop();
-      _showErrorMessage(
-        'Não foi possível consultar a base de outros estados.',
-      );
+      _showErrorMessage('Não foi possível consultar a base de outros estados.');
       return true;
     }
   }
@@ -550,19 +538,12 @@ class _HomePageState extends State<HomePage> {
       Navigator.of(context, rootNavigator: true).pop();
       if (!mounted) return true;
 
-      _registerPesquisa(
-        nome: 'BIN',
-        placa: placa,
-        renavam: renavam,
-      );
+      _registerPesquisa(nome: 'BIN', placa: placa, renavam: renavam);
 
       Navigator.of(context).push(
         MaterialPageRoute(
-          builder: (_) => BinResultPage(
-            placa: placa,
-            renavam: renavam,
-            payload: result,
-          ),
+          builder: (_) =>
+              BinResultPage(placa: placa, renavam: renavam, payload: result),
         ),
       );
 
@@ -621,10 +602,7 @@ class _HomePageState extends State<HomePage> {
       Navigator.of(context, rootNavigator: true).pop();
       if (!mounted) return true;
 
-      _registerPesquisa(
-        nome: 'Gravame',
-        placa: placa,
-      );
+      _registerPesquisa(nome: 'Gravame', placa: placa);
 
       Navigator.of(context).push(
         MaterialPageRoute(
@@ -703,11 +681,9 @@ class _HomePageState extends State<HomePage> {
         opcaoPesquisa: '${request.statusCode}-${request.statusLabel}',
       );
 
-      Navigator.of(context).push(
-        MaterialPageRoute(
-          builder: (_) => RenainfPage(result: result),
-        ),
-      );
+      Navigator.of(
+        context,
+      ).push(MaterialPageRoute(builder: (_) => RenainfPage(result: result)));
 
       return true;
     } on BaseEstadualException catch (e) {
@@ -774,11 +750,8 @@ class _HomePageState extends State<HomePage> {
 
       Navigator.of(context).push(
         MaterialPageRoute(
-          builder: (_) => BloqueiosPage(
-            origin: origin,
-            chassi: chassi,
-            payload: result,
-          ),
+          builder: (_) =>
+              BloqueiosPage(origin: origin, chassi: chassi, payload: result),
         ),
       );
 
@@ -858,8 +831,8 @@ class _HomePageState extends State<HomePage> {
         final fallbackMessage = pdfResult.path != null
             ? 'CRLV-e emitido. Abra o arquivo manualmente em ${pdfResult.path}.'
             : kIsWeb
-                ? 'CRLV-e emitido. Baixe o PDF utilizando o aplicativo móvel.'
-                : 'CRLV-e emitido, mas não foi possível abrir o PDF automaticamente.';
+            ? 'CRLV-e emitido. Baixe o PDF utilizando o aplicativo móvel.'
+            : 'CRLV-e emitido, mas não foi possível abrir o PDF automaticamente.';
         _showErrorMessage(fallbackMessage);
       }
 
@@ -882,8 +855,7 @@ class _HomePageState extends State<HomePage> {
     }
   }
 
-  Future<_CaptchaOperationResult<Map<String, dynamic>>>
-      _executeFichaConsulta({
+  Future<_CaptchaOperationResult<Map<String, dynamic>>> _executeFichaConsulta({
     required String placa,
     required bool autoSolve,
     String? captchaOverride,
@@ -936,8 +908,7 @@ class _HomePageState extends State<HomePage> {
     }
   }
 
-  Future<_CaptchaOperationResult<Map<String, dynamic>>>
-      _executeFichaAndamento({
+  Future<_CaptchaOperationResult<Map<String, dynamic>>> _executeFichaAndamento({
     required String numeroFicha,
     required String anoFicha,
     required String placa,
@@ -1092,8 +1063,9 @@ class _HomePageState extends State<HomePage> {
   }
 
   Future<void> _handleEcrvProcessFlow() async {
-    final initialConsultaRequest =
-        await _showFichaCadastralConsultaDialog(requireCaptcha: false);
+    final initialConsultaRequest = await _showFichaCadastralConsultaDialog(
+      requireCaptcha: false,
+    );
     if (initialConsultaRequest == null || !mounted) return;
 
     var effectiveConsultaRequest = initialConsultaRequest;
@@ -1134,8 +1106,9 @@ class _HomePageState extends State<HomePage> {
     }
 
     final fichaPayload = _asMap(fichaResult['payload']);
-    final fichaNormalized =
-        _asMap(fichaPayload?['normalized'])?['dados_da_ficha_cadastral'];
+    final fichaNormalized = _asMap(
+      fichaPayload?['normalized'],
+    )?['dados_da_ficha_cadastral'];
     final numeroFicha = fichaNormalized?['n_da_ficha']?.toString();
     final anoFicha = fichaNormalized?['ano_ficha']?.toString();
     final renavamFicha = fichaNormalized?['renavam']?.toString();
@@ -1284,11 +1257,9 @@ class _HomePageState extends State<HomePage> {
 
   Future<void> _handleAtpvEmissionFlow() async {
     if (!mounted) return;
-    Navigator.of(context).push(
-      MaterialPageRoute(
-        builder: (_) => const AtpvOptionsPage(),
-      ),
-    );
+    Navigator.of(
+      context,
+    ).push(MaterialPageRoute(builder: (_) => const AtpvOptionsPage()));
   }
 
   String? _formatCpf(String value) {
@@ -1313,9 +1284,12 @@ class _HomePageState extends State<HomePage> {
 
     try {
       final directory = await getTemporaryDirectory();
-      final sanitizedPlate = plate.replaceAll(RegExp(r'[^A-Za-z0-9]'), '').toUpperCase();
+      final sanitizedPlate = plate
+          .replaceAll(RegExp(r'[^A-Za-z0-9]'), '')
+          .toUpperCase();
       final timestamp = DateTime.now().millisecondsSinceEpoch;
-      final filename = 'crlv_${sanitizedPlate.isEmpty ? 'veiculo' : sanitizedPlate}_$timestamp.pdf';
+      final filename =
+          'crlv_${sanitizedPlate.isEmpty ? 'veiculo' : sanitizedPlate}_$timestamp.pdf';
       final file = io.File('${directory.path}/$filename');
 
       await file.writeAsBytes(pdfBytes, flush: true);
@@ -1413,10 +1387,9 @@ class _HomePageState extends State<HomePage> {
                       color: Colors.white,
                       borderRadius: BorderRadius.circular(16),
                       border: Border.all(
-                        color: Theme.of(context)
-                            .colorScheme
-                            .outline
-                            .withOpacity(0.2),
+                        color: Theme.of(
+                          context,
+                        ).colorScheme.outline.withOpacity(0.2),
                       ),
                     ),
                     padding: const EdgeInsets.all(16),
@@ -1427,9 +1400,7 @@ class _HomePageState extends State<HomePage> {
                           children: [
                             Text(
                               'Captcha',
-                              style: Theme.of(context)
-                                  .textTheme
-                                  .titleSmall
+                              style: Theme.of(context).textTheme.titleSmall
                                   ?.copyWith(fontWeight: FontWeight.w600),
                             ),
                             const Spacer(),
@@ -1452,9 +1423,7 @@ class _HomePageState extends State<HomePage> {
                           )
                         else if (captchaError != null)
                           Padding(
-                            padding: const EdgeInsets.symmetric(
-                              vertical: 8,
-                            ),
+                            padding: const EdgeInsets.symmetric(vertical: 8),
                             child: Text(
                               captchaError!,
                               style: TextStyle(
@@ -1489,8 +1458,7 @@ class _HomePageState extends State<HomePage> {
                             ),
                             LengthLimitingTextInputFormatter(10),
                           ],
-                          textCapitalization:
-                              TextCapitalization.characters,
+                          textCapitalization: TextCapitalization.characters,
                           validator: (value) {
                             final text = value?.trim() ?? '';
                             if (text.isEmpty) {
@@ -1535,16 +1503,13 @@ class _HomePageState extends State<HomePage> {
                           requireCaptcha
                               ? 'Informe os dados e o captcha exibido para emitir o CRLV-e.'
                               : 'Informe apenas os dados. Resolveremos o captcha automaticamente.',
-                          style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                                color: const Color(0xFF475467),
-                              ),
+                          style: Theme.of(context).textTheme.bodyMedium
+                              ?.copyWith(color: const Color(0xFF475467)),
                         ),
                         const SizedBox(height: 16),
                         TextFormField(
                           controller: plateController,
-                          decoration: const InputDecoration(
-                            labelText: 'Placa',
-                          ),
+                          decoration: const InputDecoration(labelText: 'Placa'),
                           inputFormatters: [
                             const _UpperCaseTextFormatter(),
                             FilteringTextInputFormatter.allow(
@@ -1611,7 +1576,8 @@ class _HomePageState extends State<HomePage> {
                         ...captchaWidgets,
                         const SizedBox(height: 24),
                         FilledButton(
-                          onPressed: (!requireCaptcha ||
+                          onPressed:
+                              (!requireCaptcha ||
                                   (!isLoadingCaptcha && captchaBase64 != null))
                               ? () {
                                   if (!formKey.currentState!.validate()) {
@@ -1623,12 +1589,11 @@ class _HomePageState extends State<HomePage> {
                                           .trim()
                                           .toUpperCase(),
                                       renavam: renavamController.text.trim(),
-                                      document:
-                                          documentController.text.trim(),
+                                      document: documentController.text.trim(),
                                       captcha: requireCaptcha
                                           ? captchaController.text
-                                              .trim()
-                                              .toUpperCase()
+                                                .trim()
+                                                .toUpperCase()
                                           : '',
                                     ),
                                   );
@@ -1662,22 +1627,18 @@ class _HomePageState extends State<HomePage> {
     return result;
   }
 
-
-
   Future<_BaseOutrosEstadosQuery?> _showBaseOutrosEstadosDialog({
     bool requireCaptcha = true,
     String? initialChassi,
     String? initialUf,
   }) async {
     final formKey = GlobalKey<FormState>();
-    final chassiController = TextEditingController(
-      text: initialChassi ?? '',
-    );
+    final chassiController = TextEditingController(text: initialChassi ?? '');
     final captchaController = TextEditingController();
     String? selectedUf =
         initialUf != null && _brazilUfCodes.contains(initialUf.toUpperCase())
-            ? initialUf.toUpperCase()
-            : null;
+        ? initialUf.toUpperCase()
+        : null;
 
     String? captchaBase64;
     String? captchaError;
@@ -1779,9 +1740,7 @@ class _HomePageState extends State<HomePage> {
                       const SizedBox(height: 20),
                       TextFormField(
                         controller: chassiController,
-                        decoration: const InputDecoration(
-                          labelText: 'Chassi',
-                        ),
+                        decoration: const InputDecoration(labelText: 'Chassi'),
                         inputFormatters: [
                           const _UpperCaseTextFormatter(),
                           FilteringTextInputFormatter.allow(
@@ -1870,8 +1829,9 @@ class _HomePageState extends State<HomePage> {
                                 )
                               else if (captchaError != null)
                                 Padding(
-                                  padding:
-                                      const EdgeInsets.symmetric(vertical: 8),
+                                  padding: const EdgeInsets.symmetric(
+                                    vertical: 8,
+                                  ),
                                   child: Text(
                                     captchaError!,
                                     style: TextStyle(
@@ -1923,7 +1883,8 @@ class _HomePageState extends State<HomePage> {
                       ],
                       const SizedBox(height: 24),
                       FilledButton(
-                        onPressed: (!requireCaptcha ||
+                        onPressed:
+                            (!requireCaptcha ||
                                 (!isLoadingCaptcha && captchaBase64 != null))
                             ? () {
                                 if (!formKey.currentState!.validate()) {
@@ -1941,8 +1902,8 @@ class _HomePageState extends State<HomePage> {
                                     uf: selectedUf!,
                                     captcha: requireCaptcha
                                         ? captchaController.text
-                                            .trim()
-                                            .toUpperCase()
+                                              .trim()
+                                              .toUpperCase()
                                         : '',
                                   ),
                                 );
@@ -2177,11 +2138,13 @@ class _HomePageState extends State<HomePage> {
     ];
 
     int? selectedStatusValue = initialRequest?.statusCode ?? 2;
-    String selectedStatusLabel = initialRequest?.statusLabel ??
+    String selectedStatusLabel =
+        initialRequest?.statusLabel ??
         (statusOptions.firstWhere(
-          (status) => status['value'] == selectedStatusValue,
-          orElse: () => statusOptions.first,
-        )['label']! as String);
+              (status) => status['value'] == selectedStatusValue,
+              orElse: () => statusOptions.first,
+            )['label']!
+            as String);
     String? selectedUf = initialRequest?.uf;
     if (selectedUf != null) {
       selectedUf = selectedUf.toUpperCase();
@@ -2225,8 +2188,9 @@ class _HomePageState extends State<HomePage> {
       required bool isStart,
       required StateSetter setState,
     }) async {
-      final initialDate =
-          isStart ? (startDate ?? DateTime.now()) : (endDate ?? DateTime.now());
+      final initialDate = isStart
+          ? (startDate ?? DateTime.now())
+          : (endDate ?? DateTime.now());
       final firstDate = DateTime(DateTime.now().year - 5);
       final lastDate = DateTime.now();
 
@@ -2285,14 +2249,17 @@ class _HomePageState extends State<HomePage> {
               final captchaText = captchaController.text.trim().toUpperCase();
               final plateValid =
                   plateText.isNotEmpty && _isValidPlate(plateText);
-              final datesValid = startDate != null &&
+              final datesValid =
+                  startDate != null &&
                   endDate != null &&
                   !startDate!.isAfter(endDate!);
               final captchaLoaded =
-                  !requireCaptcha || (captchaBase64 != null && captchaBase64!.isNotEmpty);
+                  !requireCaptcha ||
+                  (captchaBase64 != null && captchaBase64!.isNotEmpty);
               final captchaFilled = !requireCaptcha || captchaText.isNotEmpty;
 
-              final readyToSubmit = plateValid &&
+              final readyToSubmit =
+                  plateValid &&
                   datesValid &&
                   selectedStatusValue != null &&
                   selectedUf != null &&
@@ -2312,9 +2279,7 @@ class _HomePageState extends State<HomePage> {
                         children: [
                           Text(
                             'Consulta RENAINF',
-                            style: Theme.of(context)
-                                .textTheme
-                                .titleMedium
+                            style: Theme.of(context).textTheme.titleMedium
                                 ?.copyWith(fontWeight: FontWeight.w700),
                           ),
                           const Spacer(),
@@ -2330,9 +2295,7 @@ class _HomePageState extends State<HomePage> {
                       const SizedBox(height: 12),
                       TextFormField(
                         controller: plateController,
-                        decoration: const InputDecoration(
-                          labelText: 'Placa',
-                        ),
+                        decoration: const InputDecoration(labelText: 'Placa'),
                         inputFormatters: [
                           const _UpperCaseTextFormatter(),
                           FilteringTextInputFormatter.allow(
@@ -2371,9 +2334,11 @@ class _HomePageState extends State<HomePage> {
                           if (value == null) return;
                           setState(() {
                             selectedStatusValue = value;
-                            selectedStatusLabel = statusOptions.firstWhere(
-                              (status) => status['value'] == value,
-                            )['label']! as String;
+                            selectedStatusLabel =
+                                statusOptions.firstWhere(
+                                      (status) => status['value'] == value,
+                                    )['label']!
+                                    as String;
                           });
                         },
                         validator: (value) {
@@ -2475,10 +2440,9 @@ class _HomePageState extends State<HomePage> {
                             color: Colors.white,
                             borderRadius: BorderRadius.circular(16),
                             border: Border.all(
-                              color: Theme.of(context)
-                                  .colorScheme
-                                  .outline
-                                  .withOpacity(0.2),
+                              color: Theme.of(
+                                context,
+                              ).colorScheme.outline.withOpacity(0.2),
                             ),
                           ),
                           padding: const EdgeInsets.all(16),
@@ -2514,12 +2478,15 @@ class _HomePageState extends State<HomePage> {
                                 )
                               else if (captchaError != null)
                                 Padding(
-                                  padding:
-                                      const EdgeInsets.symmetric(vertical: 8),
+                                  padding: const EdgeInsets.symmetric(
+                                    vertical: 8,
+                                  ),
                                   child: Text(
                                     captchaError!,
                                     style: TextStyle(
-                                      color: Theme.of(context).colorScheme.error,
+                                      color: Theme.of(
+                                        context,
+                                      ).colorScheme.error,
                                     ),
                                   ),
                                 )
@@ -2589,8 +2556,8 @@ class _HomePageState extends State<HomePage> {
                                     uf: selectedUf!,
                                     captcha: requireCaptcha
                                         ? captchaController.text
-                                            .trim()
-                                            .toUpperCase()
+                                              .trim()
+                                              .toUpperCase()
                                         : '',
                                     startDate: startDate!,
                                     endDate: endDate!,
@@ -2689,16 +2656,17 @@ class _HomePageState extends State<HomePage> {
                   chassiText.isNotEmpty && _isValidChassi(chassiText);
               final captchaValue = captchaController.text.trim().toUpperCase();
               final captchaValid = !requireCaptcha || captchaValue.isNotEmpty;
-              final captchaReady = !requireCaptcha ||
+              final captchaReady =
+                  !requireCaptcha ||
                   (captchaBase64 != null && !isLoadingCaptcha);
               final isValid = chassiValid && captchaValid && captchaReady;
 
-              Color backgroundFor(String source) =>
-                  selectedSource == source
-                      ? Theme.of(context).colorScheme.primary
-                      : const Color(0xFFE7EDFF);
-              Color foregroundFor(String source) =>
-                  selectedSource == source ? Colors.white : const Color(0xFF344054);
+              Color backgroundFor(String source) => selectedSource == source
+                  ? Theme.of(context).colorScheme.primary
+                  : const Color(0xFFE7EDFF);
+              Color foregroundFor(String source) => selectedSource == source
+                  ? Colors.white
+                  : const Color(0xFF344054);
 
               Uint8List? captchaBytes;
               if (captchaBase64 != null && captchaBase64!.isNotEmpty) {
@@ -2751,8 +2719,9 @@ class _HomePageState extends State<HomePage> {
                                   }
                                 },
                                 style: FilledButton.styleFrom(
-                                  padding:
-                                      const EdgeInsets.symmetric(vertical: 12),
+                                  padding: const EdgeInsets.symmetric(
+                                    vertical: 12,
+                                  ),
                                   backgroundColor: backgroundFor('DETRAN'),
                                   foregroundColor: foregroundFor('DETRAN'),
                                   shape: RoundedRectangleBorder(
@@ -2771,8 +2740,9 @@ class _HomePageState extends State<HomePage> {
                                   }
                                 },
                                 style: FilledButton.styleFrom(
-                                  padding:
-                                      const EdgeInsets.symmetric(vertical: 12),
+                                  padding: const EdgeInsets.symmetric(
+                                    vertical: 12,
+                                  ),
                                   backgroundColor: backgroundFor('RENAJUD'),
                                   foregroundColor: foregroundFor('RENAJUD'),
                                   shape: RoundedRectangleBorder(
@@ -2811,10 +2781,9 @@ class _HomePageState extends State<HomePage> {
                             color: Colors.white,
                             borderRadius: BorderRadius.circular(16),
                             border: Border.all(
-                              color: Theme.of(context)
-                                  .colorScheme
-                                  .outline
-                                  .withOpacity(0.2),
+                              color: Theme.of(
+                                context,
+                              ).colorScheme.outline.withOpacity(0.2),
                             ),
                           ),
                           padding: const EdgeInsets.all(16),
@@ -2850,13 +2819,15 @@ class _HomePageState extends State<HomePage> {
                                 )
                               else if (captchaError != null)
                                 Padding(
-                                  padding:
-                                      const EdgeInsets.symmetric(vertical: 8),
+                                  padding: const EdgeInsets.symmetric(
+                                    vertical: 8,
+                                  ),
                                   child: Text(
                                     captchaError!,
                                     style: TextStyle(
-                                      color:
-                                          Theme.of(context).colorScheme.error,
+                                      color: Theme.of(
+                                        context,
+                                      ).colorScheme.error,
                                     ),
                                   ),
                                 )
@@ -2905,8 +2876,9 @@ class _HomePageState extends State<HomePage> {
                                     origin: selectedSource,
                                     captcha: requireCaptcha ? captchaValue : '',
                                     chassi: chassiText,
-                                    opcaoPesquisa:
-                                        selectedSource == 'DETRAN' ? '1' : '2',
+                                    opcaoPesquisa: selectedSource == 'DETRAN'
+                                        ? '1'
+                                        : '2',
                                   ),
                                 );
                               }
@@ -2953,11 +2925,7 @@ class _HomePageState extends State<HomePage> {
   void _showErrorMessage(String message) {
     if (!mounted) return;
     unawaited(
-      AppErrorDialog.show(
-        context,
-        message: message,
-        title: 'Algo deu errado',
-      ),
+      AppErrorDialog.show(context, message: message, title: 'Algo deu errado'),
     );
   }
 
@@ -2997,9 +2965,7 @@ class _HomePageState extends State<HomePage> {
       return value;
     }
     if (value is Map) {
-      return value.map(
-        (key, dynamic val) => MapEntry(key.toString(), val),
-      );
+      return value.map((key, dynamic val) => MapEntry(key.toString(), val));
     }
     return null;
   }
@@ -3014,8 +2980,9 @@ class _HomePageState extends State<HomePage> {
   }
 
   bool _isValidChassi(String value) {
-    final normalized =
-        value.replaceAll(RegExp('[^A-Za-z0-9]'), '').toUpperCase();
+    final normalized = value
+        .replaceAll(RegExp('[^A-Za-z0-9]'), '')
+        .toUpperCase();
     if (normalized.length != 17) {
       return false;
     }
@@ -3197,9 +3164,7 @@ class _HomePageState extends State<HomePage> {
     }
   }
 
-  RecentVehicle _mapPesquisaResumoToRecentVehicle(
-    PesquisaResumo resumo,
-  ) {
+  RecentVehicle _mapPesquisaResumoToRecentVehicle(PesquisaResumo resumo) {
     final plate = resumo.placa?.trim().toUpperCase();
     final leading = plate?.isNotEmpty == true
         ? plate!
@@ -3267,10 +3232,9 @@ class _HomePageState extends State<HomePage> {
       if (!mounted) return;
       Navigator.of(context, rootNavigator: true).pop();
       if (!mounted) return;
-      Navigator.of(context).pushNamedAndRemoveUntil(
-        LoginPage.routeName,
-        (route) => false,
-      );
+      Navigator.of(
+        context,
+      ).pushNamedAndRemoveUntil(LoginPage.routeName, (route) => false);
     } on AuthException catch (e) {
       if (!mounted) return;
       Navigator.of(context, rootNavigator: true).pop();
@@ -3284,6 +3248,10 @@ class _HomePageState extends State<HomePage> {
     }
   }
 
+  void _openProfile() {
+    Navigator.of(context).pushNamed(ProfilePage.routeName);
+  }
+
   void _handleUnauthorized() {
     _authService.clearSession();
     if (mounted) {
@@ -3293,10 +3261,9 @@ class _HomePageState extends State<HomePage> {
     }
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
-      Navigator.of(context).pushNamedAndRemoveUntil(
-        LoginPage.routeName,
-        (route) => false,
-      );
+      Navigator.of(
+        context,
+      ).pushNamedAndRemoveUntil(LoginPage.routeName, (route) => false);
     });
   }
 
@@ -3307,10 +3274,10 @@ class _HomePageState extends State<HomePage> {
     final monthlyCreditsLabel = _isLoadingMonthlyCredits
         ? 'Créditos usados este mês: carregando...'
         : _monthlyCreditsError != null
-            ? 'Créditos usados este mês: indisponível'
-            : _monthlyCreditsUsed != null
-                ? 'Créditos usados este mês: $_monthlyCreditsUsed'
-                : null;
+        ? 'Créditos usados este mês: indisponível'
+        : _monthlyCreditsUsed != null
+        ? 'Créditos usados este mês: $_monthlyCreditsUsed'
+        : null;
 
     return Scaffold(
       body: SafeArea(
@@ -3325,6 +3292,9 @@ class _HomePageState extends State<HomePage> {
                         ? 'Carregando...'
                         : _currentUser?.username ?? 'Usuário',
                     monthlyCreditsLabel: monthlyCreditsLabel,
+                    onProfileTap: _authService.session != null
+                        ? _openProfile
+                        : null,
                     onLogout: () => _handleLogout(),
                   ),
                   Padding(
@@ -3372,7 +3342,8 @@ class _HomePageState extends State<HomePage> {
                               child: Builder(
                                 builder: (_) {
                                   final action = visibleActions[i];
-                                  final hasSubActions = action.subActions.isNotEmpty;
+                                  final hasSubActions =
+                                      action.subActions.isNotEmpty;
                                   return HomeActionCard(
                                     action: action,
                                     isExpanded: hasSubActions
@@ -3382,7 +3353,7 @@ class _HomePageState extends State<HomePage> {
                                         ? () => _toggleExpanded(action.title)
                                         : () => _handlePrimaryActionTap(action),
                                     onSubActionTap: (subAction) =>
-                                      _handleSubActionTap(action, subAction),
+                                        _handleSubActionTap(action, subAction),
                                   );
                                 },
                               ),
@@ -3449,8 +3420,7 @@ class _HomePageState extends State<HomePage> {
 class _HomeDisclaimerNotice extends StatelessWidget {
   const _HomeDisclaimerNotice();
 
-  static final Uri _ecrvPortalUri =
-      Uri.parse('https://www.e-crvsp.sp.gov.br/');
+  static final Uri _ecrvPortalUri = Uri.parse('https://www.e-crvsp.sp.gov.br/');
 
   Future<void> _openPortal(BuildContext context) async {
     final messenger = ScaffoldMessenger.maybeOf(context);
@@ -3490,10 +3460,7 @@ class _HomeDisclaimerNotice extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
-            'Aviso importante',
-            style: titleStyle,
-          ),
+          Text('Aviso importante', style: titleStyle),
           const SizedBox(height: 8),
           Text(
             'Este aplicativo não é afiliado nem representa qualquer órgão governamental.',
@@ -3549,7 +3516,7 @@ class _VehicleLookupDialog extends StatefulWidget {
   final bool requireCaptcha;
   final String? initialPlate;
   final String? initialRenavam;
-    
+
   @override
   State<_VehicleLookupDialog> createState() => _VehicleLookupDialogState();
 }
@@ -3653,9 +3620,7 @@ class _VehicleLookupDialogState extends State<_VehicleLookupDialog> {
 
     return Dialog(
       insetPadding: const EdgeInsets.symmetric(horizontal: 24),
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(24),
-      ),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
       child: ConstrainedBox(
         constraints: const BoxConstraints(maxHeight: 520),
         child: SingleChildScrollView(
@@ -3669,8 +3634,9 @@ class _VehicleLookupDialogState extends State<_VehicleLookupDialog> {
                   children: [
                     Text(
                       widget.title,
-                      style: Theme.of(context).textTheme.titleMedium
-                          ?.copyWith(fontWeight: FontWeight.w700),
+                      style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                        fontWeight: FontWeight.w700,
+                      ),
                     ),
                     const Spacer(),
                     IconButton(
@@ -3682,14 +3648,10 @@ class _VehicleLookupDialogState extends State<_VehicleLookupDialog> {
                 const SizedBox(height: 12),
                 TextFormField(
                   controller: _plateController,
-                  decoration: const InputDecoration(
-                    labelText: 'Placa',
-                  ),
+                  decoration: const InputDecoration(labelText: 'Placa'),
                   inputFormatters: [
                     const _UpperCaseTextFormatter(),
-                    FilteringTextInputFormatter.allow(
-                      RegExp('[A-Za-z0-9]'),
-                    ),
+                    FilteringTextInputFormatter.allow(RegExp('[A-Za-z0-9]')),
                     LengthLimitingTextInputFormatter(7),
                   ],
                   textCapitalization: TextCapitalization.characters,
@@ -3709,9 +3671,7 @@ class _VehicleLookupDialogState extends State<_VehicleLookupDialog> {
                   const SizedBox(height: 16),
                   TextFormField(
                     controller: _renavamController,
-                    decoration: const InputDecoration(
-                      labelText: 'Renavam',
-                    ),
+                    decoration: const InputDecoration(labelText: 'Renavam'),
                     keyboardType: TextInputType.number,
                     inputFormatters: [
                       FilteringTextInputFormatter.digitsOnly,
@@ -3740,10 +3700,9 @@ class _VehicleLookupDialogState extends State<_VehicleLookupDialog> {
                       color: Colors.white,
                       borderRadius: BorderRadius.circular(16),
                       border: Border.all(
-                        color: Theme.of(context)
-                            .colorScheme
-                            .outline
-                            .withOpacity(0.2),
+                        color: Theme.of(
+                          context,
+                        ).colorScheme.outline.withOpacity(0.2),
                       ),
                     ),
                     padding: const EdgeInsets.all(16),
@@ -3754,15 +3713,14 @@ class _VehicleLookupDialogState extends State<_VehicleLookupDialog> {
                           children: [
                             Text(
                               'Captcha',
-                              style: Theme.of(context)
-                                  .textTheme
-                                  .titleSmall
+                              style: Theme.of(context).textTheme.titleSmall
                                   ?.copyWith(fontWeight: FontWeight.w600),
                             ),
                             const Spacer(),
                             TextButton.icon(
-                              onPressed:
-                                  _isLoadingCaptcha ? null : _refreshCaptcha,
+                              onPressed: _isLoadingCaptcha
+                                  ? null
+                                  : _refreshCaptcha,
                               icon: const Icon(Icons.refresh),
                               label: const Text('Atualizar'),
                             ),
@@ -3833,8 +3791,8 @@ class _VehicleLookupDialogState extends State<_VehicleLookupDialog> {
                 FilledButton(
                   onPressed: widget.requireCaptcha
                       ? (_isLoadingCaptcha || _captchaBase64 == null
-                          ? null
-                          : _submit)
+                            ? null
+                            : _submit)
                       : _submit,
                   child: Text(widget.submitLabel),
                 ),
@@ -3957,9 +3915,7 @@ class _GravameDialogState extends State<_GravameDialog> {
 
     return Dialog(
       insetPadding: const EdgeInsets.symmetric(horizontal: 24),
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(24),
-      ),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
       child: ConstrainedBox(
         constraints: const BoxConstraints(maxHeight: 580),
         child: SingleChildScrollView(
@@ -3973,8 +3929,9 @@ class _GravameDialogState extends State<_GravameDialog> {
                   children: [
                     Text(
                       'Consultar gravame',
-                      style: Theme.of(context).textTheme.titleMedium
-                          ?.copyWith(fontWeight: FontWeight.w700),
+                      style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                        fontWeight: FontWeight.w700,
+                      ),
                     ),
                     const Spacer(),
                     IconButton(
@@ -3989,20 +3946,16 @@ class _GravameDialogState extends State<_GravameDialog> {
                       ? 'Informe placa e captcha para consultar o gravame.'
                       : 'Informe apenas a placa. Resolveremos o captcha automaticamente.',
                   style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                        color: const Color(0xFF475467),
-                      ),
+                    color: const Color(0xFF475467),
+                  ),
                 ),
                 const SizedBox(height: 20),
                 TextFormField(
                   controller: _plateController,
-                  decoration: const InputDecoration(
-                    labelText: 'Placa',
-                  ),
+                  decoration: const InputDecoration(labelText: 'Placa'),
                   inputFormatters: [
                     const _UpperCaseTextFormatter(),
-                    FilteringTextInputFormatter.allow(
-                      RegExp('[A-Za-z0-9]'),
-                    ),
+                    FilteringTextInputFormatter.allow(RegExp('[A-Za-z0-9]')),
                     LengthLimitingTextInputFormatter(7),
                   ],
                   textCapitalization: TextCapitalization.characters,
@@ -4025,10 +3978,9 @@ class _GravameDialogState extends State<_GravameDialog> {
                       color: Colors.white,
                       borderRadius: BorderRadius.circular(16),
                       border: Border.all(
-                        color: Theme.of(context)
-                            .colorScheme
-                            .outline
-                            .withOpacity(0.2),
+                        color: Theme.of(
+                          context,
+                        ).colorScheme.outline.withOpacity(0.2),
                       ),
                     ),
                     padding: const EdgeInsets.all(16),
@@ -4039,15 +3991,14 @@ class _GravameDialogState extends State<_GravameDialog> {
                           children: [
                             Text(
                               'Captcha',
-                              style: Theme.of(context)
-                                  .textTheme
-                                  .titleSmall
+                              style: Theme.of(context).textTheme.titleSmall
                                   ?.copyWith(fontWeight: FontWeight.w600),
                             ),
                             const Spacer(),
                             TextButton.icon(
-                              onPressed:
-                                  _isLoadingCaptcha ? null : _refreshCaptcha,
+                              onPressed: _isLoadingCaptcha
+                                  ? null
+                                  : _refreshCaptcha,
                               icon: const Icon(Icons.refresh),
                               label: const Text('Atualizar'),
                             ),
@@ -4119,8 +4070,8 @@ class _GravameDialogState extends State<_GravameDialog> {
                 FilledButton(
                   onPressed: widget.requireCaptcha
                       ? (_isLoadingCaptcha || _captchaBase64 == null
-                          ? null
-                          : _submit)
+                            ? null
+                            : _submit)
                       : _submit,
                   child: const Text('Consultar'),
                 ),
@@ -4257,8 +4208,9 @@ class _FichaConsultaDialogState extends State<_FichaConsultaDialog> {
                   children: [
                     Text(
                       'Ficha cadastral - passo 1',
-                      style: Theme.of(context).textTheme.titleMedium
-                          ?.copyWith(fontWeight: FontWeight.w700),
+                      style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                        fontWeight: FontWeight.w700,
+                      ),
                     ),
                     const Spacer(),
                     IconButton(
@@ -4272,22 +4224,20 @@ class _FichaConsultaDialogState extends State<_FichaConsultaDialog> {
                   Text(
                     'Digite a placa e o captcha exibido para recuperar o número da ficha.',
                     style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                          color: const Color(0xFF475467),
-                        ),
+                      color: const Color(0xFF475467),
+                    ),
                   )
                 else
                   Text(
                     'Informe somente a placa. Resolveremos o captcha automaticamente.',
                     style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                          color: const Color(0xFF475467),
-                        ),
+                      color: const Color(0xFF475467),
+                    ),
                   ),
                 const SizedBox(height: 20),
                 TextFormField(
                   controller: _plateController,
-                  decoration: const InputDecoration(
-                    labelText: 'Placa',
-                  ),
+                  decoration: const InputDecoration(labelText: 'Placa'),
                   inputFormatters: [
                     const _UpperCaseTextFormatter(),
                     FilteringTextInputFormatter.allow(RegExp('[A-Za-z0-9]')),
@@ -4313,10 +4263,9 @@ class _FichaConsultaDialogState extends State<_FichaConsultaDialog> {
                       color: Colors.white,
                       borderRadius: BorderRadius.circular(16),
                       border: Border.all(
-                        color: Theme.of(context)
-                            .colorScheme
-                            .outline
-                            .withOpacity(0.2),
+                        color: Theme.of(
+                          context,
+                        ).colorScheme.outline.withOpacity(0.2),
                       ),
                     ),
                     padding: const EdgeInsets.all(16),
@@ -4327,15 +4276,14 @@ class _FichaConsultaDialogState extends State<_FichaConsultaDialog> {
                           children: [
                             Text(
                               'Captcha',
-                              style: Theme.of(context)
-                                  .textTheme
-                                  .titleSmall
+                              style: Theme.of(context).textTheme.titleSmall
                                   ?.copyWith(fontWeight: FontWeight.w600),
                             ),
                             const Spacer(),
                             TextButton.icon(
-                              onPressed:
-                                  _isLoadingCaptcha ? null : _refreshCaptcha,
+                              onPressed: _isLoadingCaptcha
+                                  ? null
+                                  : _refreshCaptcha,
                               icon: const Icon(Icons.refresh),
                               label: const Text('Atualizar'),
                             ),
@@ -4401,8 +4349,8 @@ class _FichaConsultaDialogState extends State<_FichaConsultaDialog> {
                 FilledButton(
                   onPressed: widget.requireCaptcha
                       ? (_isLoadingCaptcha || _captchaBase64 == null
-                          ? null
-                          : _submit)
+                            ? null
+                            : _submit)
                       : _submit,
                   child: const Text('Avançar'),
                 ),
@@ -4525,8 +4473,9 @@ class _FichaAndamentoDialogState extends State<_FichaAndamentoDialog> {
                   children: [
                     Text(
                       'Andamento do processo - passo 2',
-                      style: Theme.of(context).textTheme.titleMedium
-                          ?.copyWith(fontWeight: FontWeight.w700),
+                      style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                        fontWeight: FontWeight.w700,
+                      ),
                     ),
                     const Spacer(),
                     IconButton(
@@ -4539,8 +4488,8 @@ class _FichaAndamentoDialogState extends State<_FichaAndamentoDialog> {
                 Text(
                   'Confirme os dados e preencha o novo captcha para consultar o andamento.',
                   style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                        color: const Color(0xFF475467),
-                      ),
+                    color: const Color(0xFF475467),
+                  ),
                 ),
                 const SizedBox(height: 20),
                 TextFormField(
@@ -4553,9 +4502,7 @@ class _FichaAndamentoDialogState extends State<_FichaAndamentoDialog> {
                 const SizedBox(height: 16),
                 TextFormField(
                   initialValue: widget.anoFicha,
-                  decoration: const InputDecoration(
-                    labelText: 'Ano da ficha',
-                  ),
+                  decoration: const InputDecoration(labelText: 'Ano da ficha'),
                   enabled: false,
                 ),
                 const SizedBox(height: 20),
@@ -4564,8 +4511,9 @@ class _FichaAndamentoDialogState extends State<_FichaAndamentoDialog> {
                     color: Colors.white,
                     borderRadius: BorderRadius.circular(16),
                     border: Border.all(
-                      color:
-                          Theme.of(context).colorScheme.outline.withOpacity(0.2),
+                      color: Theme.of(
+                        context,
+                      ).colorScheme.outline.withOpacity(0.2),
                     ),
                   ),
                   padding: const EdgeInsets.all(16),
@@ -4576,14 +4524,14 @@ class _FichaAndamentoDialogState extends State<_FichaAndamentoDialog> {
                         children: [
                           Text(
                             'Captcha',
-                            style: Theme.of(context)
-                                .textTheme
-                                .titleSmall
+                            style: Theme.of(context).textTheme.titleSmall
                                 ?.copyWith(fontWeight: FontWeight.w600),
                           ),
                           const Spacer(),
                           TextButton.icon(
-                            onPressed: _isLoadingCaptcha ? null : _refreshCaptcha,
+                            onPressed: _isLoadingCaptcha
+                                ? null
+                                : _refreshCaptcha,
                             icon: const Icon(Icons.refresh),
                             label: const Text('Atualizar'),
                           ),
@@ -4646,8 +4594,9 @@ class _FichaAndamentoDialogState extends State<_FichaAndamentoDialog> {
                 ),
                 const SizedBox(height: 24),
                 FilledButton(
-                  onPressed:
-                      _isLoadingCaptcha || _captchaBase64 == null ? null : _submit,
+                  onPressed: _isLoadingCaptcha || _captchaBase64 == null
+                      ? null
+                      : _submit,
                   child: const Text('Consultar andamento'),
                 ),
                 const SizedBox(height: 12),
@@ -4702,23 +4651,15 @@ class _CrlvEmissionRequest {
   final String captcha;
 }
 
-
-
 class _GravameRequest {
-  const _GravameRequest({
-    required this.plate,
-    required this.captcha,
-  });
+  const _GravameRequest({required this.plate, required this.captcha});
 
   final String plate;
   final String captcha;
 }
 
 class _FichaConsultaRequest {
-  const _FichaConsultaRequest({
-    required this.plate,
-    required this.captcha,
-  });
+  const _FichaConsultaRequest({required this.plate, required this.captcha});
 
   final String plate;
   final String captcha;
@@ -4771,21 +4712,15 @@ class _BloqueiosAtivosRequest {
 }
 
 class _CaptchaOperationResult<T> {
-  const _CaptchaOperationResult.success(this.data)
-      : requiresManual = false;
+  const _CaptchaOperationResult.success(this.data) : requiresManual = false;
 
-  const _CaptchaOperationResult.manual()
-      : data = null,
-        requiresManual = true;
+  const _CaptchaOperationResult.manual() : data = null, requiresManual = true;
 
-  const _CaptchaOperationResult.failure()
-      : data = null,
-        requiresManual = false;
+  const _CaptchaOperationResult.failure() : data = null, requiresManual = false;
 
   final T? data;
   final bool requiresManual;
 }
-
 
 class _UpperCaseTextFormatter extends TextInputFormatter {
   const _UpperCaseTextFormatter();
@@ -4802,4 +4737,3 @@ class _UpperCaseTextFormatter extends TextInputFormatter {
     );
   }
 }
-  

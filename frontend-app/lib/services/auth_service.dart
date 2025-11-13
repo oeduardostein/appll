@@ -32,34 +32,26 @@ class AuthUser {
 }
 
 class AuthSession {
-  const AuthSession({
-    required this.token,
-    required this.user,
-  });
+  const AuthSession({required this.token, required this.user});
 
   final String token;
   final AuthUser user;
 
   AuthSession copyWith({String? token, AuthUser? user}) {
-    return AuthSession(
-      token: token ?? this.token,
-      user: user ?? this.user,
-    );
+    return AuthSession(token: token ?? this.token, user: user ?? this.user);
   }
 }
 
 class AuthService {
-  AuthService({
-    http.Client? httpClient,
-    String? baseUrl,
-  })  : _client = httpClient ?? http.Client(),
-        _baseUrl = _sanitizeBaseUrl(
-          baseUrl ??
-              const String.fromEnvironment(
-                'BACKEND_BASE_URL',
-                defaultValue: 'https://applldespachante.skalacode.com',
-              ),
-        );
+  AuthService({http.Client? httpClient, String? baseUrl})
+    : _client = httpClient ?? http.Client(),
+      _baseUrl = _sanitizeBaseUrl(
+        baseUrl ??
+            const String.fromEnvironment(
+              'BACKEND_BASE_URL',
+              defaultValue: 'https://applldespachante.skalacode.com',
+            ),
+      );
 
   final http.Client _client;
   final String _baseUrl;
@@ -90,10 +82,7 @@ class AuthService {
   }
 
   Map<String, String> _authorizedHeaders(String token) {
-    return {
-      ..._jsonHeaders(),
-      'Authorization': 'Bearer $token',
-    };
+    return {..._jsonHeaders(), 'Authorization': 'Bearer $token'};
   }
 
   Future<AuthSession> register({
@@ -130,10 +119,7 @@ class AuthService {
     final response = await _client.post(
       uri,
       headers: _jsonHeaders(),
-      body: jsonEncode({
-        'identifier': identifier,
-        'password': password,
-      }),
+      body: jsonEncode({'identifier': identifier, 'password': password}),
     );
 
     final payload = _handleResponse(response);
@@ -155,13 +141,22 @@ class AuthService {
     clearSession();
   }
 
-  Future<AuthUser> fetchCurrentUser() async {
+  Future<void> deleteAccount() async {
     final token = _ensureToken();
-    final uri = _buildUri('/api/auth/user');
-    final response = await _client.get(
+    final uri = _buildUri('/api/auth/delete-account');
+    final response = await _client.delete(
       uri,
       headers: _authorizedHeaders(token),
     );
+
+    _handleResponse(response);
+    clearSession();
+  }
+
+  Future<AuthUser> fetchCurrentUser() async {
+    final token = _ensureToken();
+    final uri = _buildUri('/api/auth/user');
+    final response = await _client.get(uri, headers: _authorizedHeaders(token));
 
     final payload = _handleResponse(response);
     final userJson = payload['user'];
@@ -171,7 +166,8 @@ class AuthService {
 
     final user = AuthUser.fromJson(userJson);
     _sharedSession =
-        _sharedSession?.copyWith(user: user) ?? AuthSession(token: token, user: user);
+        _sharedSession?.copyWith(user: user) ??
+        AuthSession(token: token, user: user);
     return user;
   }
 
@@ -237,10 +233,7 @@ class AuthService {
   Future<List<String>> fetchPermissions() async {
     final token = _ensureToken();
     final uri = _buildUri('/api/user/permissions');
-    final response = await _client.get(
-      uri,
-      headers: _authorizedHeaders(token),
-    );
+    final response = await _client.get(uri, headers: _authorizedHeaders(token));
 
     final payload = _handleResponse(response);
     var slugs = _extractSlugList(payload['slugs']);
@@ -275,9 +268,7 @@ class AuthService {
         final messages = <String>[];
         for (final value in errors.values) {
           if (value is List) {
-            messages.addAll(
-              value.whereType<String>(),
-            );
+            messages.addAll(value.whereType<String>());
           } else if (value is String) {
             messages.add(value);
           }
@@ -286,7 +277,8 @@ class AuthService {
           return messages.join('\n');
         }
       }
-      if (decoded['message'] is String && decoded['message'].trim().isNotEmpty) {
+      if (decoded['message'] is String &&
+          decoded['message'].trim().isNotEmpty) {
         return decoded['message'] as String;
       }
     }

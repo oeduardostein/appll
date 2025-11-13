@@ -4,6 +4,7 @@ import 'ui/pages/auth/forgot_password_request_page.dart';
 import 'ui/pages/auth/login_page.dart';
 import 'ui/pages/auth/register_page.dart';
 import 'ui/pages/home/home_page.dart';
+import 'ui/pages/profile/profile_page.dart';
 import 'ui/theme/app_theme.dart';
 
 void main() {
@@ -26,6 +27,7 @@ class FrontendApp extends StatelessWidget {
         ForgotPasswordRequestPage.routeName: (_) =>
             const ForgotPasswordRequestPage(),
         HomePage.routeName: (_) => const HomePage(),
+        ProfilePage.routeName: (_) => const ProfilePage(),
       },
     );
   }

@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\AccountDeletionController;
 use App\Http\Controllers\Api\Auth\AuthController;
 use App\Http\Controllers\Api\CaptchaController;
 use App\Http\Controllers\Api\CaptchaSolveController;
@@ -29,6 +30,7 @@ Route::prefix('auth')->group(function (): void {
     Route::post('login', [AuthController::class, 'login']);
     Route::get('user', [AuthController::class, 'current']);
     Route::post('logout', [AuthController::class, 'logout']);
+    Route::delete('delete-account', [AccountDeletionController::class, 'destroyAuthenticated']);
 });
 
 Route::get('captcha', CaptchaController::class);

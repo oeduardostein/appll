@@ -6,11 +6,13 @@ class HomeHeader extends StatelessWidget {
     required this.userName,
     this.monthlyCreditsLabel,
     this.onLogout,
+    this.onProfileTap,
   });
 
   final String userName;
   final String? monthlyCreditsLabel;
   final VoidCallback? onLogout;
+  final VoidCallback? onProfileTap;
 
   @override
   Widget build(BuildContext context) {
@@ -46,6 +48,15 @@ class HomeHeader extends StatelessWidget {
                 ),
               ),
               const Spacer(),
+              if (onProfileTap != null) ...[
+                IconButton(
+                  tooltip: 'Meu perfil',
+                  onPressed: onProfileTap,
+                  icon: const Icon(Icons.account_circle_outlined),
+                  color: Colors.white,
+                ),
+                const SizedBox(width: 8),
+              ],
               if (onLogout != null) ...[
                 OutlinedButton.icon(
                   onPressed: onLogout,
@@ -61,10 +72,7 @@ class HomeHeader extends StatelessWidget {
                       fontSize: 14,
                     ),
                   ),
-                  icon: const Icon(
-                    Icons.logout,
-                    size: 18,
-                  ),
+                  icon: const Icon(Icons.logout, size: 18),
                   label: const Text('Sair'),
                 ),
                 const SizedBox(width: 12),
