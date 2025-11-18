@@ -819,6 +819,13 @@
             </td>
             <td style="width: 120px;">
                 <div class="action-buttons">
+                    <button type="button" class="action-icon" title="Ver detalhes" data-action="view-details">
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
+                            <path d="M3 12s3.5-6 9-6 9 6 9 6-3.5 6-9 6-9-6-9-6Z" stroke="currentColor"
+                                stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" />
+                            <circle cx="12" cy="12" r="2.5" stroke="currentColor" stroke-width="1.6" />
+                        </svg>
+                    </button>
                     <button type="button" class="action-icon" title="Editar" data-action="edit-user">
                         <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
                             <path d="M12 20h9" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"
@@ -963,6 +970,7 @@
                     return '{{ url('/admin/users/bulk') }}';
                 },
             };
+            const detailsBaseUrl = '{{ url('/admin/clientes') }}';
 
             function buildPermissionOptions(container, prefix) {
                 if (!container) {
@@ -1248,6 +1256,13 @@
                 const editButton = row.querySelector('[data-action="edit-user"]');
                 if (editButton) {
                     editButton.addEventListener('click', () => openEditModal(user));
+                }
+
+                const detailsButton = row.querySelector('[data-action="view-details"]');
+                if (detailsButton) {
+                    detailsButton.addEventListener('click', () => {
+                        window.location.href = `${detailsBaseUrl}/${user.id}`;
+                    });
                 }
 
                 const deleteButton = row.querySelector('[data-action="delete-user"]');

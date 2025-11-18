@@ -393,10 +393,12 @@ class ReportController extends Controller
 
     private function buildPeriodLabel(string $period, Carbon $start, Carbon $end): string
     {
-        $locale = app()->getLocale() ?: 'pt_BR';
+        $locale = 'pt_BR';
 
         return match ($period) {
-            'day' => $start->copy()->locale($locale)->translatedFormat('d \\d\\e F \\d\\e Y'),
+            'day' => Str::ucfirst(
+                $start->copy()->locale($locale)->translatedFormat('d \\d\\e F \\d\\e Y')
+            ),
             'week' => sprintf(
                 'Semana %02d (%s a %s)',
                 $start->isoWeek(),
@@ -404,7 +406,9 @@ class ReportController extends Controller
                 $end->copy()->locale($locale)->translatedFormat('d/m')
             ),
             'year' => $start->format('Y'),
-            default => $start->copy()->locale($locale)->translatedFormat('F \\d\\e Y'),
+            default => Str::ucfirst(
+                $start->copy()->locale($locale)->translatedFormat('F \\d\\e Y')
+            ),
         };
     }
 }

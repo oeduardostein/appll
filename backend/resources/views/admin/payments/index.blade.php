@@ -2,9 +2,9 @@
 
 @section('content')
     @php
-        $locale = app()->getLocale() ?: 'pt_BR';
-        $monthLabelRaw = $selectedMonth->clone()->locale($locale)->isoFormat('MMMM [de] YYYY');
-        $monthLabel = Illuminate\Support\Str::ucfirst(Illuminate\Support\Str::lower($monthLabelRaw));
+        $locale = 'pt_BR';
+        $monthLabelRaw = $selectedMonth->clone()->locale($locale)->translatedFormat('F \\d\\e Y');
+        $monthLabel = Illuminate\Support\Str::ucfirst($monthLabelRaw);
     @endphp
 
     <style>
