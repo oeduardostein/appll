@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api;
 
 use App\Models\AtpvRequest;
+use App\Support\CreditValueResolver;
 use App\Support\DetranHtmlParser;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -85,6 +86,8 @@ class EmitirAtpvController extends BaseAtpvController
             );
         }
 
+        $resolver = CreditValueResolver::forUser($user);
+
         $attributes = [
             'user_id' => $user->id,
             'renavam' => $data['renavam'],
@@ -105,6 +108,7 @@ class EmitirAtpvController extends BaseAtpvController
             'numero_comprador' => $data['numero_comprador'] ?? null,
             'complemento_comprador' => $data['complemento_comprador'] ?? null,
             'status' => 'pending',
+            'credit_value' => $resolver->resolveBySlug('atpv'),
         ];
 
         if (Schema::hasColumn('atpv_requests', 'opcao_pesquisa_proprietario')) {

@@ -134,6 +134,11 @@
             color: var(--text-muted);
         }
 
+        .detail-summary__amount {
+            font-weight: 600;
+            color: var(--brand-primary);
+        }
+
         .credit-breakdown {
             padding: 28px 32px;
         }
@@ -215,6 +220,12 @@
         .credit-breakdown__count span {
             font-size: 13px;
             color: var(--text-muted);
+        }
+
+        .credit-breakdown__amount {
+            font-size: 14px;
+            color: var(--brand-primary);
+            font-weight: 600;
         }
 
         .credit-breakdown__empty {
@@ -341,6 +352,10 @@
         }
     </style>
 
+    @php
+        $formatCurrency = static fn (float $value): string => 'R$ ' . number_format($value, 2, ',', '.');
+    @endphp
+
     <a class="detail-back-link" href="{{ route('admin.clients.index') }}">
         <svg viewBox="0 0 24 24" fill="none">
             <path d="M15 19l-7-7 7-7" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"
@@ -405,6 +420,9 @@
                 <span>{{ $card['label'] }}</span>
                 <h3>{{ number_format($card['value'], 0, ',', '.') }}</h3>
                 <span>{{ $card['description'] }}</span>
+                @if (array_key_exists('amount', $card))
+                    <span class="detail-summary__amount">{{ $formatCurrency((float) $card['amount']) }}</span>
+                @endif
             </article>
         @endforeach
     </section>
@@ -419,6 +437,7 @@
                 <span>Total</span>
                 <strong>{{ number_format($totalCredits, 0, ',', '.') }}</strong>
                 <span>{{ \Illuminate\Support\Str::plural('crédito', $totalCredits) }} utilizados</span>
+                <span class="credit-breakdown__amount">{{ $formatCurrency((float) $totalAmount) }}</span>
             </div>
         </header>
 
@@ -429,6 +448,7 @@
                     <div class="credit-breakdown__count">
                         <strong>{{ number_format($item['count'], 0, ',', '.') }}</strong>
                         <span>{{ $item['count'] === 1 ? 'crédito' : 'créditos' }}</span>
+                        <span class="credit-breakdown__amount">{{ $formatCurrency((float) ($item['amount'] ?? 0)) }}</span>
                     </div>
                 </li>
             @empty

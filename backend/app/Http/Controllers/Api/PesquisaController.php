@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Models\Pesquisa;
 use App\Models\User;
+use App\Support\CreditValueResolver;
 use Carbon\Carbon;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -92,8 +93,11 @@ class PesquisaController extends Controller
             'opcao_pesquisa' => ['nullable', 'string', 'max:10'],
         ]);
 
+        $resolver = CreditValueResolver::forUser($user);
+
         $pesquisa = Pesquisa::create([
             'user_id' => $user->id,
+            'credit_value' => $resolver->resolveForPesquisa($data['nome']),
             ...$data,
         ]);
 

@@ -5,6 +5,7 @@
         $locale = 'pt_BR';
         $monthLabelRaw = $selectedMonth->clone()->locale($locale)->translatedFormat('F \\d\\e Y');
         $monthLabel = Illuminate\Support\Str::ucfirst($monthLabelRaw);
+        $formatCurrency = static fn (float $value): string => 'R$ ' . number_format($value, 2, ',', '.');
     @endphp
 
     <style>
@@ -164,6 +165,13 @@
         .credit-management__user-status--inactive {
             background: rgba(239, 68, 68, 0.16);
             color: #b91c1c;
+        }
+
+        .credit-management__amount {
+            display: block;
+            margin-top: 4px;
+            font-weight: 600;
+            color: var(--brand-primary);
         }
 
         .credit-management__actions {
@@ -358,6 +366,9 @@
                         <td>
                             <strong>{{ $user->monthly_credits_used }}</strong>
                             <span style="font-size: 13px; color: var(--text-muted); display: block;">créditos utilizados</span>
+                            @if (($user->monthly_amount_used ?? 0) > 0)
+                                <span class="credit-management__amount">{{ $formatCurrency((float) $user->monthly_amount_used) }}</span>
+                            @endif
                         </td>
                         <td>
                             @if ($user->effective_payment_status === 'pending')

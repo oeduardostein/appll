@@ -650,60 +650,6 @@
         </div>
     </div>
 
-    <div class="admin-modal" data-modal="edit" aria-hidden="true">
-        <div class="admin-modal__backdrop" data-modal-close></div>
-        <div class="admin-modal__panel admin-modal__panel--wide" role="dialog" aria-modal="true" aria-labelledby="edit-user-title">
-            <header class="admin-modal__header">
-                <h2 id="edit-user-title">Editar usuário</h2>
-                <button type="button" class="admin-modal__close" data-modal-close aria-label="Fechar">×</button>
-            </header>
-
-            <form id="edit-user-form" class="admin-modal__form">
-                <div class="admin-field">
-                    <label for="edit-user-name">Nome completo</label>
-                    <input id="edit-user-name" name="name" type="text" required />
-                </div>
-
-                <div class="admin-field">
-                    <label for="edit-user-email">E-mail</label>
-                    <input id="edit-user-email" name="email" type="email" required />
-                </div>
-
-                <div class="admin-field">
-                    <label for="edit-user-password">Senha</label>
-                    <input id="edit-user-password" name="password" type="password" placeholder="Deixe em branco para manter" />
-                </div>
-
-                <div class="admin-field">
-                    <label for="edit-user-status">Status</label>
-                    <select id="edit-user-status" name="is_active" required>
-                        <option value="1">Ativo</option>
-                        <option value="0">Inativo</option>
-                    </select>
-                </div>
-
-                <div class="admin-field">
-                    <label>Permissões de acesso</label>
-                    <div class="admin-permissions-grid" data-edit-permissions></div>
-                </div>
-
-                <p class="admin-modal__hint">
-                    Último acesso registrado:
-                    <strong data-edit-last-access>—</strong>
-                </p>
-
-                <div class="form-feedback" data-form-error="edit"></div>
-
-                <div class="admin-modal__actions">
-                    <button type="button" class="admin-button admin-button--ghost" data-modal-close>Cancelar</button>
-                    <button type="submit" class="admin-button admin-button--primary" data-submit-label="Atualizar usuário">
-                        Atualizar usuário
-                    </button>
-                </div>
-            </form>
-        </div>
-    </div>
-
     <div class="admin-modal" data-modal="delete" aria-hidden="true">
         <div class="admin-modal__backdrop" data-modal-close></div>
         <div class="admin-modal__panel" role="dialog" aria-modal="true" aria-labelledby="delete-user-title">
@@ -905,16 +851,13 @@
                 searchInput: document.querySelector('[data-search-input]'),
                 searchForm: document.querySelector('[data-search-form]'),
                 createModal: document.querySelector('[data-modal="create"]'),
-                editModal: document.querySelector('[data-modal="edit"]'),
                 deleteModal: document.querySelector('[data-modal="delete"]'),
                 filterModal: document.querySelector('[data-modal="filters"]'),
                 createForm: document.getElementById('create-user-form'),
-                editForm: document.getElementById('edit-user-form'),
                 deleteForm: document.getElementById('delete-user-form'),
                 filterForm: document.getElementById('filter-users-form'),
                 filterSummary: document.querySelector('[data-filter-summary]'),
                 resetFiltersButton: document.querySelector('[data-action="reset-filters"]'),
-                editLastAccess: document.querySelector('[data-edit-last-access]'),
                 deleteUserName: document.querySelector('[data-delete-user-name]'),
                 deleteUserEmail: document.querySelector('[data-delete-user-email]'),
                 bulkStatusButton: document.querySelector('[data-action="bulk-status"]'),
@@ -924,11 +867,9 @@
                 bulkStatusCount: document.querySelector('[data-bulk-status-count]'),
                 bulkDeleteCount: document.querySelector('[data-bulk-delete-count]'),
                 createPermissionsContainer: document.querySelector('[data-create-permissions]'),
-                editPermissionsContainer: document.querySelector('[data-edit-permissions]'),
                 toastContainer: document.querySelector('[data-toast-container]'),
             };
 
-            let currentUser = null;
             let userToDelete = null;
             let searchTimer = null;
 
@@ -971,6 +912,7 @@
                 },
             };
             const detailsBaseUrl = '{{ url('/admin/clientes') }}';
+            const editBaseUrl = '{{ url('/admin/clientes') }}';
 
             function buildPermissionOptions(container, prefix) {
                 if (!container) {
@@ -1034,7 +976,6 @@
             }
 
             buildPermissionOptions(elements.createPermissionsContainer, 'create');
-            buildPermissionOptions(elements.editPermissionsContainer, 'edit');
 
             function formatUserCount(count) {
                 return `${count} usuário${count === 1 ? '' : 's'} selecionado${count === 1 ? '' : 's'}`;
@@ -1255,7 +1196,9 @@
 
                 const editButton = row.querySelector('[data-action="edit-user"]');
                 if (editButton) {
-                    editButton.addEventListener('click', () => openEditModal(user));
+                    editButton.addEventListener('click', () => {
+                        window.location.href = `${editBaseUrl}/${user.id}/editar`;
+                    });
                 }
 
                 const detailsButton = row.querySelector('[data-action="view-details"]');
@@ -1408,30 +1351,6 @@
                 setPermissionSelections(elements.createPermissionsContainer, []);
             }
 
-            function openEditModal(user) {
-                currentUser = user;
-                if (!elements.editForm) {
-                    return;
-                }
-
-                elements.editForm.reset();
-                elements.editForm.querySelector('[name="name"]').value = user.name ?? '';
-                elements.editForm.querySelector('[name="email"]').value = user.email ?? '';
-                elements.editForm.querySelector('[name="is_active"]').value = user.is_active ? '1' : '0';
-                const passwordField = elements.editForm.querySelector('[name="password"]');
-                if (passwordField) {
-                    passwordField.value = '';
-                }
-
-                if (elements.editLastAccess) {
-                    elements.editLastAccess.textContent = user.last_login_label ?? 'Nunca acessou';
-                }
-                setPermissionSelections(elements.editPermissionsContainer, user.permission_ids ?? []);
-
-                setFormError('edit', '');
-                openModal('edit');
-            }
-
             function openDeleteModal(user) {
                 userToDelete = user;
 
@@ -1494,53 +1413,6 @@
                     showNotification('error', error.message ?? 'Não foi possível criar o usuário.');
                 } finally {
                     setSubmitting(elements.createForm, false);
-                }
-            });
-
-            elements.editForm?.addEventListener('submit', async (event) => {
-                event.preventDefault();
-                if (!currentUser) {
-                    return;
-                }
-
-                setFormError('edit', '');
-                const formData = new FormData(elements.editForm);
-                const payload = {
-                    name: String(formData.get('name') ?? '').trim(),
-                    email: String(formData.get('email') ?? '').trim(),
-                    is_active: formData.get('is_active') === '1',
-                    permissions: getSelectedPermissions(elements.editPermissionsContainer),
-                };
-
-                const password = String(formData.get('password') ?? '');
-                if (password !== '') {
-                    payload.password = password;
-                }
-
-                if (currentUser.last_login_at) {
-                    payload.last_login_at = currentUser.last_login_at;
-                }
-
-                setSubmitting(elements.editForm, true);
-
-                try {
-                    await handleRequest(endpoints.update(currentUser.id), {
-                        method: 'PUT',
-                        body: JSON.stringify(payload),
-                    });
-                    closeModal('edit');
-                    await fetchUsers(state.pagination.current_page);
-                    showNotification('success', 'Usuário atualizado com sucesso.');
-                } catch (error) {
-                    if (error.details) {
-                        const firstError = Object.values(error.details)[0];
-                        setFormError('edit', Array.isArray(firstError) ? firstError[0] : String(firstError));
-                    } else {
-                        setFormError('edit', error.message);
-                    }
-                    showNotification('error', error.message ?? 'Não foi possível atualizar o usuário.');
-                } finally {
-                    setSubmitting(elements.editForm, false);
                 }
             });
 

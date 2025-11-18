@@ -37,6 +37,7 @@ class AtpvRequest extends Model
         'assinatura_registrada_em',
         'response_payload',
         'response_errors',
+        'credit_value',
     ];
 
     protected $casts = [
@@ -44,6 +45,7 @@ class AtpvRequest extends Model
         'response_errors' => 'array',
         'assinatura_digital' => 'boolean',
         'assinatura_registrada_em' => 'datetime',
+        'credit_value' => 'decimal:2',
     ];
 
     public function user(): BelongsTo

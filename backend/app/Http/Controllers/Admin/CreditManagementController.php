@@ -31,7 +31,26 @@ class CreditManagementController extends Controller
                         ->where('created_at', '>=', $startOfMonth)
                         ->where('created_at', '<=', $endOfMonth);
                 },
+                'atpvRequests as monthly_atpv_count' => function (Builder $query) use ($startOfMonth, $endOfMonth): void {
+                    $query
+                        ->where('created_at', '>=', $startOfMonth)
+                        ->where('created_at', '<=', $endOfMonth);
+                },
             ])
+            ->withSum([
+                'pesquisas as monthly_credits_amount' => function (Builder $query) use ($startOfMonth, $endOfMonth): void {
+                    $query
+                        ->where('created_at', '>=', $startOfMonth)
+                        ->where('created_at', '<=', $endOfMonth);
+                },
+            ], 'credit_value')
+            ->withSum([
+                'atpvRequests as monthly_atpv_amount' => function (Builder $query) use ($startOfMonth, $endOfMonth): void {
+                    $query
+                        ->where('created_at', '>=', $startOfMonth)
+                        ->where('created_at', '<=', $endOfMonth);
+                },
+            ], 'credit_value')
             ->withExists([
                 'payments as has_paid' => function (Builder $query) use ($startOfMonth): void {
                     $query
@@ -42,7 +61,8 @@ class CreditManagementController extends Controller
             ->orderBy('name')
             ->get();
         $users = $users->map(function ($user) {
-            $credits = (int) $user->monthly_credits_used;
+            $credits = (int) $user->monthly_credits_used + (int) ($user->monthly_atpv_count ?? 0);
+            $amount = (float) ($user->monthly_credits_amount ?? 0) + (float) ($user->monthly_atpv_amount ?? 0);
             $hasPending = ! (bool) $user->has_paid && $credits > 0;
             $status = match (true) {
                 $hasPending => 'pending',
@@ -52,6 +72,8 @@ class CreditManagementController extends Controller
 
             $user->setAttribute('has_pending_payment', $hasPending);
             $user->setAttribute('effective_payment_status', $status);
+            $user->setAttribute('monthly_credits_used', $credits);
+            $user->setAttribute('monthly_amount_used', $amount);
 
             return $user;
         });
@@ -63,6 +85,7 @@ class CreditManagementController extends Controller
                     $user->name,
                     $user->email,
                     (string) $user->monthly_credits_used,
+                    number_format((float) ($user->monthly_amount_used ?? 0), 2, ',', '.'),
                     $user->is_active ? 'ativo' : 'inativo',
                     match ($user->effective_payment_status) {
                         'pending' => 'pendente',

@@ -66,10 +66,19 @@
             font-size: 13px;
             border-top: 2px solid #d1d5db;
         }
+
+        .summary-card__amount {
+            font-weight: 600;
+            color: #2563eb;
+        }
     </style>
 </head>
 
 <body>
+    @php
+        $formatCurrency = static fn (float $value): string => 'R$ ' . number_format($value, 2, ',', '.');
+    @endphp
+
     <h1>Relatório de créditos</h1>
     <p class="subtitle">
         Cliente {{ $user->name }} — {{ $selectedMonthLabel }}
@@ -81,6 +90,9 @@
                 <strong>{{ number_format($card['value'], 0, ',', '.') }}</strong>
                 <div>{{ $card['label'] }}</div>
                 <small>{{ $card['description'] }}</small>
+                @if (array_key_exists('amount', $card))
+                    <small class="summary-card__amount">{{ $formatCurrency((float) $card['amount']) }}</small>
+                @endif
             </div>
         @endforeach
     </div>
@@ -90,6 +102,7 @@
             <tr>
                 <th>Serviço</th>
                 <th style="width: 160px;">Créditos utilizados</th>
+                <th style="width: 180px;">Valor total (R$)</th>
             </tr>
         </thead>
         <tbody>
@@ -97,10 +110,11 @@
                 <tr>
                     <td>{{ $item['label'] }}</td>
                     <td>{{ number_format($item['count'], 0, ',', '.') }}</td>
+                    <td>{{ $formatCurrency((float) ($item['amount'] ?? 0)) }}</td>
                 </tr>
             @empty
                 <tr>
-                    <td colspan="2">Nenhum crédito utilizado no período informado.</td>
+                    <td colspan="3">Nenhum crédito utilizado no período informado.</td>
                 </tr>
             @endforelse
         </tbody>
@@ -108,6 +122,7 @@
             <tr>
                 <td>Total</td>
                 <td>{{ number_format($totalCredits, 0, ',', '.') }}</td>
+                <td>{{ $formatCurrency((float) $totalAmount) }}</td>
             </tr>
         </tfoot>
     </table>

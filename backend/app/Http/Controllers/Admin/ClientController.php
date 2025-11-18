@@ -53,7 +53,7 @@ class ClientController extends Controller
 
         $permissions = Permission::query()
             ->orderBy('name')
-            ->get(['id', 'name', 'slug']);
+            ->get(['id', 'name', 'slug', 'default_credit_value']);
 
         return view('admin.clients.index', [
             'stats' => $statCards,
@@ -83,6 +83,32 @@ class ClientController extends Controller
             'creditSummary' => $report['creditSummary'],
             'creditBreakdown' => $report['creditBreakdown'],
             'totalCredits' => $report['totalCredits'],
+            'totalAmount' => $report['totalAmount'],
+        ]);
+    }
+
+    public function edit(User $user): View
+    {
+        $user->load([
+            'permissions:id,name,slug,default_credit_value',
+        ]);
+
+        $permissions = Permission::query()
+            ->orderBy('name')
+            ->get(['id', 'name', 'slug', 'default_credit_value']);
+
+        $permissionValues = $user->permissions
+            ->mapWithKeys(static function ($permission) {
+                $value = $permission->pivot?->credit_value ?? $permission->default_credit_value;
+
+                return [$permission->id => $value !== null ? (float) $value : null];
+            })
+            ->all();
+
+        return view('admin.clients.edit', [
+            'user' => $user,
+            'permissions' => $permissions,
+            'permissionValues' => $permissionValues,
         ]);
     }
 
@@ -109,6 +135,7 @@ class ClientController extends Controller
                 'creditSummary' => $report['creditSummary'],
                 'creditBreakdown' => $report['creditBreakdown'],
                 'totalCredits' => $report['totalCredits'],
+                'totalAmount' => $report['totalAmount'],
             ])->setPaper('a4', 'portrait');
 
             return $pdf->download($filenameBase . '.pdf');
@@ -121,14 +148,15 @@ class ClientController extends Controller
             fputcsv($handle, ['Cliente', $user->name], ';');
             fputcsv($handle, ['Período', $periodLabel], ';');
             fputcsv($handle, []);
-            fputcsv($handle, ['Serviço', 'Créditos utilizados'], ';');
+            fputcsv($handle, ['Serviço', 'Créditos utilizados', 'Valor total (R$)'], ';');
 
             foreach ($breakdown as $item) {
-                fputcsv($handle, [$item['label'], $item['count']], ';');
+                $amount = number_format((float) ($item['amount'] ?? 0), 2, ',', '.');
+                fputcsv($handle, [$item['label'], $item['count'], $amount], ';');
             }
 
             fputcsv($handle, []);
-            fputcsv($handle, ['Total', $report['totalCredits']], ';');
+            fputcsv($handle, ['Total', $report['totalCredits'], number_format($report['totalAmount'], 2, ',', '.')], ';');
             fclose($handle);
         }, $filenameBase . '.csv', [
             'Content-Type' => 'text/csv; charset=UTF-8',
@@ -199,8 +227,9 @@ class ClientController extends Controller
     /**
      * @return array{
      *     creditSummary: array<int, array<string, mixed>>,
-     *     creditBreakdown: array<int, array<string, int|string>>,
-     *     totalCredits: int
+     *     creditBreakdown: array<int, array<string, int|string|float>>,
+     *     totalCredits: int,
+     *     totalAmount: float
      * }
      */
     private function buildCreditReport(User $user, Carbon $selectedMonth): array
@@ -209,7 +238,7 @@ class ClientController extends Controller
         $periodEnd = $selectedMonth->copy()->endOfMonth();
 
         $pesquisaBreakdown = $user->pesquisas()
-            ->selectRaw('nome, COUNT(*) as total')
+            ->selectRaw('nome, COUNT(*) as total, COALESCE(SUM(credit_value), 0) as total_amount')
             ->whereBetween('created_at', [$periodStart, $periodEnd])
             ->groupBy('nome')
             ->orderByDesc('total')
@@ -217,28 +246,40 @@ class ClientController extends Controller
             ->map(static fn ($row) => [
                 'label' => (string) $row->nome,
                 'count' => (int) $row->total,
+                'amount' => (float) $row->total_amount,
             ]);
 
         $namedCounts = $pesquisaBreakdown
             ->keyBy('label')
             ->map(static fn (array $item) => (int) $item['count']);
 
-        $atpvCount = $user->atpvRequests()
+        $atpvStats = $user->atpvRequests()
             ->whereBetween('created_at', [$periodStart, $periodEnd])
-            ->count();
+            ->selectRaw('COUNT(*) as total, COALESCE(SUM(credit_value), 0) as total_amount')
+            ->first();
+
+        $atpvCount = (int) ($atpvStats?->total ?? 0);
+        $atpvAmount = (float) ($atpvStats?->total_amount ?? 0.0);
 
         $creditBreakdown = $pesquisaBreakdown->values()->all();
         if ($atpvCount > 0) {
             $creditBreakdown[] = [
                 'label' => 'Emissão da ATPV-e',
                 'count' => $atpvCount,
+                'amount' => $atpvAmount,
             ];
         }
 
         $totalFromPesquisas = $pesquisaBreakdown->sum('count');
         $totalCredits = $totalFromPesquisas + $atpvCount;
+        $totalAmount = $pesquisaBreakdown->sum('amount') + $atpvAmount;
         $baseCount = $namedCounts->get('Base estadual', 0) + $namedCounts->get('Base outros estados', 0);
         $crlvCount = $namedCounts->get('Emissão do CRLV-e', 0);
+
+        $crlvRow = $pesquisaBreakdown->firstWhere('label', 'Emissão do CRLV-e');
+        $baseAmount = $pesquisaBreakdown
+            ->filter(fn ($item) => in_array($item['label'], ['Base estadual', 'Base outros estados'], true))
+            ->sum(fn ($item) => (float) $item['amount']);
 
         $summaryCards = [
             [
@@ -246,24 +287,28 @@ class ClientController extends Controller
                 'label' => 'Total de créditos',
                 'value' => $totalCredits,
                 'description' => 'Créditos utilizados no período',
+                'amount' => $totalAmount,
             ],
             [
                 'key' => 'crlv',
                 'label' => 'CRLV-e',
                 'value' => $crlvCount,
                 'description' => 'Emissões registradas',
+                'amount' => (float) ($crlvRow['amount'] ?? 0.0),
             ],
             [
                 'key' => 'base',
                 'label' => 'Bases estaduais',
                 'value' => $baseCount,
                 'description' => 'Consultas nas bases estadual e outros estados',
+                'amount' => $baseAmount,
             ],
             [
                 'key' => 'atpv',
                 'label' => 'ATPV-e',
                 'value' => $atpvCount,
                 'description' => 'Solicitações processadas',
+                'amount' => $atpvAmount,
             ],
         ];
 
@@ -271,6 +316,7 @@ class ClientController extends Controller
             'creditSummary' => $summaryCards,
             'creditBreakdown' => $creditBreakdown,
             'totalCredits' => $totalCredits,
+            'totalAmount' => $totalAmount,
         ];
     }
 }

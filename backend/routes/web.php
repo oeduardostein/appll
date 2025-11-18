@@ -31,6 +31,7 @@ Route::prefix('admin')->name('admin.')->group(function () {
     Route::middleware('admin.auth')->group(function () {
         Route::get('/clientes', [ClientController::class, 'index'])->name('clients.index');
         Route::get('/clientes/{user}', [ClientController::class, 'show'])->name('clients.show');
+        Route::get('/clientes/{user}/editar', [ClientController::class, 'edit'])->name('clients.edit');
         Route::post('/clientes/{user}/exportar', [ClientController::class, 'export'])->name('clients.export');
         Route::get('/relatorios', [ReportController::class, 'index'])->name('reports.index');
         Route::get('/relatorios/exportar', [ReportController::class, 'export'])->name('reports.export');

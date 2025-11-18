@@ -16,6 +16,14 @@ class Permission extends Model
     protected $fillable = [
         'name',
         'slug',
+        'default_credit_value',
+    ];
+
+    /**
+     * @var array<string, string>
+     */
+    protected $casts = [
+        'default_credit_value' => 'decimal:2',
     ];
 
     /**

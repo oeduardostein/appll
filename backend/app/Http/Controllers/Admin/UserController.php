@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
 use App\Http\Resources\Admin\UserResource;
+use App\Models\Permission;
 use App\Models\User;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\JsonResponse;
@@ -82,13 +83,15 @@ class UserController extends Controller
             'last_login_at' => ['nullable', 'date'],
             'permissions' => ['nullable', 'array'],
             'permissions.*' => ['integer', Rule::exists('permissions', 'id')],
+            'permission_credit_values' => ['nullable', 'array'],
+            'permission_credit_values.*' => ['nullable', 'numeric', 'min:0', 'max:100000'],
         ]);
 
         $user = new User();
         $user->fill(Arr::only($validated, ['name', 'email', 'is_active', 'last_login_at']));
         $user->password = $validated['password'];
         $user->save();
-        $this->syncPermissions($user, $validated['permissions'] ?? []);
+        $this->syncPermissions($user, $validated['permissions'] ?? [], $validated['permission_credit_values'] ?? []);
         $user->load('permissions');
 
         return (new UserResource($user))
@@ -106,6 +109,8 @@ class UserController extends Controller
             'last_login_at' => ['nullable', 'date'],
             'permissions' => ['nullable', 'array'],
             'permissions.*' => ['integer', Rule::exists('permissions', 'id')],
+            'permission_credit_values' => ['nullable', 'array'],
+            'permission_credit_values.*' => ['nullable', 'numeric', 'min:0', 'max:100000'],
         ]);
 
         $payload = Arr::only($validated, ['name', 'email', 'is_active', 'last_login_at']);
@@ -117,7 +122,7 @@ class UserController extends Controller
         }
 
         $user->save();
-        $this->syncPermissions($user, $validated['permissions'] ?? []);
+        $this->syncPermissions($user, $validated['permissions'] ?? [], $validated['permission_credit_values'] ?? []);
         $user->load('permissions');
 
         return (new UserResource($user))->response();
@@ -247,8 +252,9 @@ class UserController extends Controller
 
     /**
      * @param array<int, int|string> $permissionIds
+     * @param array<int|string, mixed> $permissionValues
      */
-    private function syncPermissions(User $user, array $permissionIds): void
+    private function syncPermissions(User $user, array $permissionIds, array $permissionValues = []): void
     {
         $ids = collect($permissionIds)
             ->map(static fn ($id) => (int) $id)
@@ -257,6 +263,37 @@ class UserController extends Controller
             ->values()
             ->all();
 
-        $user->permissions()->sync($ids);
+        if (empty($ids)) {
+            $user->permissions()->sync([]);
+
+            return;
+        }
+
+        $valueMap = collect($permissionValues)
+            ->mapWithKeys(static function ($value, $key): array {
+                $id = (int) $key;
+                if ($id <= 0) {
+                    return [];
+                }
+
+                if ($value === null || $value === '') {
+                    return [];
+                }
+
+                return [$id => round((float) $value, 2)];
+            });
+
+        $defaults = Permission::query()
+            ->whereIn('id', $ids)
+            ->pluck('default_credit_value', 'id');
+
+        $payload = [];
+        foreach ($ids as $id) {
+            $payload[$id] = [
+                'credit_value' => $valueMap->get($id, $defaults->get($id)),
+            ];
+        }
+
+        $user->permissions()->sync($payload);
     }
 }

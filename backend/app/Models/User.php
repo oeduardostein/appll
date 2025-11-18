@@ -83,6 +83,9 @@ class User extends Authenticatable
      */
     public function permissions(): BelongsToMany
     {
-        return $this->belongsToMany(Permission::class, 'user_permissions')->withTimestamps();
+        return $this
+            ->belongsToMany(Permission::class, 'user_permissions')
+            ->withTimestamps()
+            ->withPivot(['credit_value']);
     }
 }

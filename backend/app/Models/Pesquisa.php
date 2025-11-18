@@ -17,6 +17,11 @@ class Pesquisa extends Model
         'renavam',
         'chassi',
         'opcao_pesquisa',
+        'credit_value',
+    ];
+
+    protected $casts = [
+        'credit_value' => 'decimal:2',
     ];
 
     public function user(): BelongsTo
@@ -24,4 +29,3 @@ class Pesquisa extends Model
         return $this->belongsTo(User::class);
     }
 }
-
