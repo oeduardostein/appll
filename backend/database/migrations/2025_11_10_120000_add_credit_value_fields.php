@@ -10,7 +10,7 @@ return new class extends Migration {
     {
         Schema::table('permissions', function (Blueprint $table): void {
             if (! Schema::hasColumn('permissions', 'default_credit_value')) {
-                $table->unsignedDecimal('default_credit_value', 8, 2)
+                $table->decimal('default_credit_value', 8, 2)
                     ->default(0)
                     ->after('slug');
             }
@@ -18,7 +18,7 @@ return new class extends Migration {
 
         Schema::table('user_permissions', function (Blueprint $table): void {
             if (! Schema::hasColumn('user_permissions', 'credit_value')) {
-                $table->unsignedDecimal('credit_value', 8, 2)
+                $table->decimal('credit_value', 8, 2)
                     ->nullable()
                     ->after('permission_id');
             }
@@ -26,7 +26,7 @@ return new class extends Migration {
 
         Schema::table('pesquisas', function (Blueprint $table): void {
             if (! Schema::hasColumn('pesquisas', 'credit_value')) {
-                $table->unsignedDecimal('credit_value', 8, 2)
+                $table->decimal('credit_value', 8, 2)
                     ->default(0)
                     ->after('opcao_pesquisa');
             }
@@ -34,7 +34,7 @@ return new class extends Migration {
 
         Schema::table('atpv_requests', function (Blueprint $table): void {
             if (! Schema::hasColumn('atpv_requests', 'credit_value')) {
-                $table->unsignedDecimal('credit_value', 8, 2)
+                $table->decimal('credit_value', 8, 2)
                     ->default(0)
                     ->after('status');
             }
