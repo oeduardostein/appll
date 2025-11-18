@@ -11,6 +11,7 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Arr;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
 use Symfony\Component\HttpFoundation\Response;
 
@@ -111,6 +112,7 @@ class UserController extends Controller
             'permissions.*' => ['integer', Rule::exists('permissions', 'id')],
             'permission_credit_values' => ['nullable', 'array'],
             'permission_credit_values.*' => ['nullable', 'numeric', 'min:0', 'max:100000'],
+            'redirect_to' => ['nullable', 'url'],
         ]);
 
         $payload = Arr::only($validated, ['name', 'email', 'is_active', 'last_login_at']);
@@ -124,6 +126,14 @@ class UserController extends Controller
         $user->save();
         $this->syncPermissions($user, $validated['permissions'] ?? [], $validated['permission_credit_values'] ?? []);
         $user->load('permissions');
+
+        if ($redirect = $validated['redirect_to'] ?? null) {
+            if (! Str::startsWith($redirect, url('/'))) {
+                $redirect = route('admin.clients.show', $user);
+            }
+
+            return redirect($redirect)->with('status', 'Usuário atualizado com sucesso.');
+        }
 
         return (new UserResource($user))->response();
     }

@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Http\Resources\Admin\UserResource;
 use App\Models\Permission;
 use App\Models\User;
+use App\Support\CreditValueResolver;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
@@ -237,17 +238,32 @@ class ClientController extends Controller
         $periodStart = $selectedMonth->copy()->startOfMonth();
         $periodEnd = $selectedMonth->copy()->endOfMonth();
 
+        $resolver = CreditValueResolver::forUser($user);
+
         $pesquisaBreakdown = $user->pesquisas()
             ->selectRaw('nome, COUNT(*) as total, COALESCE(SUM(credit_value), 0) as total_amount')
             ->whereBetween('created_at', [$periodStart, $periodEnd])
             ->groupBy('nome')
             ->orderByDesc('total')
             ->get()
-            ->map(static fn ($row) => [
-                'label' => (string) $row->nome,
-                'count' => (int) $row->total,
-                'amount' => (float) $row->total_amount,
-            ]);
+            ->map(function ($row) use ($resolver) {
+                $label = (string) $row->nome;
+                $count = (int) $row->total;
+                $amount = (float) $row->total_amount;
+
+                if ($amount <= 0 && $count > 0) {
+                    $slug = CreditValueResolver::slugFromPesquisaNome($label);
+                    if ($slug !== null) {
+                        $amount = $resolver->resolveBySlug($slug) * $count;
+                    }
+                }
+
+                return [
+                    'label' => $label,
+                    'count' => $count,
+                    'amount' => $amount,
+                ];
+            });
 
         $namedCounts = $pesquisaBreakdown
             ->keyBy('label')
@@ -260,6 +276,9 @@ class ClientController extends Controller
 
         $atpvCount = (int) ($atpvStats?->total ?? 0);
         $atpvAmount = (float) ($atpvStats?->total_amount ?? 0.0);
+        if ($atpvAmount <= 0 && $atpvCount > 0) {
+            $atpvAmount = $resolver->resolveBySlug('atpv') * $atpvCount;
+        }
 
         $creditBreakdown = $pesquisaBreakdown->values()->all();
         if ($atpvCount > 0) {

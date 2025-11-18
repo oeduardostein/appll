@@ -239,6 +239,7 @@
             <form method="POST" action="{{ route('admin.users.update', $user) }}">
                 @csrf
                 @method('PUT')
+                <input type="hidden" name="redirect_to" value="{{ route('admin.clients.show', $user) }}">
 
                 <div class="form-grid">
                     <div class="admin-field">
