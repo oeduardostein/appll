@@ -8,6 +8,7 @@ use App\Models\Permission;
 use App\Models\User;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Arr;
 use Illuminate\Support\Carbon;
@@ -100,7 +101,7 @@ class UserController extends Controller
             ->setStatusCode(Response::HTTP_CREATED);
     }
 
-    public function update(Request $request, User $user): JsonResponse
+    public function update(Request $request, User $user): JsonResponse|RedirectResponse
     {
         $validated = $request->validate([
             'name' => ['required', 'string', 'max:255'],
