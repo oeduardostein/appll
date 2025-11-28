@@ -1059,18 +1059,20 @@
         }
 
         function buildInfoRows(source, labels) {
-            if (!source) return '';
+            if (!source || typeof source !== 'object') return '';
             let html = '';
             for (const [key, label] of Object.entries(labels)) {
                 const value = source[key];
-                const formatted = formatDisplayValue(value);
-                if (formatted !== '—') {
-                    html += `
-                        <div class="info-row">
-                            <div class="info-label">${label}</div>
-                            <div class="info-value">${formatted}</div>
-                        </div>
-                    `;
+                if (value !== null && value !== undefined && value !== '') {
+                    const formatted = formatDisplayValue(value);
+                    if (formatted !== '—') {
+                        html += `
+                            <div class="info-row">
+                                <div class="info-label">${label}</div>
+                                <div class="info-value">${formatted}</div>
+                            </div>
+                        `;
+                    }
                 }
             }
             return html;
