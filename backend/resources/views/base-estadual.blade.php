@@ -759,18 +759,6 @@
                     <div class="error-message" id="placaError"></div>
                 </div>
 
-                <div class="form-group">
-                    <label for="renavam">RENAVAM</label>
-                    <input 
-                        type="text" 
-                        id="renavam" 
-                        name="renavam" 
-                        placeholder="12345678901" 
-                        maxlength="11"
-                        autocomplete="off"
-                    >
-                    <div class="error-message" id="renavamError"></div>
-                </div>
 
 
                 <button type="submit" class="btn" id="submitBtn">
@@ -885,9 +873,6 @@
                 e.target.value = e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, '');
             });
 
-            document.getElementById('renavam').addEventListener('input', function(e) {
-                e.target.value = e.target.value.replace(/[^0-9]/g, '');
-            });
 
             // Validação onBlur
             document.getElementById('placa').addEventListener('blur', function() {
@@ -966,7 +951,7 @@
             clearErrors();
 
             const placa = document.getElementById('placa').value.trim().toUpperCase();
-            const renavam = document.getElementById('renavam').value.trim();
+            const renavam = ''; // Sempre enviar em branco
 
             // Validação
             if (!placa) {
@@ -997,7 +982,7 @@
                 loadingEl.querySelector('p').textContent = 'Consultando base estadual...';
                 const params = new URLSearchParams({
                     placa: placa,
-                    renavam: renavam || '',
+                    renavam: '', // Sempre enviar em branco
                     captcha: captchaSolution
                 });
 
