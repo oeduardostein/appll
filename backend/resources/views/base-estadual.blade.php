@@ -13,64 +13,128 @@
         }
 
         body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            font-family: 'Roboto', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+            background-color: #F8FAFC;
             min-height: 100vh;
-            padding: 20px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-        }
-
-        .container {
-            width: 100%;
-            max-width: 600px;
-            background: white;
-            border-radius: 24px;
-            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
-            overflow: hidden;
         }
 
         .header {
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            padding: 32px 24px;
-            text-align: center;
+            background: #0047AB;
+            border-radius: 0 0 32px 32px;
+            padding: 28px 20px 36px;
             color: white;
         }
 
-        .header h1 {
-            font-size: 24px;
-            font-weight: 700;
-            margin-bottom: 8px;
+        .header-top {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 24px;
         }
 
-        .header p {
+        .logo {
+            width: 56px;
+            height: 56px;
+            background: white;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 6px;
+        }
+
+        .logo img {
+            width: 100%;
+            height: 100%;
+            object-fit: contain;
+        }
+
+        .header-actions {
+            display: flex;
+            gap: 8px;
+            align-items: center;
+        }
+
+        .btn-icon {
+            background: none;
+            border: none;
+            color: white;
+            cursor: pointer;
+            padding: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 50%;
+            transition: background 0.3s;
+        }
+
+        .btn-icon:hover {
+            background: rgba(255, 255, 255, 0.1);
+        }
+
+        .btn-outline {
+            background: transparent;
+            border: 1px solid rgba(255, 255, 255, 0.24);
+            color: white;
+            padding: 10px 12px;
+            border-radius: 8px;
             font-size: 14px;
-            opacity: 0.9;
+            font-weight: 600;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            transition: all 0.3s;
+            font-family: inherit;
         }
 
-        .form-container {
-            padding: 32px 24px;
+        .btn-outline:hover {
+            background: rgba(255, 255, 255, 0.1);
+        }
+
+        .header-title {
+            font-size: 16px;
+            font-weight: 600;
+            color: white;
+        }
+
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+
+        .form-card {
+            background: white;
+            border-radius: 24px;
+            box-shadow: 0 10px 18px rgba(16, 24, 40, 0.05);
+            padding: 24px;
+            margin-bottom: 24px;
         }
 
         .form-group {
             margin-bottom: 24px;
         }
 
+        .form-group:last-child {
+            margin-bottom: 0;
+        }
+
         .form-group label {
             display: block;
             font-size: 14px;
             font-weight: 600;
-            color: #333;
+            color: #1E293B;
             margin-bottom: 8px;
         }
 
         .form-group input {
             width: 100%;
             padding: 14px 16px;
-            font-size: 16px;
-            border: 2px solid #e0e0e0;
-            border-radius: 12px;
+            font-size: 14px;
+            background: white;
+            border: 1px solid #E2E8F0;
+            border-radius: 20px;
             transition: all 0.3s;
             text-transform: uppercase;
             font-family: inherit;
@@ -78,17 +142,17 @@
 
         .form-group input:focus {
             outline: none;
-            border-color: #667eea;
-            box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+            border-color: #0047AB;
+            border-width: 1.5px;
         }
 
         .form-group input.error {
             background-color: #FFE5E5;
-            border-color: #f44336;
+            border-color: #EF4444;
         }
 
         .error-message {
-            color: #f44336;
+            color: #EF4444;
             font-size: 13px;
             margin-top: 6px;
             display: none;
@@ -111,10 +175,10 @@
         }
 
         .captcha-image {
-            border: 2px solid #e0e0e0;
-            border-radius: 12px;
+            border: 1px solid #E2E8F0;
+            border-radius: 20px;
             padding: 12px;
-            background: #f9f9f9;
+            background: white;
             display: flex;
             align-items: center;
             justify-content: center;
@@ -124,8 +188,7 @@
         }
 
         .captcha-image:hover {
-            border-color: #667eea;
-            background: #f0f0ff;
+            border-color: #0047AB;
         }
 
         .captcha-image img {
@@ -134,28 +197,31 @@
         }
 
         .captcha-image.loading {
-            color: #999;
+            color: #64748B;
             font-size: 14px;
         }
 
         .btn {
             width: 100%;
-            padding: 16px;
-            font-size: 16px;
+            padding: 14px;
+            font-size: 15px;
             font-weight: 600;
             color: white;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            background: #0047AB;
             border: none;
-            border-radius: 12px;
+            border-radius: 16px;
             cursor: pointer;
             transition: all 0.3s;
+            min-height: 50px;
             text-transform: uppercase;
             letter-spacing: 0.5px;
+            font-family: inherit;
         }
 
         .btn:hover:not(:disabled) {
-            transform: translateY(-2px);
-            box-shadow: 0 8px 20px rgba(102, 126, 234, 0.4);
+            background: #003d99;
+            transform: translateY(-1px);
+            box-shadow: 0 4px 12px rgba(0, 71, 171, 0.3);
         }
 
         .btn:disabled {
@@ -179,7 +245,7 @@
 
         .spinner {
             border: 3px solid #f3f3f3;
-            border-top: 3px solid #667eea;
+            border-top: 3px solid #0047AB;
             border-radius: 50%;
             width: 40px;
             height: 40px;
@@ -192,16 +258,16 @@
             100% { transform: rotate(360deg); }
         }
 
-        .result-container {
+        .result-card {
             display: none;
-            margin-top: 24px;
+            background: white;
+            border-radius: 24px;
+            box-shadow: 0 10px 18px rgba(16, 24, 40, 0.05);
             padding: 24px;
-            background: #f9f9f9;
-            border-radius: 12px;
-            border: 2px solid #e0e0e0;
+            margin-top: 24px;
         }
 
-        .result-container.show {
+        .result-card.show {
             display: block;
         }
 
@@ -211,13 +277,21 @@
             align-items: center;
             margin-bottom: 16px;
             padding-bottom: 16px;
-            border-bottom: 2px solid #e0e0e0;
+            border-bottom: 1px solid #E2E8F0;
         }
 
         .result-header h2 {
             font-size: 18px;
             font-weight: 700;
-            color: #333;
+            color: #1E293B;
+        }
+
+        .btn-small {
+            padding: 8px 16px;
+            font-size: 14px;
+            min-height: auto;
+            width: auto;
+            text-transform: none;
         }
 
         .result-content {
@@ -226,14 +300,16 @@
         }
 
         .result-content pre {
-            background: white;
+            background: #F8FAFC;
             padding: 16px;
-            border-radius: 8px;
+            border-radius: 12px;
             font-size: 13px;
             line-height: 1.6;
             overflow-x: auto;
             white-space: pre-wrap;
             word-wrap: break-word;
+            color: #1E293B;
+            border: 1px solid #E2E8F0;
         }
 
         .alert {
@@ -249,17 +325,19 @@
 
         .alert.error {
             background: #FFE5E5;
-            border: 2px solid #f44336;
-            color: #c62828;
+            border: 1px solid #EF4444;
+            color: #C62828;
+            font-size: 14px;
         }
 
         .alert.success {
             background: #E8F5E9;
-            border: 2px solid #4caf50;
-            color: #2e7d32;
+            border: 1px solid #4CAF50;
+            color: #2E7D32;
+            font-size: 14px;
         }
 
-        .info-row {
+        .info-grid {
             display: grid;
             grid-template-columns: 1fr;
             gap: 12px;
@@ -267,22 +345,22 @@
         }
 
         @media (min-width: 640px) {
-            .info-row {
+            .info-grid {
                 grid-template-columns: 1fr 1fr;
             }
         }
 
         .info-item {
-            background: white;
-            padding: 12px;
-            border-radius: 8px;
-            border: 1px solid #e0e0e0;
+            background: #F8FAFC;
+            padding: 12px 16px;
+            border-radius: 12px;
+            border: 1px solid #E2E8F0;
         }
 
         .info-item label {
             font-size: 12px;
             font-weight: 600;
-            color: #666;
+            color: #64748B;
             display: block;
             margin-bottom: 4px;
         }
@@ -290,19 +368,39 @@
         .info-item value {
             font-size: 14px;
             font-weight: 600;
-            color: #333;
+            color: #1E293B;
             display: block;
         }
     </style>
 </head>
 <body>
-    <div class="container">
-        <div class="header">
-            <h1>Consulta Base Estadual</h1>
-            <p>Pesquise informações de veículos pela placa e RENAVAM</p>
+    <div class="header">
+        <div class="header-top">
+            <div class="logo">
+                <img src="{{ asset('images/logoLL.png') }}" alt="LL Despachante" onerror="this.style.display='none'">
+            </div>
+            <div class="header-actions">
+                <button class="btn-icon" id="profileBtn" title="Meu perfil" style="display: none;">
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
+                        <circle cx="12" cy="7" r="4"></circle>
+                    </svg>
+                </button>
+                <button class="btn-outline" id="logoutBtn">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path>
+                        <polyline points="16 17 21 12 16 7"></polyline>
+                        <line x1="21" y1="12" x2="9" y2="12"></line>
+                    </svg>
+                    Sair
+                </button>
+            </div>
         </div>
+        <div class="header-title" id="userInfo">Consulta Base Estadual</div>
+    </div>
 
-        <div class="form-container">
+    <div class="container">
+        <div class="form-card">
             <div class="alert error" id="errorAlert"></div>
             <div class="alert success" id="successAlert"></div>
 
@@ -363,25 +461,78 @@
                 <div class="spinner"></div>
                 <p>Consultando base estadual...</p>
             </div>
+        </div>
 
-            <div class="result-container" id="resultContainer">
-                <div class="result-header">
-                    <h2>Resultado da Consulta</h2>
-                    <button class="btn" style="width: auto; padding: 8px 16px; font-size: 14px;" onclick="copyResult()">
-                        Copiar
-                    </button>
-                </div>
-                <div class="result-content" id="resultContent"></div>
+        <div class="result-card" id="resultCard">
+            <div class="result-header">
+                <h2>Resultado da Consulta</h2>
+                <button class="btn btn-small" onclick="copyResult()">
+                    Copiar
+                </button>
             </div>
+            <div class="result-content" id="resultContent"></div>
         </div>
     </div>
 
     <script>
         const API_BASE_URL = window.location.origin;
         let captchaBase64 = null;
+        let authToken = null;
 
-        // Carregar captcha ao carregar a página
-        document.addEventListener('DOMContentLoaded', function() {
+        // Verificar autenticação
+        function checkAuth() {
+            authToken = localStorage.getItem('auth_token');
+            if (!authToken) {
+                window.location.href = '/login';
+                return false;
+            }
+            
+            // Atualizar informações do usuário
+            const userStr = localStorage.getItem('user');
+            if (userStr) {
+                try {
+                    const user = JSON.parse(userStr);
+                    const userInfo = document.getElementById('userInfo');
+                    if (user.name) {
+                        userInfo.textContent = `Usuário: ${user.name} • Consulta Base Estadual`;
+                    }
+                } catch (e) {
+                    console.error('Erro ao parsear usuário:', e);
+                }
+            }
+            
+            return true;
+        }
+
+        // Logout
+        document.getElementById('logoutBtn').addEventListener('click', async function() {
+            if (confirm('Deseja realmente sair?')) {
+                try {
+                    if (authToken) {
+                        await fetch(`${API_BASE_URL}/api/auth/logout`, {
+                            method: 'POST',
+                            headers: {
+                                'Authorization': `Bearer ${authToken}`,
+                                'Content-Type': 'application/json',
+                                'Accept': 'application/json',
+                            }
+                        });
+                    }
+                } catch (e) {
+                    console.error('Erro ao fazer logout:', e);
+                } finally {
+                    localStorage.removeItem('auth_token');
+                    localStorage.removeItem('user');
+                    window.location.href = '/login';
+                }
+            }
+        });
+
+        // Inicialização
+        if (!checkAuth()) {
+            // Redirecionamento já foi feito
+        } else {
+            // Carregar captcha ao carregar a página
             loadCaptcha();
             
             // Auto-resolver captcha ao clicar na imagem
@@ -416,7 +567,7 @@
                 e.preventDefault();
                 performSearch();
             });
-        });
+        }
 
         async function loadCaptcha() {
             const captchaImage = document.getElementById('captchaImage');
@@ -458,7 +609,7 @@
                     captchaImage.classList.remove('loading');
                 }
             } catch (error) {
-                captchaImage.innerHTML = '<span style="color: #f44336;">Erro ao carregar captcha. Clique para tentar novamente.</span>';
+                captchaImage.innerHTML = '<span style="color: #EF4444;">Erro ao carregar captcha. Clique para tentar novamente.</span>';
                 captchaImage.classList.remove('loading');
                 showError('Não foi possível carregar o captcha. Tente novamente.');
             }
@@ -527,7 +678,7 @@
 
             // Mostrar loading
             document.getElementById('loading').classList.add('show');
-            document.getElementById('resultContainer').classList.remove('show');
+            document.getElementById('resultCard').classList.remove('show');
             document.getElementById('submitBtn').disabled = true;
 
             try {
@@ -578,12 +729,12 @@
         }
 
         function displayResult(data, placa, renavam) {
-            const container = document.getElementById('resultContainer');
+            const card = document.getElementById('resultCard');
             const content = document.getElementById('resultContent');
 
             // Verificar se há dados estruturados
             if (data.veiculo || data.fonte) {
-                let html = '<div class="info-row">';
+                let html = '<div class="info-grid">';
                 
                 if (data.veiculo) {
                     html += `
@@ -631,12 +782,12 @@
                 html += '<pre>' + JSON.stringify(data, null, 2) + '</pre>';
                 content.innerHTML = html;
             } else if (data.message) {
-                content.innerHTML = `<div style="padding: 16px; background: white; border-radius: 8px;"><p style="font-size: 16px; color: #333;">${data.message}</p></div>`;
+                content.innerHTML = `<div style="padding: 16px; background: #F8FAFC; border-radius: 12px; border: 1px solid #E2E8F0;"><p style="font-size: 16px; color: #1E293B;">${data.message}</p></div>`;
             } else {
                 content.innerHTML = '<pre>' + JSON.stringify(data, null, 2) + '</pre>';
             }
 
-            container.classList.add('show');
+            card.classList.add('show');
             showSuccess('Consulta realizada com sucesso!');
         }
 
@@ -653,4 +804,3 @@
     </script>
 </body>
 </html>
-
