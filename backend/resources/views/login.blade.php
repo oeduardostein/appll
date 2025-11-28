@@ -414,8 +414,8 @@
                     localStorage.setItem('auth_token', data.token);
                     localStorage.setItem('user', JSON.stringify(data.user || {}));
                     
-                    // Redirecionar para base estadual
-                    window.location.href = '/base-estadual';
+                    // Redirecionar para home
+                    window.location.href = '/home';
                 } else {
                     throw new Error('Resposta inválida do servidor');
                 }

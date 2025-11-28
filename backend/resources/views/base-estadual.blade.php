@@ -49,6 +49,17 @@
             object-fit: contain;
         }
 
+        .logo-text {
+            font-size: 18px;
+            font-weight: 700;
+            color: #0047AB;
+            display: none;
+        }
+
+        .logo.no-image .logo-text {
+            display: block;
+        }
+
         .header-actions {
             display: flex;
             gap: 8px;
@@ -96,6 +107,12 @@
             font-size: 16px;
             font-weight: 600;
             color: white;
+        }
+
+        .header-subtitle {
+            font-size: 14px;
+            color: rgba(255, 255, 255, 0.9);
+            margin-top: 4px;
         }
 
         .container {
@@ -162,44 +179,6 @@
             display: block;
         }
 
-        .captcha-container {
-            display: grid;
-            grid-template-columns: 1fr;
-            gap: 16px;
-        }
-
-        @media (min-width: 640px) {
-            .captcha-container {
-                grid-template-columns: 1fr 1fr;
-            }
-        }
-
-        .captcha-image {
-            border: 1px solid #E2E8F0;
-            border-radius: 20px;
-            padding: 12px;
-            background: white;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            min-height: 80px;
-            cursor: pointer;
-            transition: all 0.3s;
-        }
-
-        .captcha-image:hover {
-            border-color: #0047AB;
-        }
-
-        .captcha-image img {
-            max-width: 100%;
-            height: auto;
-        }
-
-        .captcha-image.loading {
-            color: #64748B;
-            font-size: 14px;
-        }
 
         .btn {
             width: 100%;
@@ -377,9 +356,17 @@
     <div class="header">
         <div class="header-top">
             <div class="logo">
-                <img src="{{ asset('images/logoLL.png') }}" alt="LL Despachante" onerror="this.style.display='none'">
+                <img src="{{ asset('images/logoLL.png') }}" alt="LL Despachante" onerror="this.style.display='none'; this.parentElement.classList.add('no-image');">
+                <span class="logo-text">LL</span>
             </div>
             <div class="header-actions">
+                <button class="btn-outline" onclick="window.location.href='/home'" style="font-size: 13px;">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path>
+                        <polyline points="9 22 9 12 15 12 15 22"></polyline>
+                    </svg>
+                    Home
+                </button>
                 <button class="btn-icon" id="profileBtn" title="Meu perfil" style="display: none;">
                     <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                         <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
@@ -397,6 +384,7 @@
             </div>
         </div>
         <div class="header-title" id="userInfo">Consulta Base Estadual</div>
+        <div class="header-subtitle" id="consultasInfo" style="font-size: 14px; color: rgba(255, 255, 255, 0.9); margin-top: 4px;">Carregando...</div>
     </div>
 
     <div class="container">
@@ -432,25 +420,6 @@
                     <div class="error-message" id="renavamError"></div>
                 </div>
 
-                <div class="form-group">
-                    <label>Captcha</label>
-                    <div class="captcha-container">
-                        <div class="captcha-image" id="captchaImage">
-                            <span class="loading">Clique para carregar captcha</span>
-                        </div>
-                        <input 
-                            type="text" 
-                            id="captcha" 
-                            name="captcha" 
-                            placeholder="Digite o captcha" 
-                            maxlength="10"
-                            autocomplete="off"
-                            required
-                            style="text-transform: uppercase;"
-                        >
-                    </div>
-                    <div class="error-message" id="captchaError"></div>
-                </div>
 
                 <button type="submit" class="btn" id="submitBtn">
                     Consultar
@@ -476,7 +445,6 @@
 
     <script>
         const API_BASE_URL = window.location.origin;
-        let captchaBase64 = null;
         let authToken = null;
 
         // Verificar autenticação
@@ -494,14 +462,37 @@
                     const user = JSON.parse(userStr);
                     const userInfo = document.getElementById('userInfo');
                     if (user.name) {
-                        userInfo.textContent = `Usuário: ${user.name} • Consulta Base Estadual`;
+                        userInfo.textContent = `Usuário: ${user.name}`;
                     }
                 } catch (e) {
                     console.error('Erro ao parsear usuário:', e);
                 }
             }
             
+            // Carregar estatísticas de consultas
+            loadConsultasStats();
+            
             return true;
+        }
+
+        async function loadConsultasStats() {
+            try {
+                const response = await fetch(`${API_BASE_URL}/api/pesquisas/ultimo-mes`, {
+                    headers: {
+                        'Authorization': `Bearer ${authToken}`,
+                        'Accept': 'application/json',
+                    }
+                });
+
+                if (response.ok) {
+                    const data = await response.json();
+                    const monthlyCount = data.data ? data.data.length : 0;
+                    const consultasInfo = document.getElementById('consultasInfo');
+                    consultasInfo.textContent = `${monthlyCount} consulta${monthlyCount !== 1 ? 's' : ''} realizada${monthlyCount !== 1 ? 's' : ''} este mês`;
+                }
+            } catch (error) {
+                console.error('Erro ao carregar estatísticas:', error);
+            }
         }
 
         // Logout
@@ -532,14 +523,6 @@
         if (!checkAuth()) {
             // Redirecionamento já foi feito
         } else {
-            // Carregar captcha ao carregar a página
-            loadCaptcha();
-            
-            // Auto-resolver captcha ao clicar na imagem
-            document.getElementById('captchaImage').addEventListener('click', function() {
-                loadCaptcha();
-            });
-
             // Formatação automática para maiúsculas
             document.getElementById('placa').addEventListener('input', function(e) {
                 e.target.value = e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, '');
@@ -549,17 +532,9 @@
                 e.target.value = e.target.value.replace(/[^0-9]/g, '');
             });
 
-            document.getElementById('captcha').addEventListener('input', function(e) {
-                e.target.value = e.target.value.toUpperCase();
-            });
-
             // Validação onBlur
             document.getElementById('placa').addEventListener('blur', function() {
                 validateField('placa', this.value.trim() !== '', 'Este campo é obrigatório');
-            });
-
-            document.getElementById('captcha').addEventListener('blur', function() {
-                validateField('captcha', this.value.trim() !== '', 'Este campo é obrigatório');
             });
 
             // Submissão do formulário
@@ -569,55 +544,33 @@
             });
         }
 
-        async function loadCaptcha() {
-            const captchaImage = document.getElementById('captchaImage');
-            captchaImage.innerHTML = '<span class="loading">Carregando captcha...</span>';
-            captchaImage.classList.add('loading');
-
+        async function solveCaptcha() {
             try {
-                const response = await fetch(`${API_BASE_URL}/api/captcha`);
+                const response = await fetch(`${API_BASE_URL}/api/captcha/solve`);
                 
                 if (!response.ok) {
-                    throw new Error('Falha ao carregar captcha');
+                    const errorData = await response.json().catch(() => ({ message: 'Falha ao resolver captcha' }));
+                    throw new Error(errorData.message || 'Falha ao resolver captcha automaticamente');
                 }
 
-                const contentType = response.headers.get('content-type');
+                const data = await response.json();
                 
-                if (contentType && contentType.includes('image')) {
-                    const blob = await response.blob();
-                    const reader = new FileReader();
-                    reader.onloadend = function() {
-                        captchaBase64 = reader.result;
-                        captchaImage.innerHTML = `<img src="${reader.result}" alt="Captcha">`;
-                        captchaImage.classList.remove('loading');
-                    };
-                    reader.readAsDataURL(blob);
-                } else {
-                    const text = await response.text();
-                    try {
-                        const json = JSON.parse(text);
-                        captchaBase64 = json.captcha || json.data || text;
-                    } catch {
-                        captchaBase64 = text;
-                    }
-                    
-                    if (captchaBase64.startsWith('data:image')) {
-                        captchaImage.innerHTML = `<img src="${captchaBase64}" alt="Captcha">`;
-                    } else {
-                        captchaImage.innerHTML = `<span style="font-size: 24px; font-weight: bold; letter-spacing: 4px;">${captchaBase64}</span>`;
-                    }
-                    captchaImage.classList.remove('loading');
+                if (data.solution && data.solution.trim()) {
+                    return data.solution.trim().toUpperCase();
                 }
+                
+                throw new Error('Resposta inválida do servidor de captcha');
             } catch (error) {
-                captchaImage.innerHTML = '<span style="color: #EF4444;">Erro ao carregar captcha. Clique para tentar novamente.</span>';
-                captchaImage.classList.remove('loading');
-                showError('Não foi possível carregar o captcha. Tente novamente.');
+                throw error;
             }
         }
 
         function validateField(fieldName, isValid, errorMessage) {
             const field = document.getElementById(fieldName);
+            if (!field) return;
+            
             const errorDiv = document.getElementById(fieldName + 'Error');
+            if (!errorDiv) return;
             
             if (!isValid) {
                 field.classList.add('error');
@@ -657,52 +610,38 @@
 
             const placa = document.getElementById('placa').value.trim().toUpperCase();
             const renavam = document.getElementById('renavam').value.trim();
-            const captcha = document.getElementById('captcha').value.trim().toUpperCase();
 
             // Validação
-            let hasError = false;
-
             if (!placa) {
                 validateField('placa', false, 'Este campo é obrigatório');
-                hasError = true;
-            }
-
-            if (!captcha) {
-                validateField('captcha', false, 'Este campo é obrigatório');
-                hasError = true;
-            }
-
-            if (hasError) {
                 return;
             }
 
             // Mostrar loading
-            document.getElementById('loading').classList.add('show');
-            document.getElementById('resultCard').classList.remove('show');
-            document.getElementById('submitBtn').disabled = true;
+            const loadingEl = document.getElementById('loading');
+            const submitBtn = document.getElementById('submitBtn');
+            const resultCard = document.getElementById('resultCard');
+            
+            loadingEl.classList.add('show');
+            resultCard.classList.remove('show');
+            submitBtn.disabled = true;
 
             try {
-                // Tentar resolver captcha automaticamente primeiro
-                let captchaToUse = captcha;
-                
+                // Resolver captcha automaticamente usando 2Captcha
+                let captchaSolution;
                 try {
-                    const solveResponse = await fetch(`${API_BASE_URL}/api/captcha/solve`);
-                    if (solveResponse.ok) {
-                        const solveData = await solveResponse.json();
-                        if (solveData.solution) {
-                            captchaToUse = solveData.solution.trim().toUpperCase();
-                            document.getElementById('captcha').value = captchaToUse;
-                        }
-                    }
-                } catch (e) {
-                    // Se falhar, usar o captcha manual
+                    loadingEl.querySelector('p').textContent = 'Resolvendo captcha automaticamente...';
+                    captchaSolution = await solveCaptcha();
+                } catch (captchaError) {
+                    throw new Error('Não foi possível resolver o captcha automaticamente. Tente novamente em alguns instantes.');
                 }
 
                 // Fazer a consulta
+                loadingEl.querySelector('p').textContent = 'Consultando base estadual...';
                 const params = new URLSearchParams({
                     placa: placa,
                     renavam: renavam || '',
-                    captcha: captchaToUse
+                    captcha: captchaSolution
                 });
 
                 const response = await fetch(`${API_BASE_URL}/api/base-estadual?${params}`);
@@ -714,17 +653,21 @@
 
                 const result = await response.json();
                 
+                // Registrar pesquisa
+                await registerPesquisa(placa, renavam);
+                
                 // Exibir resultado
                 displayResult(result, placa, renavam);
+                
+                // Atualizar estatísticas
+                loadConsultasStats();
 
             } catch (error) {
                 showError(error.message || 'Não foi possível consultar a base estadual.');
             } finally {
-                document.getElementById('loading').classList.remove('show');
-                document.getElementById('submitBtn').disabled = false;
-                // Recarregar captcha após consulta
-                loadCaptcha();
-                document.getElementById('captcha').value = '';
+                loadingEl.classList.remove('show');
+                submitBtn.disabled = false;
+                loadingEl.querySelector('p').textContent = 'Consultando base estadual...';
             }
         }
 
@@ -789,6 +732,27 @@
 
             card.classList.add('show');
             showSuccess('Consulta realizada com sucesso!');
+        }
+
+        async function registerPesquisa(placa, renavam) {
+            try {
+                await fetch(`${API_BASE_URL}/api/pesquisas`, {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': `Bearer ${authToken}`,
+                        'Content-Type': 'application/json',
+                        'Accept': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        nome: 'Base estadual',
+                        placa: placa,
+                        renavam: renavam || null,
+                    })
+                });
+            } catch (error) {
+                console.error('Erro ao registrar pesquisa:', error);
+                // Não mostrar erro ao usuário, é apenas um registro
+            }
         }
 
         function copyResult() {
