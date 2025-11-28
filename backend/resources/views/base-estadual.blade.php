@@ -1462,6 +1462,13 @@
             }
         });
 
+        // Fechar modal com ESC
+        document.addEventListener('keydown', function(e) {
+            if (e.key === 'Escape') {
+                closeModal();
+            }
+        });
+
         async function registerPesquisa(placa, renavam) {
             try {
                 await fetch(`${API_BASE_URL}/api/pesquisas`, {
