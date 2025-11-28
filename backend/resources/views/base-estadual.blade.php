@@ -19,28 +19,57 @@
         }
 
         .header {
-            background: #0047AB;
+            background: linear-gradient(135deg, #0047AB 0%, #003d99 100%);
             border-radius: 0 0 32px 32px;
-            padding: 28px 20px 36px;
+            padding: 24px 20px;
             color: white;
+            box-shadow: 0 4px 20px rgba(0, 71, 171, 0.2);
+            position: relative;
+            overflow: hidden;
+        }
+
+        .header::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: radial-gradient(circle at 20% 50%, rgba(255, 255, 255, 0.1) 0%, transparent 50%);
+            pointer-events: none;
+        }
+
+        .header-content {
+            position: relative;
+            z-index: 1;
         }
 
         .header-top {
             display: flex;
             align-items: center;
             justify-content: space-between;
-            margin-bottom: 24px;
+            margin-bottom: 20px;
+            gap: 20px;
+        }
+
+        .header-left {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+            flex: 1;
         }
 
         .logo {
-            width: 56px;
-            height: 56px;
+            width: 64px;
+            height: 64px;
             background: white;
-            border-radius: 50%;
+            border-radius: 16px;
             display: flex;
             align-items: center;
             justify-content: center;
-            padding: 6px;
+            padding: 8px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+            flex-shrink: 0;
         }
 
         .logo img {
@@ -50,7 +79,7 @@
         }
 
         .logo-text {
-            font-size: 18px;
+            font-size: 20px;
             font-weight: 700;
             color: #0047AB;
             display: none;
@@ -60,59 +89,138 @@
             display: block;
         }
 
-        .header-actions {
-            display: flex;
-            gap: 8px;
-            align-items: center;
-        }
-
-        .btn-icon {
-            background: none;
-            border: none;
-            color: white;
-            cursor: pointer;
-            padding: 8px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            border-radius: 50%;
-            transition: background 0.3s;
-        }
-
-        .btn-icon:hover {
-            background: rgba(255, 255, 255, 0.1);
-        }
-
-        .btn-outline {
-            background: transparent;
-            border: 1px solid rgba(255, 255, 255, 0.24);
-            color: white;
-            padding: 10px 12px;
-            border-radius: 8px;
-            font-size: 14px;
-            font-weight: 600;
-            cursor: pointer;
-            display: flex;
-            align-items: center;
-            gap: 6px;
-            transition: all 0.3s;
-            font-family: inherit;
-        }
-
-        .btn-outline:hover {
-            background: rgba(255, 255, 255, 0.1);
+        .header-info {
+            flex: 1;
+            min-width: 0;
         }
 
         .header-title {
-            font-size: 16px;
-            font-weight: 600;
+            font-size: 20px;
+            font-weight: 700;
             color: white;
+            margin-bottom: 4px;
+            line-height: 1.3;
         }
 
         .header-subtitle {
             font-size: 14px;
-            color: rgba(255, 255, 255, 0.9);
-            margin-top: 4px;
+            color: rgba(255, 255, 255, 0.85);
+            line-height: 1.4;
+        }
+
+        .header-actions {
+            display: flex;
+            gap: 12px;
+            align-items: center;
+            flex-shrink: 0;
+        }
+
+        .btn-icon {
+            background: rgba(255, 255, 255, 0.1);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            color: white;
+            cursor: pointer;
+            padding: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 12px;
+            transition: all 0.3s;
+            width: 44px;
+            height: 44px;
+        }
+
+        .btn-icon:hover {
+            background: rgba(255, 255, 255, 0.2);
+            border-color: rgba(255, 255, 255, 0.3);
+            transform: translateY(-1px);
+        }
+
+        .btn-outline {
+            background: rgba(255, 255, 255, 0.1);
+            border: 1px solid rgba(255, 255, 255, 0.3);
+            color: white;
+            padding: 10px 18px;
+            border-radius: 12px;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            transition: all 0.3s;
+            font-family: inherit;
+            white-space: nowrap;
+        }
+
+        .btn-outline:hover {
+            background: rgba(255, 255, 255, 0.2);
+            border-color: rgba(255, 255, 255, 0.4);
+            transform: translateY(-1px);
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+        }
+
+        .btn-outline svg {
+            width: 18px;
+            height: 18px;
+            flex-shrink: 0;
+        }
+
+        @media (min-width: 768px) {
+            .header {
+                padding: 32px 40px;
+            }
+
+            .header-top {
+                margin-bottom: 24px;
+            }
+
+            .logo {
+                width: 72px;
+                height: 72px;
+                border-radius: 18px;
+            }
+
+            .header-title {
+                font-size: 24px;
+            }
+
+            .header-subtitle {
+                font-size: 15px;
+            }
+
+            .header-actions {
+                gap: 16px;
+            }
+
+            .btn-outline {
+                padding: 12px 24px;
+                font-size: 15px;
+            }
+        }
+
+        @media (min-width: 1024px) {
+            .header {
+                padding: 40px 60px;
+            }
+
+            .header-left {
+                gap: 24px;
+            }
+
+            .logo {
+                width: 80px;
+                height: 80px;
+                border-radius: 20px;
+            }
+
+            .header-title {
+                font-size: 28px;
+            }
+
+            .header-subtitle {
+                font-size: 16px;
+            }
         }
 
         .container {
@@ -237,58 +345,331 @@
             100% { transform: rotate(360deg); }
         }
 
-        .result-card {
+        .result-container {
             display: none;
+            margin-top: 24px;
+        }
+
+        .result-container.show {
+            display: block;
+        }
+
+        .result-card {
             background: white;
             border-radius: 24px;
             box-shadow: 0 10px 18px rgba(16, 24, 40, 0.05);
             padding: 24px;
-            margin-top: 24px;
-        }
-
-        .result-card.show {
-            display: block;
-        }
-
-        .result-header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
             margin-bottom: 16px;
-            padding-bottom: 16px;
-            border-bottom: 1px solid #E2E8F0;
         }
 
-        .result-header h2 {
+        .vehicle-summary-card {
+            background: white;
+            border-radius: 24px;
+            box-shadow: 0 12px 24px rgba(0, 0, 0, 0.06);
+            padding: 20px;
+            margin-bottom: 16px;
+        }
+
+        .vehicle-header {
+            display: flex;
+            align-items: flex-start;
+            gap: 16px;
+            margin-bottom: 16px;
+        }
+
+        .vehicle-icon {
+            width: 64px;
+            height: 64px;
+            background: rgba(0, 71, 171, 0.18);
+            border-radius: 18px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex-shrink: 0;
+        }
+
+        .vehicle-icon svg {
+            width: 32px;
+            height: 32px;
+            stroke: #0047AB;
+            fill: none;
+        }
+
+        .vehicle-info {
+            flex: 1;
+            min-width: 0;
+        }
+
+        .vehicle-placa {
+            font-size: 24px;
+            font-weight: 800;
+            color: #1E293B;
+            margin-bottom: 4px;
+        }
+
+        .vehicle-marca {
             font-size: 18px;
+            font-weight: 600;
+            color: #64748B;
+            margin-bottom: 2px;
+        }
+
+        .vehicle-ano {
+            font-size: 14px;
+            color: #64748B;
+        }
+
+        .vehicle-tiles {
+            display: grid;
+            grid-template-columns: 1fr;
+            gap: 12px;
+            margin-bottom: 16px;
+        }
+
+        @media (min-width: 640px) {
+            .vehicle-tiles {
+                grid-template-columns: 1fr 1fr;
+            }
+        }
+
+        .vehicle-tile {
+            background: #F8FAFC;
+            padding: 16px;
+            border-radius: 18px;
+            border: 1px solid #E2E8F0;
+        }
+
+        .vehicle-tile-label {
+            font-size: 12px;
+            font-weight: 600;
+            color: #64748B;
+            margin-bottom: 6px;
+        }
+
+        .vehicle-tile-value {
+            font-size: 16px;
             font-weight: 700;
             color: #1E293B;
         }
 
-        .btn-small {
-            padding: 8px 16px;
-            font-size: 14px;
-            min-height: auto;
-            width: auto;
-            text-transform: none;
-        }
-
-        .result-content {
-            max-height: 500px;
-            overflow-y: auto;
-        }
-
-        .result-content pre {
-            background: #F8FAFC;
-            padding: 16px;
+        .vehicle-tile-badge {
+            display: inline-block;
+            padding: 4px 10px;
             border-radius: 12px;
-            font-size: 13px;
-            line-height: 1.6;
-            overflow-x: auto;
-            white-space: pre-wrap;
-            word-wrap: break-word;
+            font-size: 11px;
+            font-weight: 700;
+            margin-top: 8px;
+        }
+
+        .vehicle-proprietario {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding-top: 16px;
+            border-top: 1px solid #E2E8F0;
+        }
+
+        .vehicle-proprietario-label {
+            font-size: 12px;
+            font-weight: 600;
+            color: #64748B;
+            margin-bottom: 4px;
+        }
+
+        .vehicle-proprietario-value {
+            font-size: 14px;
+            font-weight: 700;
             color: #1E293B;
-            border: 1px solid #E2E8F0;
+            max-width: 200px;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+
+        .btn-text-link {
+            background: none;
+            border: none;
+            color: #0047AB;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            padding: 8px 0;
+            font-family: inherit;
+        }
+
+        .btn-text-link:hover {
+            text-decoration: underline;
+        }
+
+        .action-menu-card {
+            background: white;
+            border-radius: 24px;
+            box-shadow: 0 6px 20px rgba(0, 0, 0, 0.08);
+            padding: 0;
+            margin-bottom: 24px;
+            overflow: hidden;
+        }
+
+        .action-menu-item {
+            display: flex;
+            align-items: center;
+            padding: 16px 20px;
+            cursor: pointer;
+            transition: background 0.2s;
+            border: none;
+            background: none;
+            width: 100%;
+            text-align: left;
+            font-family: inherit;
+        }
+
+        .action-menu-item:hover {
+            background: #F8FAFC;
+        }
+
+        .action-menu-item:not(:last-child) {
+            border-bottom: 1px solid rgba(226, 232, 240, 0.35);
+        }
+
+        .action-menu-icon {
+            width: 24px;
+            height: 24px;
+            color: #0047AB;
+            margin-right: 16px;
+            flex-shrink: 0;
+        }
+
+        .action-menu-label {
+            flex: 1;
+            font-size: 16px;
+            font-weight: 600;
+            color: #1E293B;
+        }
+
+        .action-menu-arrow {
+            width: 20px;
+            height: 20px;
+            color: #64748B;
+            flex-shrink: 0;
+        }
+
+        .section-card {
+            background: white;
+            border-radius: 24px;
+            box-shadow: 0 10px 18px rgba(16, 24, 40, 0.05);
+            padding: 18px 20px;
+            margin-bottom: 16px;
+            border: 1px solid rgba(226, 232, 240, 0.12);
+        }
+
+        .section-title {
+            font-size: 16px;
+            font-weight: 700;
+            color: #1E293B;
+            margin-bottom: 16px;
+        }
+
+        .info-row {
+            margin-bottom: 12px;
+        }
+
+        .info-row:last-child {
+            margin-bottom: 0;
+        }
+
+        .info-label {
+            font-size: 12px;
+            font-weight: 600;
+            color: #64748B;
+            margin-bottom: 4px;
+        }
+
+        .info-value {
+            font-size: 16px;
+            font-weight: 700;
+            color: #1E293B;
+        }
+
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0, 0, 0, 0.5);
+            z-index: 1000;
+            overflow-y: auto;
+            padding: 20px;
+            backdrop-filter: blur(4px);
+        }
+
+        .modal.show {
+            display: flex;
+            align-items: flex-start;
+            justify-content: center;
+        }
+
+        .modal-content {
+            background: white;
+            border-radius: 24px;
+            max-width: 800px;
+            width: 100%;
+            margin: 40px auto;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+            display: flex;
+            flex-direction: column;
+            max-height: calc(100vh - 80px);
+        }
+
+        .modal-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 24px;
+            border-bottom: 1px solid #E2E8F0;
+        }
+
+        .modal-title {
+            font-size: 20px;
+            font-weight: 700;
+            color: #1E293B;
+        }
+
+        .modal-close {
+            background: none;
+            border: none;
+            font-size: 24px;
+            color: #64748B;
+            cursor: pointer;
+            padding: 4px;
+            line-height: 1;
+        }
+
+        .modal-close:hover {
+            color: #1E293B;
+        }
+
+        .modal-body {
+            padding: 24px;
+            overflow-y: auto;
+            flex: 1;
+        }
+
+        @media (max-width: 768px) {
+            .modal {
+                padding: 10px;
+            }
+
+            .modal-content {
+                margin: 20px auto;
+                max-height: calc(100vh - 40px);
+            }
+
+            .modal-header,
+            .modal-body {
+                padding: 16px;
+            }
         }
 
         .alert {
@@ -315,76 +696,47 @@
             color: #2E7D32;
             font-size: 14px;
         }
-
-        .info-grid {
-            display: grid;
-            grid-template-columns: 1fr;
-            gap: 12px;
-            margin-bottom: 16px;
-        }
-
-        @media (min-width: 640px) {
-            .info-grid {
-                grid-template-columns: 1fr 1fr;
-            }
-        }
-
-        .info-item {
-            background: #F8FAFC;
-            padding: 12px 16px;
-            border-radius: 12px;
-            border: 1px solid #E2E8F0;
-        }
-
-        .info-item label {
-            font-size: 12px;
-            font-weight: 600;
-            color: #64748B;
-            display: block;
-            margin-bottom: 4px;
-        }
-
-        .info-item value {
-            font-size: 14px;
-            font-weight: 600;
-            color: #1E293B;
-            display: block;
-        }
     </style>
 </head>
 <body>
     <div class="header">
-        <div class="header-top">
-            <div class="logo">
-                <img src="{{ asset('images/logoLL.png') }}" alt="LL Despachante" onerror="this.style.display='none'; this.parentElement.classList.add('no-image');">
-                <span class="logo-text">LL</span>
-            </div>
-            <div class="header-actions">
-                <button class="btn-outline" onclick="window.location.href='/home'" style="font-size: 13px;">
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                        <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path>
-                        <polyline points="9 22 9 12 15 12 15 22"></polyline>
-                    </svg>
-                    Home
-                </button>
-                <button class="btn-icon" id="profileBtn" title="Meu perfil" style="display: none;">
-                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                        <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
-                        <circle cx="12" cy="7" r="4"></circle>
-                    </svg>
-                </button>
-                <button class="btn-outline" id="logoutBtn">
-                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                        <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path>
-                        <polyline points="16 17 21 12 16 7"></polyline>
-                        <line x1="21" y1="12" x2="9" y2="12"></line>
-                    </svg>
-                    Sair
-                </button>
+        <div class="header-content">
+            <div class="header-top">
+                <div class="header-left">
+                    <div class="logo">
+                        <img src="{{ asset('images/logoLL.png') }}" alt="LL Despachante" onerror="this.style.display='none'; this.parentElement.classList.add('no-image');">
+                        <span class="logo-text">LL</span>
+                    </div>
+                    <div class="header-info">
+                        <div class="header-title" id="userInfo">Consulta Base Estadual</div>
+                        <div class="header-subtitle" id="consultasInfo">Carregando...</div>
+                    </div>
+                </div>
+                <div class="header-actions">
+                    <button class="btn-outline" onclick="window.location.href='/home'">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path>
+                            <polyline points="9 22 9 12 15 12 15 22"></polyline>
+                        </svg>
+                        <span>Home</span>
+                    </button>
+                    <button class="btn-icon" id="profileBtn" title="Meu perfil" style="display: none;">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
+                            <circle cx="12" cy="7" r="4"></circle>
+                        </svg>
+                    </button>
+                    <button class="btn-outline" id="logoutBtn">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path>
+                            <polyline points="16 17 21 12 16 7"></polyline>
+                            <line x1="21" y1="12" x2="9" y2="12"></line>
+                        </svg>
+                        <span>Sair</span>
+                    </button>
+                </div>
             </div>
         </div>
-        <div class="header-title" id="userInfo">Consulta Base Estadual</div>
-        <div class="header-subtitle" id="consultasInfo" style="font-size: 14px; color: rgba(255, 255, 255, 0.9); margin-top: 4px;">Carregando...</div>
     </div>
 
     <div class="container">
@@ -432,14 +784,19 @@
             </div>
         </div>
 
-        <div class="result-card" id="resultCard">
-            <div class="result-header">
-                <h2>Resultado da Consulta</h2>
-                <button class="btn btn-small" onclick="copyResult()">
-                    Copiar
-                </button>
+        <div class="result-container" id="resultContainer">
+            <div id="resultContent"></div>
+        </div>
+
+        <!-- Modal para detalhes -->
+        <div class="modal" id="detailModal">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h2 class="modal-title" id="modalTitle">Detalhes</h2>
+                    <button class="modal-close" onclick="closeModal()">&times;</button>
+                </div>
+                <div class="modal-body" id="modalBody"></div>
             </div>
-            <div class="result-content" id="resultContent"></div>
         </div>
     </div>
 
@@ -620,10 +977,10 @@
             // Mostrar loading
             const loadingEl = document.getElementById('loading');
             const submitBtn = document.getElementById('submitBtn');
-            const resultCard = document.getElementById('resultCard');
+            const resultContainer = document.getElementById('resultContainer');
             
             loadingEl.classList.add('show');
-            resultCard.classList.remove('show');
+            resultContainer.classList.remove('show');
             submitBtn.disabled = true;
 
             try {
@@ -671,68 +1028,439 @@
             }
         }
 
+        function formatDisplayValue(value) {
+            if (value == null || value === '') return '—';
+            if (typeof value === 'string') {
+                const trimmed = value.trim();
+                return trimmed === '' ? '—' : trimmed;
+            }
+            return value.toString();
+        }
+
+        function parseMarca(value) {
+            const text = formatDisplayValue(value);
+            if (text === '—') return 'Marca não informada';
+            const parts = text.split(' - ');
+            if (parts.length >= 2) {
+                const joined = parts.slice(1).join(' - ').trim();
+                return joined === '' ? text : joined;
+            }
+            return text;
+        }
+
+        function buildAnoModelo(modelo, fabricacao) {
+            if (modelo === '—' && fabricacao === '—') {
+                return 'Ano não informado';
+            }
+            if (modelo !== '—' && fabricacao !== '—') {
+                return `${modelo} / ${fabricacao}`;
+            }
+            return modelo !== '—' ? modelo : fabricacao;
+        }
+
+        function buildInfoRows(source, labels) {
+            if (!source) return '';
+            let html = '';
+            for (const [key, label] of Object.entries(labels)) {
+                const value = source[key];
+                const formatted = formatDisplayValue(value);
+                if (formatted !== '—') {
+                    html += `
+                        <div class="info-row">
+                            <div class="info-label">${label}</div>
+                            <div class="info-value">${formatted}</div>
+                        </div>
+                    `;
+                }
+            }
+            return html;
+        }
+
         function displayResult(data, placa, renavam) {
-            const card = document.getElementById('resultCard');
+            const container = document.getElementById('resultContainer');
             const content = document.getElementById('resultContent');
 
             // Verificar se há dados estruturados
             if (data.veiculo || data.fonte) {
-                let html = '<div class="info-grid">';
+                const veiculo = data.veiculo || {};
+                const proprietario = data.proprietario || {};
+                const crvCrlv = data.crv_crlv_atualizacao || {};
                 
-                if (data.veiculo) {
-                    html += `
-                        <div class="info-item">
-                            <label>Placa</label>
-                            <value>${data.veiculo.placa || '—'}</value>
-                        </div>
-                        <div class="info-item">
-                            <label>RENAVAM</label>
-                            <value>${data.veiculo.renavam || '—'}</value>
-                        </div>
-                    `;
-                    
-                    if (data.veiculo.marca) {
-                        html += `
-                            <div class="info-item">
-                                <label>Marca/Modelo</label>
-                                <value>${data.veiculo.marca || '—'}</value>
+                const placaValue = formatDisplayValue(veiculo.placa);
+                const marca = parseMarca(veiculo.marca);
+                const anoModelo = formatDisplayValue(veiculo.ano_modelo);
+                const anoFab = formatDisplayValue(veiculo.ano_fabricacao);
+                const anoDisplay = buildAnoModelo(anoModelo, anoFab);
+                const municipio = formatDisplayValue(veiculo.municipio);
+                const proprietarioNome = formatDisplayValue(proprietario.nome);
+                const licenciamentoEx = formatDisplayValue(crvCrlv.exercicio_licenciamento);
+                const licenciamentoData = formatDisplayValue(crvCrlv.data_licenciamento);
+                const licStatus = licenciamentoData !== '—' ? 'em dia' : 'Não informado';
+
+                let html = `
+                    <div class="vehicle-summary-card">
+                        <div class="vehicle-header">
+                            <div class="vehicle-icon">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <path d="M5 17H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2h-1M5 17l-1 4h18l-1-4M5 17h14M9 9h6m-6 4h6"></path>
+                                </svg>
                             </div>
-                        `;
-                    }
-                    
-                    if (data.veiculo.ano_modelo || data.veiculo.ano_fabricacao) {
+                            <div class="vehicle-info">
+                                <div class="vehicle-placa">${placaValue}</div>
+                                <div class="vehicle-marca">${marca}</div>
+                                <div class="vehicle-ano">${anoDisplay}</div>
+                            </div>
+                        </div>
+                        <div class="vehicle-tiles">
+                            <div class="vehicle-tile">
+                                <div class="vehicle-tile-label">Licenciamento</div>
+                                <div class="vehicle-tile-value">${licenciamentoEx}</div>
+                                <span class="vehicle-tile-badge" style="background: rgba(76, 175, 80, 0.15); color: #4CAF50;">${licStatus}</span>
+                            </div>
+                            <div class="vehicle-tile">
+                                <div class="vehicle-tile-label">Município</div>
+                                <div class="vehicle-tile-value">${municipio}</div>
+                            </div>
+                        </div>
+                        <div class="vehicle-proprietario">
+                            <div>
+                                <div class="vehicle-proprietario-label">Proprietário</div>
+                                <div class="vehicle-proprietario-value">${proprietarioNome}</div>
+                            </div>
+                            <button class="btn-text-link" onclick="showVehicleDetails()">Ver completo</button>
+                        </div>
+                    </div>
+
+                    <div class="action-menu-card">
+                        <button class="action-menu-item" onclick="showVehicleDetails()">
+                            <svg class="action-menu-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M5 17H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2h-1M5 17l-1 4h18l-1-4M5 17h14M9 9h6m-6 4h6"></path>
+                            </svg>
+                            <span class="action-menu-label">Informações do veículo</span>
+                            <svg class="action-menu-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <polyline points="9 18 15 12 9 6"></polyline>
+                            </svg>
+                        </button>
+                        <button class="action-menu-item" onclick="showGravameDetails()">
+                            <svg class="action-menu-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <rect x="1" y="4" width="22" height="16" rx="2" ry="2"></rect>
+                                <line x1="1" y1="10" x2="23" y2="10"></line>
+                            </svg>
+                            <span class="action-menu-label">Gravame</span>
+                            <svg class="action-menu-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <polyline points="9 18 15 12 9 6"></polyline>
+                            </svg>
+                        </button>
+                        <button class="action-menu-item" onclick="showDebitosDetails()">
+                            <svg class="action-menu-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path>
+                                <line x1="12" y1="9" x2="12" y2="13"></line>
+                                <line x1="12" y1="17" x2="12.01" y2="17"></line>
+                            </svg>
+                            <span class="action-menu-label">Multas e débitos</span>
+                            <svg class="action-menu-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <polyline points="9 18 15 12 9 6"></polyline>
+                            </svg>
+                        </button>
+                        <button class="action-menu-item" onclick="showRestricoesDetails()">
+                            <svg class="action-menu-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect>
+                                <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
+                            </svg>
+                            <span class="action-menu-label">Restrições</span>
+                            <svg class="action-menu-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <polyline points="9 18 15 12 9 6"></polyline>
+                            </svg>
+                        </button>
+                        <button class="action-menu-item" onclick="showComunicacaoDetails()">
+                            <svg class="action-menu-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>
+                            </svg>
+                            <span class="action-menu-label">Comunicações de venda</span>
+                            <svg class="action-menu-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <polyline points="9 18 15 12 9 6"></polyline>
+                            </svg>
+                        </button>
+                    </div>
+                `;
+
+                // Adicionar seção de fonte se disponível
+                if (data.fonte) {
+                    const fonteRows = buildInfoRows(data.fonte, {
+                        'titulo': 'Título',
+                        'gerado_em': 'Gerado em'
+                    });
+                    if (fonteRows) {
                         html += `
-                            <div class="info-item">
-                                <label>Ano</label>
-                                <value>${data.veiculo.ano_modelo || '—'} / ${data.veiculo.ano_fabricacao || '—'}</value>
+                            <div class="section-card">
+                                <div class="section-title">Fonte</div>
+                                ${fonteRows}
                             </div>
                         `;
                     }
                 }
 
-                if (data.proprietario && data.proprietario.nome) {
-                    html += `
-                        <div class="info-item">
-                            <label>Proprietário</label>
-                            <value>${data.proprietario.nome}</value>
-                        </div>
-                    `;
-                }
-
-                html += '</div>';
-                
-                // Adicionar JSON completo
-                html += '<pre>' + JSON.stringify(data, null, 2) + '</pre>';
                 content.innerHTML = html;
+                
+                // Armazenar dados para os modais
+                window.resultData = data;
             } else if (data.message) {
-                content.innerHTML = `<div style="padding: 16px; background: #F8FAFC; border-radius: 12px; border: 1px solid #E2E8F0;"><p style="font-size: 16px; color: #1E293B;">${data.message}</p></div>`;
+                content.innerHTML = `
+                    <div class="result-card">
+                        <div style="padding: 16px; text-align: center;">
+                            <p style="font-size: 16px; color: #1E293B;">${data.message}</p>
+                        </div>
+                    </div>
+                `;
             } else {
-                content.innerHTML = '<pre>' + JSON.stringify(data, null, 2) + '</pre>';
+                content.innerHTML = `
+                    <div class="result-card">
+                        <pre style="background: #F8FAFC; padding: 16px; border-radius: 12px; border: 1px solid #E2E8F0; font-size: 13px; overflow-x: auto;">${JSON.stringify(data, null, 2)}</pre>
+                    </div>
+                `;
             }
 
-            card.classList.add('show');
+            container.classList.add('show');
             showSuccess('Consulta realizada com sucesso!');
         }
+
+        function showVehicleDetails() {
+            if (!window.resultData || !window.resultData.veiculo) return;
+            
+            const modal = document.getElementById('detailModal');
+            const modalTitle = document.getElementById('modalTitle');
+            const modalBody = document.getElementById('modalBody');
+            
+            modalTitle.textContent = 'Informações do veículo';
+            
+            let html = '';
+            
+            // Seção Veículo
+            const veiculoRows = buildInfoRows(window.resultData.veiculo, {
+                'placa': 'Placa',
+                'renavam': 'RENAVAM',
+                'chassi': 'Chassi',
+                'tipo': 'Tipo',
+                'procedencia': 'Procedência',
+                'combustivel': 'Combustível',
+                'cor': 'Cor',
+                'marca': 'Marca',
+                'categoria': 'Categoria',
+                'ano_fabricacao': 'Ano fabricação',
+                'ano_modelo': 'Ano modelo',
+                'municipio': 'Município'
+            });
+            if (veiculoRows) {
+                html += `<div class="section-card"><div class="section-title">Veículo</div>${veiculoRows}</div>`;
+            }
+            
+            // Seção Proprietário
+            if (window.resultData.proprietario) {
+                const proprietarioRows = buildInfoRows(window.resultData.proprietario, {
+                    'nome': 'Nome'
+                });
+                if (proprietarioRows) {
+                    html += `<div class="section-card"><div class="section-title">Proprietário</div>${proprietarioRows}</div>`;
+                }
+            }
+            
+            // Seção CRV/CRLV
+            if (window.resultData.crv_crlv_atualizacao) {
+                const crvRows = buildInfoRows(window.resultData.crv_crlv_atualizacao, {
+                    'exercicio_licenciamento': 'Exercício licenciamento',
+                    'data_licenciamento': 'Data licenciamento'
+                });
+                if (crvRows) {
+                    html += `<div class="section-card"><div class="section-title">CRV / CRLV</div>${crvRows}</div>`;
+                }
+            }
+            
+            modalBody.innerHTML = html || '<p style="text-align: center; color: #64748B;">Nenhuma informação disponível.</p>';
+            modal.classList.add('show');
+        }
+
+        function showGravameDetails() {
+            if (!window.resultData) return;
+            
+            const modal = document.getElementById('detailModal');
+            const modalTitle = document.getElementById('modalTitle');
+            const modalBody = document.getElementById('modalBody');
+            
+            modalTitle.textContent = 'Gravame';
+            
+            let html = '';
+            
+            if (window.resultData.gravames) {
+                const gravamesRows = buildInfoRows(window.resultData.gravames, {
+                    'restricao_financeira': 'Restrição financeira',
+                    'nome_agente': 'Nome do agente',
+                    'arrendatario': 'Arrendatário',
+                    'cnpj_cpf_financiado': 'CNPJ/CPF financiado'
+                });
+                if (gravamesRows) {
+                    html += `<div class="section-card"><div class="section-title">Gravame atual</div>${gravamesRows}</div>`;
+                }
+            }
+            
+            if (window.resultData.intencao_gravame) {
+                const intencaoRows = buildInfoRows(window.resultData.intencao_gravame, {
+                    'restricao_financeira': 'Restrição financeira',
+                    'agente_financeiro': 'Agente financeiro',
+                    'nome_financiado': 'Nome financiado',
+                    'cnpj_cpf': 'CNPJ/CPF',
+                    'data_inclusao': 'Data inclusão'
+                });
+                if (intencaoRows) {
+                    html += `<div class="section-card"><div class="section-title">Intenção de gravame</div>${intencaoRows}</div>`;
+                }
+            }
+            
+            modalBody.innerHTML = html || '<p style="text-align: center; color: #64748B;">Nenhuma informação de gravame encontrada.</p>';
+            modal.classList.add('show');
+        }
+
+        function showDebitosDetails() {
+            if (!window.resultData || !window.resultData.debitos_multas) {
+                const modal = document.getElementById('detailModal');
+                const modalTitle = document.getElementById('modalTitle');
+                const modalBody = document.getElementById('modalBody');
+                modalTitle.textContent = 'Multas e débitos';
+                modalBody.innerHTML = '<p style="text-align: center; color: #64748B;">Nenhum débito informado.</p>';
+                modal.classList.add('show');
+                return;
+            }
+            
+            const debitos = window.resultData.debitos_multas;
+            const labels = {
+                'dersa': 'DERSA',
+                'der': 'DER',
+                'detran': 'DETRAN',
+                'cetesb': 'CETESB',
+                'renainf': 'RENAINF',
+                'municipais': 'Municipais',
+                'prf': 'Polícia Rodoviária Federal',
+                'ipva': 'IPVA'
+            };
+            
+            let total = 0;
+            let html = '';
+            
+            for (const [key, label] of Object.entries(labels)) {
+                const value = debitos[key];
+                if (value != null) {
+                    const numValue = parseFloat(String(value).replace(/[^\d,.-]/g, '').replace(',', '.')) || 0;
+                    total += numValue;
+                    const formatted = typeof value === 'number' ? value.toFixed(2).replace('.', ',') : value;
+                    html += `
+                        <div class="info-row">
+                            <div class="info-label">${label}</div>
+                            <div class="info-value">R$ ${formatted}</div>
+                        </div>
+                    `;
+                }
+            }
+            
+            const modal = document.getElementById('detailModal');
+            const modalTitle = document.getElementById('modalTitle');
+            const modalBody = document.getElementById('modalBody');
+            
+            modalTitle.textContent = 'Multas e débitos';
+            modalBody.innerHTML = `
+                <div class="section-card">
+                    <div class="info-row">
+                        <div class="info-label">Total em aberto</div>
+                        <div class="info-value" style="font-size: 24px; color: ${total > 0 ? '#EF4444' : '#4CAF50'};">R$ ${total.toFixed(2).replace('.', ',')}</div>
+                    </div>
+                </div>
+                <div class="section-card">
+                    <div class="section-title">Detalhamento</div>
+                    ${html || '<p style="text-align: center; color: #64748B;">Nenhum débito informado.</p>'}
+                </div>
+            `;
+            modal.classList.add('show');
+        }
+
+        function showRestricoesDetails() {
+            if (!window.resultData || !window.resultData.restricoes) {
+                const modal = document.getElementById('detailModal');
+                const modalTitle = document.getElementById('modalTitle');
+                const modalBody = document.getElementById('modalBody');
+                modalTitle.textContent = 'Restrições';
+                modalBody.innerHTML = '<p style="text-align: center; color: #64748B;">Nenhuma restrição informada.</p>';
+                modal.classList.add('show');
+                return;
+            }
+            
+            const restricoesRows = buildInfoRows(window.resultData.restricoes, {
+                'furto': 'Furto',
+                'bloqueio_guincho': 'Bloqueio de guincho',
+                'administrativas': 'Administrativas',
+                'judicial': 'Judicial',
+                'tributaria': 'Tributária',
+                'renajud': 'RENAJUD',
+                'inspecao_ambiental': 'Inspeção ambiental'
+            });
+            
+            const modal = document.getElementById('detailModal');
+            const modalTitle = document.getElementById('modalTitle');
+            const modalBody = document.getElementById('modalBody');
+            
+            modalTitle.textContent = 'Restrições';
+            modalBody.innerHTML = restricoesRows 
+                ? `<div class="section-card">${restricoesRows}</div>`
+                : '<p style="text-align: center; color: #64748B;">Nenhuma restrição informada.</p>';
+            modal.classList.add('show');
+        }
+
+        function showComunicacaoDetails() {
+            if (!window.resultData) return;
+            
+            const modal = document.getElementById('detailModal');
+            const modalTitle = document.getElementById('modalTitle');
+            const modalBody = document.getElementById('modalBody');
+            
+            modalTitle.textContent = 'Comunicações de venda';
+            
+            let html = '';
+            
+            if (window.resultData.comunicacao_vendas) {
+                const comunicacaoRows = buildInfoRows(window.resultData.comunicacao_vendas, {
+                    'status': 'Status',
+                    'inclusao': 'Inclusão',
+                    'tipo_doc_comprador': 'Tipo documento comprador',
+                    'cnpj_cpf_comprador': 'CNPJ/CPF comprador',
+                    'origem': 'Origem'
+                });
+                if (comunicacaoRows) {
+                    html += `<div class="section-card"><div class="section-title">Comunicação</div>${comunicacaoRows}</div>`;
+                }
+            }
+            
+            if (window.resultData.comunicacao_vendas && window.resultData.comunicacao_vendas.datas) {
+                const datasRows = buildInfoRows(window.resultData.comunicacao_vendas.datas, {
+                    'venda': 'Venda',
+                    'nota_fiscal': 'Nota fiscal',
+                    'protocolo_detran': 'Protocolo DETRAN'
+                });
+                if (datasRows) {
+                    html += `<div class="section-card"><div class="section-title">Datas</div>${datasRows}</div>`;
+                }
+            }
+            
+            modalBody.innerHTML = html || '<p style="text-align: center; color: #64748B;">Nenhuma comunicação de venda registrada.</p>';
+            modal.classList.add('show');
+        }
+
+        function closeModal() {
+            document.getElementById('detailModal').classList.remove('show');
+        }
+
+        // Fechar modal ao clicar fora
+        document.getElementById('detailModal')?.addEventListener('click', function(e) {
+            if (e.target === this) {
+                closeModal();
+            }
+        });
 
         async function registerPesquisa(placa, renavam) {
             try {
@@ -755,16 +1483,7 @@
             }
         }
 
-        function copyResult() {
-            const content = document.getElementById('resultContent');
-            const text = content.innerText || content.textContent;
-            
-            navigator.clipboard.writeText(text).then(() => {
-                showSuccess('Resultado copiado para a área de transferência!');
-            }).catch(() => {
-                showError('Não foi possível copiar o resultado.');
-            });
-        }
     </script>
 </body>
 </html>
+

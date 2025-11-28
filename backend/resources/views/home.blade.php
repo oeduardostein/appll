@@ -19,28 +19,57 @@
         }
 
         .header {
-            background: #0047AB;
+            background: linear-gradient(135deg, #0047AB 0%, #003d99 100%);
             border-radius: 0 0 32px 32px;
-            padding: 28px 20px 36px;
+            padding: 24px 20px;
             color: white;
+            box-shadow: 0 4px 20px rgba(0, 71, 171, 0.2);
+            position: relative;
+            overflow: hidden;
+        }
+
+        .header::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: radial-gradient(circle at 20% 50%, rgba(255, 255, 255, 0.1) 0%, transparent 50%);
+            pointer-events: none;
+        }
+
+        .header-content {
+            position: relative;
+            z-index: 1;
         }
 
         .header-top {
             display: flex;
             align-items: center;
             justify-content: space-between;
-            margin-bottom: 24px;
+            margin-bottom: 20px;
+            gap: 20px;
+        }
+
+        .header-left {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+            flex: 1;
         }
 
         .logo {
-            width: 56px;
-            height: 56px;
+            width: 64px;
+            height: 64px;
             background: white;
-            border-radius: 50%;
+            border-radius: 16px;
             display: flex;
             align-items: center;
             justify-content: center;
-            padding: 6px;
+            padding: 8px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+            flex-shrink: 0;
         }
 
         .logo img {
@@ -50,7 +79,7 @@
         }
 
         .logo-text {
-            font-size: 18px;
+            font-size: 20px;
             font-weight: 700;
             color: #0047AB;
             display: none;
@@ -60,59 +89,138 @@
             display: block;
         }
 
-        .header-actions {
-            display: flex;
-            gap: 8px;
-            align-items: center;
-        }
-
-        .btn-icon {
-            background: none;
-            border: none;
-            color: white;
-            cursor: pointer;
-            padding: 8px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            border-radius: 50%;
-            transition: background 0.3s;
-        }
-
-        .btn-icon:hover {
-            background: rgba(255, 255, 255, 0.1);
-        }
-
-        .btn-outline {
-            background: transparent;
-            border: 1px solid rgba(255, 255, 255, 0.24);
-            color: white;
-            padding: 10px 12px;
-            border-radius: 8px;
-            font-size: 14px;
-            font-weight: 600;
-            cursor: pointer;
-            display: flex;
-            align-items: center;
-            gap: 6px;
-            transition: all 0.3s;
-            font-family: inherit;
-        }
-
-        .btn-outline:hover {
-            background: rgba(255, 255, 255, 0.1);
+        .header-info {
+            flex: 1;
+            min-width: 0;
         }
 
         .header-title {
-            font-size: 16px;
-            font-weight: 600;
+            font-size: 20px;
+            font-weight: 700;
             color: white;
-            margin-bottom: 8px;
+            margin-bottom: 4px;
+            line-height: 1.3;
         }
 
         .header-subtitle {
             font-size: 14px;
-            color: rgba(255, 255, 255, 0.9);
+            color: rgba(255, 255, 255, 0.85);
+            line-height: 1.4;
+        }
+
+        .header-actions {
+            display: flex;
+            gap: 12px;
+            align-items: center;
+            flex-shrink: 0;
+        }
+
+        .btn-icon {
+            background: rgba(255, 255, 255, 0.1);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            color: white;
+            cursor: pointer;
+            padding: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 12px;
+            transition: all 0.3s;
+            width: 44px;
+            height: 44px;
+        }
+
+        .btn-icon:hover {
+            background: rgba(255, 255, 255, 0.2);
+            border-color: rgba(255, 255, 255, 0.3);
+            transform: translateY(-1px);
+        }
+
+        .btn-outline {
+            background: rgba(255, 255, 255, 0.1);
+            border: 1px solid rgba(255, 255, 255, 0.3);
+            color: white;
+            padding: 10px 18px;
+            border-radius: 12px;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            transition: all 0.3s;
+            font-family: inherit;
+            white-space: nowrap;
+        }
+
+        .btn-outline:hover {
+            background: rgba(255, 255, 255, 0.2);
+            border-color: rgba(255, 255, 255, 0.4);
+            transform: translateY(-1px);
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+        }
+
+        .btn-outline svg {
+            width: 18px;
+            height: 18px;
+            flex-shrink: 0;
+        }
+
+        @media (min-width: 768px) {
+            .header {
+                padding: 32px 40px;
+            }
+
+            .header-top {
+                margin-bottom: 24px;
+            }
+
+            .logo {
+                width: 72px;
+                height: 72px;
+                border-radius: 18px;
+            }
+
+            .header-title {
+                font-size: 24px;
+            }
+
+            .header-subtitle {
+                font-size: 15px;
+            }
+
+            .header-actions {
+                gap: 16px;
+            }
+
+            .btn-outline {
+                padding: 12px 24px;
+                font-size: 15px;
+            }
+        }
+
+        @media (min-width: 1024px) {
+            .header {
+                padding: 40px 60px;
+            }
+
+            .header-left {
+                gap: 24px;
+            }
+
+            .logo {
+                width: 80px;
+                height: 80px;
+                border-radius: 20px;
+            }
+
+            .header-title {
+                font-size: 28px;
+            }
+
+            .header-subtitle {
+                font-size: 16px;
+            }
         }
 
         .container {
@@ -341,33 +449,43 @@
 </head>
 <body>
     <div class="header">
-        <div class="header-top">
-            <div class="logo">
-                <img src="{{ asset('images/logoLL.png') }}" alt="LL Despachante" onerror="this.style.display='none'; this.parentElement.classList.add('no-image');">
-                <span class="logo-text">LL</span>
-            </div>
-            <div class="header-actions">
-                <button class="btn-outline" onclick="window.location.href='/base-estadual'">
-                    Nova Consulta
-                </button>
-                <button class="btn-icon" id="profileBtn" title="Meu perfil" style="display: none;">
-                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                        <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
-                        <circle cx="12" cy="7" r="4"></circle>
-                    </svg>
-                </button>
-                <button class="btn-outline" id="logoutBtn">
-                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                        <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path>
-                        <polyline points="16 17 21 12 16 7"></polyline>
-                        <line x1="21" y1="12" x2="9" y2="12"></line>
-                    </svg>
-                    Sair
-                </button>
+        <div class="header-content">
+            <div class="header-top">
+                <div class="header-left">
+                    <div class="logo">
+                        <img src="{{ asset('images/logoLL.png') }}" alt="LL Despachante" onerror="this.style.display='none'; this.parentElement.classList.add('no-image');">
+                        <span class="logo-text">LL</span>
+                    </div>
+                    <div class="header-info">
+                        <div class="header-title" id="userInfo">Bem-vindo</div>
+                        <div class="header-subtitle" id="consultasInfo">Carregando...</div>
+                    </div>
+                </div>
+                <div class="header-actions">
+                    <button class="btn-outline" onclick="window.location.href='/base-estadual'">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <circle cx="11" cy="11" r="8"></circle>
+                            <path d="m21 21-4.35-4.35"></path>
+                        </svg>
+                        <span>Nova Consulta</span>
+                    </button>
+                    <button class="btn-icon" id="profileBtn" title="Meu perfil" style="display: none;">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
+                            <circle cx="12" cy="7" r="4"></circle>
+                        </svg>
+                    </button>
+                    <button class="btn-outline" id="logoutBtn">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path>
+                            <polyline points="16 17 21 12 16 7"></polyline>
+                            <line x1="21" y1="12" x2="9" y2="12"></line>
+                        </svg>
+                        <span>Sair</span>
+                    </button>
+                </div>
             </div>
         </div>
-        <div class="header-title" id="userInfo">Bem-vindo</div>
-        <div class="header-subtitle" id="consultasInfo">Carregando...</div>
     </div>
 
     <div class="container">
