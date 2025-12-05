@@ -7,6 +7,7 @@ use Illuminate\Http\Request;
 use Illuminate\Routing\Controller;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Log;
 use Symfony\Component\HttpFoundation\Response;
 
 class BaseEstadualController extends Controller
@@ -57,26 +58,87 @@ class BaseEstadualController extends Controller
 
         $cookieDomain = 'www.e-crvsp.sp.gov.br';
 
-        $response = Http::withHeaders($headers)
-            ->withOptions(['verify' => false])
-            ->withCookies([
-                'dataUsuarPublic' => 'Mon Mar 24 2025 08:14:44 GMT-0300 (Horário Padrão de Brasília)',
-                'JSESSIONID' => $token,
-            ], $cookieDomain)
-            ->asForm()
-            ->post('https://www.e-crvsp.sp.gov.br/gever/GVR/pesquisa/baseEstadual.do', [
-                'method' => 'pesquisar',
+        try {
+            $response = Http::timeout(30)
+                ->withHeaders($headers)
+                ->withOptions(['verify' => false])
+                ->withCookies([
+                    'dataUsuarPublic' => 'Mon Mar 24 2025 08:14:44 GMT-0300 (Horário Padrão de Brasília)',
+                    'JSESSIONID' => $token,
+                ], $cookieDomain)
+                ->asForm()
+                ->post('https://www.e-crvsp.sp.gov.br/gever/GVR/pesquisa/baseEstadual.do', [
+                    'method' => 'pesquisar',
+                    'placa' => $placa,
+                    'renavam' => $renavam,
+                    'municipio' => '0',
+                    'chassi' => '',
+                    'captchaResponse' => strtoupper($captcha),
+                ]);
+
+            if (!$response->successful()) {
+                $statusCode = $response->status();
+                $errorMessage = 'Falha ao consultar a base estadual externa.';
+                
+                // Adicionar mais detalhes sobre o erro
+                if ($statusCode >= 500) {
+                    $errorMessage = 'O serviço do DETRAN está temporariamente indisponível. Tente novamente em alguns instantes.';
+                } elseif ($statusCode === 401 || $statusCode === 403) {
+                    $errorMessage = 'Sessão expirada. É necessário atualizar o token de acesso.';
+                } elseif ($statusCode === 404) {
+                    $errorMessage = 'Endpoint do DETRAN não encontrado.';
+                }
+                
+                Log::warning('BaseEstadual: Falha na requisição externa', [
+                    'status' => $statusCode,
+                    'placa' => $placa,
+                    'response_body' => substr($response->body(), 0, 500),
+                ]);
+
+                return response()->json(
+                    [
+                        'message' => $errorMessage,
+                        'status_code' => $statusCode,
+                    ],
+                    Response::HTTP_BAD_GATEWAY
+                );
+            }
+        } catch (\Illuminate\Http\Client\ConnectionException $e) {
+            Log::error('BaseEstadual: Erro de conexão', [
+                'message' => $e->getMessage(),
                 'placa' => $placa,
-                'renavam' => $renavam,
-                'municipio' => '0',
-                'chassi' => '',
-                'captchaResponse' => strtoupper($captcha),
             ]);
 
-        if (!$response->successful()) {
             return response()->json(
-                ['message' => 'Falha ao consultar a base estadual externa.'],
+                [
+                    'message' => 'Não foi possível conectar ao serviço do DETRAN. Verifique sua conexão com a internet ou tente novamente mais tarde.',
+                ],
                 Response::HTTP_BAD_GATEWAY
+            );
+        } catch (\Illuminate\Http\Client\RequestException $e) {
+            Log::error('BaseEstadual: Erro na requisição', [
+                'message' => $e->getMessage(),
+                'placa' => $placa,
+            ]);
+
+            return response()->json(
+                [
+                    'message' => 'Erro ao processar a requisição para o DETRAN. Tente novamente.',
+                ],
+                Response::HTTP_BAD_GATEWAY
+            );
+        } catch (\Exception $e) {
+            Log::error('BaseEstadual: Erro inesperado', [
+                'message' => $e->getMessage(),
+                'trace' => $e->getTraceAsString(),
+                'placa' => $placa,
+            ]);
+
+            return response()->json(
+                [
+                    'message' => 'Ocorreu um erro inesperado ao consultar a base estadual.',
+                ],
+                Response::HTTP_INTERNAL_SERVER_ERROR
             );
         }
 
