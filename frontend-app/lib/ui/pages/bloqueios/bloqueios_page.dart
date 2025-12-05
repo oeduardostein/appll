@@ -629,11 +629,20 @@ class _RenajudEntryTile extends StatelessWidget {
     final theme = Theme.of(context);
     final dataInclusao = _formatDisplayValue(entry['data_inclusao']);
     final horaInclusao = _formatDisplayValue(entry['hora_inclusao']);
-    final tipoRestricao = _formatDisplayValue(entry['tipo_restricao_judicial']);
+    final tipoRestricao = _formatDisplayValue(
+      entry['tipo_bloqueio'] ?? entry['tipo_restricao_judicial'],
+    );
     final numeroProcesso = _formatDisplayValue(entry['numero_processo']);
+    final anoProcesso = _formatDisplayValue(entry['ano_processo']);
     final codigoTribunal = _formatDisplayValue(entry['codigo_tribunal']);
     final codigoOrgao = _formatDisplayValue(entry['codigo_orgao_judicial']);
     final nomeOrgao = _formatDisplayValue(entry['nome_orgao_judicial']);
+    final municipioBloqueio = _formatDisplayValue(entry['municipio_bloqueio']);
+    final motivoBloqueio = _formatDisplayValue(entry['motivo_bloqueio']);
+    final numeroProtocolo = _formatDisplayValue(entry['numero_protocolo']);
+    final anoProtocolo = _formatDisplayValue(entry['ano_protocolo']);
+    final numeroOficio = _formatDisplayValue(entry['numero_oficio']);
+    final anoOficio = _formatDisplayValue(entry['ano_oficio']);
 
     final hasData = dataInclusao != '—';
     final hasHora = horaInclusao != '—';
@@ -642,6 +651,16 @@ class _RenajudEntryTile extends StatelessWidget {
             ? '$dataInclusao às $horaInclusao'
             : dataInclusao
         : null;
+
+    String? combineNumeroAno(String numero, String ano) {
+      if (numero == '—' && ano == '—') return null;
+      if (numero != '—' && ano != '—') return '$numero/$ano';
+      return numero != '—' ? numero : ano;
+    }
+
+    final protocolo = combineNumeroAno(numeroProtocolo, anoProtocolo);
+    final oficio = combineNumeroAno(numeroOficio, anoOficio);
+    final processo = combineNumeroAno(numeroProcesso, anoProcesso);
 
     return Container(
       width: double.infinity,
@@ -682,6 +701,23 @@ class _RenajudEntryTile extends StatelessWidget {
               fontWeight: FontWeight.w700,
             ),
           ),
+          if (motivoBloqueio != '—') ...[
+            const SizedBox(height: 8),
+            Text(
+              'Motivo do bloqueio',
+              style: theme.textTheme.labelSmall?.copyWith(
+                fontWeight: FontWeight.w700,
+                color: theme.colorScheme.primary,
+              ),
+            ),
+            const SizedBox(height: 4),
+            Text(
+              motivoBloqueio,
+              style: theme.textTheme.bodyMedium?.copyWith(
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ],
           if (dataHora != null) ...[
             const SizedBox(height: 4),
             Text(
@@ -707,9 +743,30 @@ class _RenajudEntryTile extends StatelessWidget {
                 color: theme.colorScheme.outline,
               ),
             ),
-          if (numeroProcesso != '—')
+          if (municipioBloqueio != '—')
             Text(
-              'Número do processo: $numeroProcesso',
+              'Município do bloqueio: $municipioBloqueio',
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: theme.colorScheme.outline,
+              ),
+            ),
+          if (protocolo != null)
+            Text(
+              'Protocolo: $protocolo',
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: theme.colorScheme.outline,
+              ),
+            ),
+          if (oficio != null)
+            Text(
+              'Ofício: $oficio',
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: theme.colorScheme.outline,
+              ),
+            ),
+          if (processo != null)
+            Text(
+              'Número do processo: $processo',
               style: theme.textTheme.bodySmall?.copyWith(
                 color: theme.colorScheme.outline,
               ),
@@ -995,10 +1052,21 @@ class _BloqueiosPdfGenerator {
           _sectionFromFields(
             'Bloqueio RENAJUD ${i + 1}',
             [
-              _field('Tipo de restrição', data.renajud[i]['tipo_restricao_judicial']),
+              _field(
+                'Tipo de bloqueio',
+                data.renajud[i]['tipo_bloqueio'] ??
+                    data.renajud[i]['tipo_restricao_judicial'],
+              ),
+              _field('Motivo do bloqueio', data.renajud[i]['motivo_bloqueio']),
               _field('Data inclusão', data.renajud[i]['data_inclusao']),
               _field('Hora inclusão', data.renajud[i]['hora_inclusao']),
+              _field('Município do bloqueio', data.renajud[i]['municipio_bloqueio']),
+              _field('Número protocolo', data.renajud[i]['numero_protocolo']),
+              _field('Ano protocolo', data.renajud[i]['ano_protocolo']),
+              _field('Número ofício', data.renajud[i]['numero_oficio']),
+              _field('Ano ofício', data.renajud[i]['ano_oficio']),
               _field('Número processo', data.renajud[i]['numero_processo']),
+              _field('Ano processo', data.renajud[i]['ano_processo']),
               _field('Código tribunal', data.renajud[i]['codigo_tribunal']),
               _field('Órgão judicial', data.renajud[i]['codigo_orgao_judicial']),
               _field('Nome do órgão', data.renajud[i]['nome_orgao_judicial']),

@@ -91,7 +91,10 @@ class BloqueiosAtivosController extends Controller
             // Bloco: "Informações de Bloqueios RENAJUD"
             $dataInclusao  = $findValueByLabel('Data da Inclusão')
                            ?? $findValueByLabel('Data da Inclus\u00e3o')
-                           ?? $findValueByLabel('Data da Inclusao');
+                           ?? $findValueByLabel('Data da Inclusao')
+                           ?? $findValueByLabel('Data de Inclusão do Bloqueio')
+                           ?? $findValueByLabel('Data de Inclus\u00e3o do Bloqueio')
+                           ?? $findValueByLabel('Data de Inclusao do Bloqueio');
 
             $horaInclusao  = $findValueByLabel('Hora da Inclusão')
                            ?? $findValueByLabel('Hora da Inclus\u00e3o')
@@ -99,7 +102,9 @@ class BloqueiosAtivosController extends Controller
 
             $tipoRestricao = $findValueByLabel('Tipo de Restrição Judicial')
                            ?? $findValueByLabel('Tipo de Restri\u00e7\u00e3o Judicial')
-                           ?? $findValueByLabel('Tipo de Restricao Judicial');
+                           ?? $findValueByLabel('Tipo de Restricao Judicial')
+                           ?? $findValueByLabel('Tipo de Bloqueio')
+                           ?? $findValueByLabel('Tipo do Bloqueio');
 
             $codTribunal   = $findValueByLabel('Código do Tribunal')
                            ?? $findValueByLabel('C\u00f3digo do Tribunal')
@@ -111,7 +116,36 @@ class BloqueiosAtivosController extends Controller
 
             $numProcesso   = $findValueByLabel('Número do Processo')
                            ?? $findValueByLabel('N\u00famero do Processo')
-                           ?? $findValueByLabel('Numero do Processo');
+                           ?? $findValueByLabel('Numero do Processo')
+                           ?? $findValueByLabel('Número processo')
+                           ?? $findValueByLabel('Numero processo');
+
+            $anoProcesso   = $findValueByLabel('Ano de Processo')
+                           ?? $findValueByLabel('Ano de processo')
+                           ?? $findValueByLabel('Ano do Processo')
+                           ?? $findValueByLabel('Ano do processo');
+
+            $numeroProtocolo = $findValueByLabel('Número Protocolo')
+                             ?? $findValueByLabel('Numero Protocolo');
+
+            $anoProtocolo    = $findValueByLabel('Ano Protocolo')
+                             ?? $findValueByLabel('Ano protocolo');
+
+            $numeroOficio    = $findValueByLabel('Número de Ofício')
+                             ?? $findValueByLabel('N\u00famero de Of\u00edcio')
+                             ?? $findValueByLabel('Numero de Oficio');
+
+            $anoOficio       = $findValueByLabel('Ano do Ofício')
+                             ?? $findValueByLabel('Ano do Of\u00edcio')
+                             ?? $findValueByLabel('Ano do Oficio');
+
+            $municipioBloqueio = $findValueByLabel('Município do Bloqueio')
+                               ?? $findValueByLabel('Municipio do Bloqueio')
+                               ?? $findValueByLabel('Município Bloqueio')
+                               ?? $findValueByLabel('Municipio Bloqueio');
+
+            $motivoBloqueio    = $findValueByLabel('Motivo do Bloqueio')
+                               ?? $findValueByLabel('Motivo Bloqueio');
 
             // "Nome do Órgão Judicial" ocupa toda a linha (colspan): o fallback q3 cobre
             $nomeOrgaoJud  = $findValueByLabel('Nome do Órgão Judicial')
@@ -138,10 +172,18 @@ class BloqueiosAtivosController extends Controller
                         'data_inclusao'           => $dataInclusao,
                         'hora_inclusao'           => $horaInclusao,
                         'tipo_restricao_judicial' => $tipoRestricao,
+                        'tipo_bloqueio'           => $tipoRestricao,
                         'codigo_tribunal'         => $codTribunal,
                         'codigo_orgao_judicial'   => $codOrgaoJud,
                         'numero_processo'         => $numProcesso,
+                        'ano_processo'            => $anoProcesso,
                         'nome_orgao_judicial'     => $nomeOrgaoJud,
+                        'numero_protocolo'        => $numeroProtocolo,
+                        'ano_protocolo'           => $anoProtocolo,
+                        'numero_oficio'           => $numeroOficio,
+                        'ano_oficio'              => $anoOficio,
+                        'municipio_bloqueio'      => $municipioBloqueio,
+                        'motivo_bloqueio'         => $motivoBloqueio,
                     ],
                 ],
             ];
