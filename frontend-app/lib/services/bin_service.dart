@@ -69,6 +69,7 @@ class BinService {
     String? placa,
     String? renavam,
     String? chassi,
+    String? opcao,
     required String captcha,
   }) async {
     final normalizedPlaca = placa?.trim().toUpperCase() ?? '';
@@ -90,8 +91,16 @@ class BinService {
       );
     }
 
+    final computedOption =
+        opcao?.trim().isNotEmpty == true ? opcao!.trim() : (hasChassi ? '1' : '2');
+
+    if (computedOption != '1' && computedOption != '2') {
+      throw BinException('Opção de pesquisa inválida.');
+    }
+
     final params = <String, String>{
       'captcha': normalizedCaptcha,
+      'opcao': computedOption,
     };
 
     if (hasPlateRenavam) {

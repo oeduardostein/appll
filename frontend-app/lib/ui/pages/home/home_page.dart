@@ -521,6 +521,7 @@ class _HomePageState extends State<HomePage> {
     String? placa,
     String? renavam,
     String? chassi,
+    String? opcao,
     required bool autoSolve,
     String? captchaOverride,
   }) async {
@@ -539,10 +540,14 @@ class _HomePageState extends State<HomePage> {
         throw BinException('Informe o captcha para continuar.');
       }
 
+      final searchOption = opcao ??
+          ((chassi != null && chassi.trim().isNotEmpty) ? '1' : '2');
+
       final result = await _binService.consultar(
         placa: placa,
         renavam: renavam,
         chassi: chassi,
+        opcao: searchOption,
         captcha: captcha,
       );
 
@@ -555,6 +560,7 @@ class _HomePageState extends State<HomePage> {
         placa: placa,
         renavam: renavam,
         chassi: chassi,
+        opcaoPesquisa: searchOption,
       );
 
       Navigator.of(context).push(
@@ -1029,6 +1035,7 @@ class _HomePageState extends State<HomePage> {
       placa: query.placa,
       renavam: query.renavam,
       chassi: query.chassi,
+      opcao: query.opcao,
       autoSolve: true,
     );
 
@@ -1053,6 +1060,7 @@ class _HomePageState extends State<HomePage> {
       placa: manualQuery.placa,
       renavam: manualQuery.renavam,
       chassi: manualQuery.chassi,
+      opcao: manualQuery.opcao,
       autoSolve: false,
       captchaOverride: manualQuery.captcha,
     );
@@ -3515,6 +3523,8 @@ class _HomeDisclaimerNotice extends StatelessWidget {
   }
 }
 
+enum _BinSearchOption { placaRenavam, chassi }
+
 class _VehicleLookupDialog extends StatefulWidget {
   const _VehicleLookupDialog({
     required this.title,
@@ -3562,6 +3572,12 @@ class _VehicleLookupDialogState extends State<_VehicleLookupDialog> {
   bool _isLoadingCaptcha = false;
   String? _captchaBase64;
   String? _captchaError;
+  _BinSearchOption _binSearchOption = _BinSearchOption.placaRenavam;
+
+  bool get _isBinLookup => widget.includeChassi;
+  bool get _isChassiMode =>
+      _isBinLookup && _binSearchOption == _BinSearchOption.chassi;
+  bool get _isPlacaRenavamMode => !_isChassiMode;
 
   @override
   void initState() {
@@ -3573,6 +3589,9 @@ class _VehicleLookupDialogState extends State<_VehicleLookupDialog> {
     _chassiController = TextEditingController(
       text: widget.initialChassi ?? '',
     );
+    if (_isBinLookup && (widget.initialChassi?.trim().isNotEmpty ?? false)) {
+      _binSearchOption = _BinSearchOption.chassi;
+    }
     _captchaController = TextEditingController();
     if (widget.requireCaptcha) {
       _refreshCaptcha();
@@ -3618,13 +3637,6 @@ class _VehicleLookupDialogState extends State<_VehicleLookupDialog> {
     }
   }
 
-  bool _hasChassi() {
-    if (!widget.includeChassi) {
-      return false;
-    }
-    return _chassiController.text.trim().isNotEmpty;
-  }
-
   void _submit() {
     if (widget.requireCaptcha) {
       if (_isLoadingCaptcha || _captchaBase64 == null) {
@@ -3642,31 +3654,41 @@ class _VehicleLookupDialogState extends State<_VehicleLookupDialog> {
         ? _chassiController.text.trim().toUpperCase()
         : '';
 
-    final hasChassi = widget.includeChassi && chassiValue.isNotEmpty;
-    final hasPlateRenavam =
-        placaValue.isNotEmpty && (!widget.includeRenavam || renavamValue.isNotEmpty);
-
-    if (!hasChassi && !hasPlateRenavam) {
-      ScaffoldMessenger.of(context)
-        ..clearSnackBars()
-        ..showSnackBar(
-          const SnackBar(
-            content: Text('Informe placa e renavam ou chassi para consultar.'),
-          ),
-        );
-      return;
+    if (_isBinLookup) {
+      if (_isChassiMode && chassiValue.isEmpty) {
+        _showSnack('Informe o chassi para consultar.');
+        return;
+      }
+      if (_isPlacaRenavamMode &&
+          (placaValue.isEmpty || (widget.includeRenavam && renavamValue.isEmpty))) {
+        _showSnack('Informe placa e renavam para consultar.');
+        return;
+      }
     }
+
+    final selectedOption = _isBinLookup
+        ? (_isChassiMode ? '1' : '2')
+        : null;
 
     Navigator.of(context).pop(
       _BaseEstadualQuery(
-        placa: placaValue,
-        renavam: renavamValue,
-        chassi: chassiValue.isEmpty ? null : chassiValue,
+        placa: _isChassiMode ? '' : placaValue,
+        renavam: _isChassiMode ? '' : renavamValue,
+        chassi: _isChassiMode && chassiValue.isNotEmpty ? chassiValue : null,
+        opcao: selectedOption,
         captcha: widget.requireCaptcha
             ? _captchaController.text.trim().toUpperCase()
             : '',
       ),
     );
+  }
+
+  void _showSnack(String message) {
+    ScaffoldMessenger.of(context)
+      ..clearSnackBars()
+      ..showSnackBar(
+        SnackBar(content: Text(message)),
+      );
   }
 
   @override
@@ -3710,65 +3732,94 @@ class _VehicleLookupDialogState extends State<_VehicleLookupDialog> {
                   ],
                 ),
                 const SizedBox(height: 12),
-                TextFormField(
-                  controller: _plateController,
-                  decoration: const InputDecoration(labelText: 'Placa'),
-                  inputFormatters: [
-                    const _UpperCaseTextFormatter(),
-                    FilteringTextInputFormatter.allow(RegExp('[A-Za-z0-9]')),
-                    LengthLimitingTextInputFormatter(7),
-                  ],
-                  textCapitalization: TextCapitalization.characters,
-                  validator: (value) {
-                    final text = value?.trim().toUpperCase() ?? '';
-                    if (text.isEmpty) {
-                      if (_hasChassi()) return null;
-                      return 'Informe a placa';
-                    }
-                    final normalized = text.replaceAll('-', '');
-                    if (!widget.plateValidator(normalized)) {
-                      return 'Placa inválida';
-                    }
-                    return null;
-                  },
-                ),
-                if (widget.includeRenavam) ...[
-                  const SizedBox(height: 16),
-                  TextFormField(
-                    controller: _renavamController,
-                    decoration: const InputDecoration(labelText: 'Renavam'),
-                    keyboardType: TextInputType.number,
-                    inputFormatters: [
-                      FilteringTextInputFormatter.digitsOnly,
-                      LengthLimitingTextInputFormatter(11),
+                if (widget.includeChassi) ...[
+                  Row(
+                    children: [
+                      Expanded(
+                        child: RadioListTile<_BinSearchOption>(
+                          value: _BinSearchOption.placaRenavam,
+                          groupValue: _binSearchOption,
+                          contentPadding: EdgeInsets.zero,
+                          dense: true,
+                          title: const Text('Placa + Renavam'),
+                          onChanged: (value) {
+                            if (value == null) return;
+                            setState(() {
+                              _binSearchOption = value;
+                            });
+                          },
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: RadioListTile<_BinSearchOption>(
+                          value: _BinSearchOption.chassi,
+                          groupValue: _binSearchOption,
+                          contentPadding: EdgeInsets.zero,
+                          dense: true,
+                          title: const Text('Chassi'),
+                          onChanged: (value) {
+                            if (value == null) return;
+                            setState(() {
+                              _binSearchOption = value;
+                            });
+                          },
+                        ),
+                      ),
                     ],
+                  ),
+                  const SizedBox(height: 8),
+                ],
+                if (_isPlacaRenavamMode) ...[
+                  TextFormField(
+                    controller: _plateController,
+                    decoration: const InputDecoration(labelText: 'Placa'),
+                    inputFormatters: [
+                      const _UpperCaseTextFormatter(),
+                      FilteringTextInputFormatter.allow(RegExp('[A-Za-z0-9]')),
+                      LengthLimitingTextInputFormatter(7),
+                    ],
+                    textCapitalization: TextCapitalization.characters,
                     validator: (value) {
-                      final text = value?.trim() ?? '';
-                      if (!widget.includeRenavam) {
-                        return null;
-                      }
+                      final text = value?.trim().toUpperCase() ?? '';
                       if (text.isEmpty) {
-                        if (_hasChassi()) return null;
-                        return 'Informe o renavam';
+                        return 'Informe a placa';
                       }
-                      if (widget.renavamValidator != null &&
-                          !widget.renavamValidator!(text)) {
-                        return 'Renavam inválido';
+                      final normalized = text.replaceAll('-', '');
+                      if (!widget.plateValidator(normalized)) {
+                        return 'Placa inválida';
                       }
                       return null;
                     },
                   ),
-                ],
-                if (widget.includeChassi) ...[
-                  const SizedBox(height: 16),
-                  Center(
-                    child: Text(
-                      'Ou',
-                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                            fontWeight: FontWeight.w700,
-                          ),
+                  if (widget.includeRenavam) ...[
+                    const SizedBox(height: 16),
+                    TextFormField(
+                      controller: _renavamController,
+                      decoration: const InputDecoration(labelText: 'Renavam'),
+                      keyboardType: TextInputType.number,
+                      inputFormatters: [
+                        FilteringTextInputFormatter.digitsOnly,
+                        LengthLimitingTextInputFormatter(11),
+                      ],
+                      validator: (value) {
+                        final text = value?.trim() ?? '';
+                        if (!widget.includeRenavam) {
+                          return null;
+                        }
+                        if (text.isEmpty) {
+                          return 'Informe o renavam';
+                        }
+                        if (widget.renavamValidator != null &&
+                            !widget.renavamValidator!(text)) {
+                          return 'Renavam inválido';
+                        }
+                        return null;
+                      },
                     ),
-                  ),
+                  ],
+                ],
+                if (widget.includeChassi && _isChassiMode) ...[
                   const SizedBox(height: 16),
                   TextFormField(
                     controller: _chassiController,
@@ -3785,7 +3836,7 @@ class _VehicleLookupDialogState extends State<_VehicleLookupDialog> {
                       if (!widget.includeChassi) return null;
                       final text = value?.trim().toUpperCase() ?? '';
                       if (text.isEmpty) {
-                        return null;
+                        return 'Informe o chassi';
                       }
                       if (widget.chassiValidator != null &&
                           !widget.chassiValidator!(text)) {
@@ -4721,12 +4772,14 @@ class _BaseEstadualQuery {
     required this.renavam,
     required this.captcha,
     this.chassi,
+    this.opcao,
   });
 
   final String placa;
   final String renavam;
   final String captcha;
   final String? chassi;
+  final String? opcao;
 }
 
 class _BaseOutrosEstadosQuery {

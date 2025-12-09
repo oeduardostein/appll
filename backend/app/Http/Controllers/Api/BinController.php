@@ -20,9 +20,21 @@ class BinController extends Controller
         $renavam = trim((string) $request->query('renavam', ''));
         $chassi = strtoupper(trim((string) $request->query('chassi', '')));
         $captcha = strtoupper(trim((string) $request->query('captcha', '')));
+        $option = trim((string) $request->query('opcao', ''));
 
         $hasPlateRenavam = $placa !== '' && $renavam !== '';
         $hasChassi = $chassi !== '';
+
+        if ($option === '') {
+            $option = $hasChassi ? '1' : '2';
+        }
+
+        if (!in_array($option, ['1', '2'], true)) {
+            return response()->json(
+                ['message' => 'Opção de pesquisa inválida.'],
+                Response::HTTP_UNPROCESSABLE_ENTITY
+            );
+        }
 
         if ($captcha === '') {
             return response()->json(
@@ -31,9 +43,16 @@ class BinController extends Controller
             );
         }
 
-        if (!$hasPlateRenavam && !$hasChassi) {
+        if ($option === '1' && !$hasChassi) {
             return response()->json(
-                ['message' => 'Informe placa e renavam ou chassi para realizar a consulta.'],
+                ['message' => 'Informe o chassi e o captcha para realizar a consulta.'],
+                Response::HTTP_UNPROCESSABLE_ENTITY
+            );
+        }
+
+        if ($option === '2' && !$hasPlateRenavam) {
+            return response()->json(
+                ['message' => 'Informe placa e renavam e o captcha para realizar a consulta.'],
                 Response::HTTP_UNPROCESSABLE_ENTITY
             );
         }
@@ -77,11 +96,11 @@ class BinController extends Controller
             ->asForm()
             ->post('https://www.e-crvsp.sp.gov.br/gever/GVR/pesquisa/bin/cadVeiculo.do', [
                 'method' => 'pesquisar',
-                'opcao' => '4',
-                'valor' => '',
-                'placa' => $hasPlateRenavam ? $placa : '',
-                'renavam' => $hasPlateRenavam ? $renavam : '',
-                'chassi' => $hasChassi ? $chassi : '',
+                'opcao' => $option,
+                'valor' => $option === '1' ? $chassi : ($renavam !== '' ? $renavam : $placa),
+                'placa' => $option === '2' ? $placa : '',
+                'renavam' => $option === '2' ? $renavam : '',
+                'chassi' => $option === '1' ? $chassi : '',
                 'captchaResponse' => $captcha,
             ]);
 
