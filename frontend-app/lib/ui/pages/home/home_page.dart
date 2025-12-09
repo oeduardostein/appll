@@ -289,6 +289,7 @@ class _HomePageState extends State<HomePage> {
     bool requireCaptcha = true,
     String? initialPlate,
     String? initialRenavam,
+    String? initialChassi,
   }) {
     return _showVehicleLookupDialog(
       title: 'Pesquisa BIN',
@@ -297,6 +298,9 @@ class _HomePageState extends State<HomePage> {
       requireCaptcha: requireCaptcha,
       initialPlate: initialPlate,
       initialRenavam: initialRenavam,
+      includeChassi: true,
+      chassiValidator: _isValidChassi,
+      initialChassi: initialChassi,
     );
   }
 
@@ -356,8 +360,11 @@ class _HomePageState extends State<HomePage> {
     String Function(Object error)? captchaErrorResolver,
     bool includeRenavam = true,
     bool requireCaptcha = true,
+    bool includeChassi = false,
+    bool Function(String value)? chassiValidator,
     String? initialPlate,
     String? initialRenavam,
+    String? initialChassi,
   }) {
     return showDialog<_BaseEstadualQuery>(
       context: context,
@@ -369,9 +376,12 @@ class _HomePageState extends State<HomePage> {
         plateValidator: _isValidPlate,
         includeRenavam: includeRenavam,
         renavamValidator: _isValidRenavam,
+        includeChassi: includeChassi,
+        chassiValidator: chassiValidator,
         requireCaptcha: requireCaptcha,
         initialPlate: initialPlate,
         initialRenavam: initialRenavam,
+        initialChassi: initialChassi,
       ),
     );
   }
@@ -508,8 +518,9 @@ class _HomePageState extends State<HomePage> {
   }
 
   Future<bool> _executeBinQuery({
-    required String placa,
-    required String renavam,
+    String? placa,
+    String? renavam,
+    String? chassi,
     required bool autoSolve,
     String? captchaOverride,
   }) async {
@@ -531,6 +542,7 @@ class _HomePageState extends State<HomePage> {
       final result = await _binService.consultar(
         placa: placa,
         renavam: renavam,
+        chassi: chassi,
         captcha: captcha,
       );
 
@@ -538,12 +550,22 @@ class _HomePageState extends State<HomePage> {
       Navigator.of(context, rootNavigator: true).pop();
       if (!mounted) return true;
 
-      _registerPesquisa(nome: 'BIN', placa: placa, renavam: renavam);
+      _registerPesquisa(
+        nome: 'BIN',
+        placa: placa,
+        renavam: renavam,
+        chassi: chassi,
+      );
 
       Navigator.of(context).push(
         MaterialPageRoute(
           builder: (_) =>
-              BinResultPage(placa: placa, renavam: renavam, payload: result),
+              BinResultPage(
+                placa: placa ?? '',
+                renavam: renavam ?? '',
+                chassi: chassi,
+                payload: result,
+              ),
         ),
       );
 
@@ -1006,6 +1028,7 @@ class _HomePageState extends State<HomePage> {
     final autoCompleted = await _executeBinQuery(
       placa: query.placa,
       renavam: query.renavam,
+      chassi: query.chassi,
       autoSolve: true,
     );
 
@@ -1019,6 +1042,7 @@ class _HomePageState extends State<HomePage> {
       requireCaptcha: true,
       initialPlate: query.placa,
       initialRenavam: query.renavam,
+      initialChassi: query.chassi,
     );
 
     if (manualQuery == null || !mounted) {
@@ -1028,6 +1052,7 @@ class _HomePageState extends State<HomePage> {
     await _executeBinQuery(
       placa: manualQuery.placa,
       renavam: manualQuery.renavam,
+      chassi: manualQuery.chassi,
       autoSolve: false,
       captchaOverride: manualQuery.captcha,
     );
@@ -3500,22 +3525,28 @@ class _VehicleLookupDialog extends StatefulWidget {
     this.captchaErrorResolver,
     this.includeRenavam = true,
     this.renavamValidator,
+    this.includeChassi = false,
+    this.chassiValidator,
     this.requireCaptcha = true,
     this.initialPlate,
     this.initialRenavam,
+    this.initialChassi,
   });
 
   final String title;
   final Future<String> Function() fetchCaptcha;
   final bool Function(String value) plateValidator;
   final bool Function(String value)? renavamValidator;
+  final bool Function(String value)? chassiValidator;
   final String Function(Object error)? captchaErrorResolver;
   final String submitLabel;
   final String captchaLabel;
   final bool includeRenavam;
+  final bool includeChassi;
   final bool requireCaptcha;
   final String? initialPlate;
   final String? initialRenavam;
+  final String? initialChassi;
 
   @override
   State<_VehicleLookupDialog> createState() => _VehicleLookupDialogState();
@@ -3525,6 +3556,7 @@ class _VehicleLookupDialogState extends State<_VehicleLookupDialog> {
   final _formKey = GlobalKey<FormState>();
   late final TextEditingController _plateController;
   late final TextEditingController _renavamController;
+  late final TextEditingController _chassiController;
   late final TextEditingController _captchaController;
 
   bool _isLoadingCaptcha = false;
@@ -3538,6 +3570,9 @@ class _VehicleLookupDialogState extends State<_VehicleLookupDialog> {
     _renavamController = TextEditingController(
       text: widget.initialRenavam ?? '',
     );
+    _chassiController = TextEditingController(
+      text: widget.initialChassi ?? '',
+    );
     _captchaController = TextEditingController();
     if (widget.requireCaptcha) {
       _refreshCaptcha();
@@ -3548,6 +3583,7 @@ class _VehicleLookupDialogState extends State<_VehicleLookupDialog> {
   void dispose() {
     _plateController.dispose();
     _renavamController.dispose();
+    _chassiController.dispose();
     _captchaController.dispose();
     super.dispose();
   }
@@ -3582,6 +3618,13 @@ class _VehicleLookupDialogState extends State<_VehicleLookupDialog> {
     }
   }
 
+  bool _hasChassi() {
+    if (!widget.includeChassi) {
+      return false;
+    }
+    return _chassiController.text.trim().isNotEmpty;
+  }
+
   void _submit() {
     if (widget.requireCaptcha) {
       if (_isLoadingCaptcha || _captchaBase64 == null) {
@@ -3591,13 +3634,34 @@ class _VehicleLookupDialogState extends State<_VehicleLookupDialog> {
     if (!_formKey.currentState!.validate()) {
       return;
     }
+    final placaValue = _plateController.text.trim().toUpperCase();
     final renavamValue = widget.includeRenavam
-        ? _renavamController.text.trim()
+        ? _renavamController.text.trim().toUpperCase()
         : '';
+    final chassiValue = widget.includeChassi
+        ? _chassiController.text.trim().toUpperCase()
+        : '';
+
+    final hasChassi = widget.includeChassi && chassiValue.isNotEmpty;
+    final hasPlateRenavam =
+        placaValue.isNotEmpty && (!widget.includeRenavam || renavamValue.isNotEmpty);
+
+    if (!hasChassi && !hasPlateRenavam) {
+      ScaffoldMessenger.of(context)
+        ..clearSnackBars()
+        ..showSnackBar(
+          const SnackBar(
+            content: Text('Informe placa e renavam ou chassi para consultar.'),
+          ),
+        );
+      return;
+    }
+
     Navigator.of(context).pop(
       _BaseEstadualQuery(
-        placa: _plateController.text.trim().toUpperCase(),
-        renavam: renavamValue.toUpperCase(),
+        placa: placaValue,
+        renavam: renavamValue,
+        chassi: chassiValue.isEmpty ? null : chassiValue,
         captcha: widget.requireCaptcha
             ? _captchaController.text.trim().toUpperCase()
             : '',
@@ -3658,6 +3722,7 @@ class _VehicleLookupDialogState extends State<_VehicleLookupDialog> {
                   validator: (value) {
                     final text = value?.trim().toUpperCase() ?? '';
                     if (text.isEmpty) {
+                      if (_hasChassi()) return null;
                       return 'Informe a placa';
                     }
                     final normalized = text.replaceAll('-', '');
@@ -3683,11 +3748,48 @@ class _VehicleLookupDialogState extends State<_VehicleLookupDialog> {
                         return null;
                       }
                       if (text.isEmpty) {
+                        if (_hasChassi()) return null;
                         return 'Informe o renavam';
                       }
                       if (widget.renavamValidator != null &&
                           !widget.renavamValidator!(text)) {
                         return 'Renavam inválido';
+                      }
+                      return null;
+                    },
+                  ),
+                ],
+                if (widget.includeChassi) ...[
+                  const SizedBox(height: 16),
+                  Center(
+                    child: Text(
+                      'Ou',
+                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                            fontWeight: FontWeight.w700,
+                          ),
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  TextFormField(
+                    controller: _chassiController,
+                    decoration: const InputDecoration(labelText: 'Chassi'),
+                    inputFormatters: [
+                      const _UpperCaseTextFormatter(),
+                      FilteringTextInputFormatter.allow(
+                        RegExp('[A-Za-z0-9]'),
+                      ),
+                      LengthLimitingTextInputFormatter(17),
+                    ],
+                    textCapitalization: TextCapitalization.characters,
+                    validator: (value) {
+                      if (!widget.includeChassi) return null;
+                      final text = value?.trim().toUpperCase() ?? '';
+                      if (text.isEmpty) {
+                        return null;
+                      }
+                      if (widget.chassiValidator != null &&
+                          !widget.chassiValidator!(text)) {
+                        return 'Chassi inválido';
                       }
                       return null;
                     },
@@ -4618,11 +4720,13 @@ class _BaseEstadualQuery {
     required this.placa,
     required this.renavam,
     required this.captcha,
+    this.chassi,
   });
 
   final String placa;
   final String renavam;
   final String captcha;
+  final String? chassi;
 }
 
 class _BaseOutrosEstadosQuery {

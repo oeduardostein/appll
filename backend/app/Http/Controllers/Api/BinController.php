@@ -16,13 +16,24 @@ class BinController extends Controller
      */
     public function __invoke(Request $request): Response
     {
-        $placa = $request->query('placa');
-        $renavam = $request->query('renavam');
-        $captcha = $request->query('captcha');
+        $placa = strtoupper(trim((string) $request->query('placa', '')));
+        $renavam = trim((string) $request->query('renavam', ''));
+        $chassi = strtoupper(trim((string) $request->query('chassi', '')));
+        $captcha = strtoupper(trim((string) $request->query('captcha', '')));
 
-        if (!$placa || !$renavam || !$captcha) {
+        $hasPlateRenavam = $placa !== '' && $renavam !== '';
+        $hasChassi = $chassi !== '';
+
+        if ($captcha === '') {
             return response()->json(
-                ['message' => 'Informe placa, renavam e captcha para realizar a consulta.'],
+                ['message' => 'Informe o captcha para realizar a consulta.'],
+                Response::HTTP_UNPROCESSABLE_ENTITY
+            );
+        }
+
+        if (!$hasPlateRenavam && !$hasChassi) {
+            return response()->json(
+                ['message' => 'Informe placa e renavam ou chassi para realizar a consulta.'],
                 Response::HTTP_UNPROCESSABLE_ENTITY
             );
         }
@@ -68,9 +79,10 @@ class BinController extends Controller
                 'method' => 'pesquisar',
                 'opcao' => '4',
                 'valor' => '',
-                'placa' => $placa,
-                'renavam' => $renavam,
-                'captchaResponse' => strtoupper($captcha),
+                'placa' => $hasPlateRenavam ? $placa : '',
+                'renavam' => $hasPlateRenavam ? $renavam : '',
+                'chassi' => $hasChassi ? $chassi : '',
+                'captchaResponse' => $captcha,
             ]);
 
         if (!$response->successful()) {

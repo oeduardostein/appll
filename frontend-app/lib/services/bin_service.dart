@@ -66,17 +66,44 @@ class BinService {
   }
 
   Future<Map<String, dynamic>> consultar({
-    required String placa,
-    required String renavam,
+    String? placa,
+    String? renavam,
+    String? chassi,
     required String captcha,
   }) async {
-    final uri = _consultaUri.replace(
-      queryParameters: {
-        'placa': placa,
-        'renavam': renavam,
-        'captcha': captcha,
-      },
-    );
+    final normalizedPlaca = placa?.trim().toUpperCase() ?? '';
+    final normalizedRenavam = renavam?.trim() ?? '';
+    final normalizedChassi = chassi?.trim().toUpperCase() ?? '';
+    final normalizedCaptcha = captcha.trim().toUpperCase();
+
+    if (normalizedCaptcha.isEmpty) {
+      throw BinException('Informe o captcha para consultar.');
+    }
+
+    final hasChassi = normalizedChassi.isNotEmpty;
+    final hasPlateRenavam =
+        normalizedPlaca.isNotEmpty && normalizedRenavam.isNotEmpty;
+
+    if (!hasChassi && !hasPlateRenavam) {
+      throw BinException(
+        'Informe placa e renavam ou chassi para consultar.',
+      );
+    }
+
+    final params = <String, String>{
+      'captcha': normalizedCaptcha,
+    };
+
+    if (hasPlateRenavam) {
+      params['placa'] = normalizedPlaca;
+      params['renavam'] = normalizedRenavam;
+    }
+
+    if (hasChassi) {
+      params['chassi'] = normalizedChassi;
+    }
+
+    final uri = _consultaUri.replace(queryParameters: params);
 
     final response = await _client.get(uri);
 

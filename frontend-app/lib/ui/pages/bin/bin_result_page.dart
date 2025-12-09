@@ -17,14 +17,16 @@ String? _nonEmptyString(dynamic value) {
 class BinResultPage extends StatelessWidget {
   const BinResultPage({
     super.key,
-    required this.placa,
-    required this.renavam,
     required this.payload,
+    this.placa = '',
+    this.renavam = '',
+    this.chassi,
   });
 
+  final Map<String, dynamic> payload;
   final String placa;
   final String renavam;
-  final Map<String, dynamic> payload;
+  final String? chassi;
 
   @override
   Widget build(BuildContext context) {
@@ -32,6 +34,7 @@ class BinResultPage extends StatelessWidget {
       payload,
       fallbackPlaca: placa,
       fallbackRenavam: renavam,
+      fallbackChassi: chassi ?? '',
     );
 
     final sections = structured.sections;
@@ -40,13 +43,24 @@ class BinResultPage extends StatelessWidget {
     final displayPlaca = structured.displayPlaca;
     final displayRenavam = structured.displayRenavam;
     final displayChassi = structured.displayChassi;
+    final summaryPlaca = displayPlaca.isEmpty ? '—' : displayPlaca;
+    final summaryRenavam = displayRenavam.isEmpty ? '—' : displayRenavam;
+    final summaryChassi = (() {
+      final value = displayChassi?.trim() ?? '';
+      return value.isEmpty ? null : value;
+    })();
+    final subtitleText = displayPlaca.isNotEmpty
+        ? 'Placa: $displayPlaca'
+        : (summaryChassi != null
+            ? 'Chassi: $summaryChassi'
+            : (displayRenavam.isNotEmpty ? 'Renavam: $displayRenavam' : null));
     final displayProprietario = structured.displayProprietario;
     final formattedJson = const JsonEncoder.withIndent('  ').convert(payload);
 
     return Scaffold(
       appBar: ResponseTopBar(
         title: 'Pesquisa BIN',
-        subtitle: 'Placa: $displayPlaca',
+        subtitle: subtitleText,
         onShare: () => _shareResult(context, structured),
         actions: [
           IconButton(
@@ -63,9 +77,9 @@ class BinResultPage extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               _VehicleSummaryCard(
-                placa: displayPlaca,
-                renavam: displayRenavam,
-                chassi: displayChassi,
+                placa: summaryPlaca,
+                renavam: summaryRenavam,
+                chassi: summaryChassi,
                 proprietario: displayProprietario,
               ),
               const SizedBox(height: 16),
@@ -282,8 +296,13 @@ class _VehicleSummaryCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
+    final placaValue = placa.trim().isEmpty ? '—' : placa.trim();
+    final renavamValue = renavam.trim().isEmpty ? '—' : renavam.trim();
+    final chassiValue = chassi?.trim() ?? '';
+    final proprietarioValue = proprietario?.trim() ?? '';
 
     Widget _buildTile(String label, String value) {
+      final displayValue = value.trim().isEmpty ? '—' : value;
       return Expanded(
         child: Container(
           padding: const EdgeInsets.all(16),
@@ -304,7 +323,7 @@ class _VehicleSummaryCard extends StatelessWidget {
               ),
               const SizedBox(height: 6),
               Text(
-                value,
+                displayValue,
                 style: theme.textTheme.titleMedium?.copyWith(
                   fontWeight: FontWeight.w600,
                 ),
@@ -341,19 +360,19 @@ class _VehicleSummaryCard extends StatelessWidget {
           const SizedBox(height: 16),
           Row(
             children: [
-              _buildTile('Placa', placa),
+              _buildTile('Placa', placaValue),
               const SizedBox(width: 12),
-              _buildTile('Renavam', renavam),
+              _buildTile('Renavam', renavamValue),
             ],
           ),
-          if (chassi != null && chassi!.isNotEmpty) ...[
+          if (chassiValue.isNotEmpty) ...[
             const SizedBox(height: 12),
             Row(
               children: [
-                _buildTile('Chassi', chassi!),
-                if (proprietario != null && proprietario!.isNotEmpty) ...[
+                _buildTile('Chassi', chassiValue),
+                if (proprietarioValue.isNotEmpty) ...[
                   const SizedBox(width: 12),
-                  _buildTile('Proprietário', proprietario!),
+                  _buildTile('Proprietário', proprietarioValue),
                 ],
               ],
             ),
@@ -473,6 +492,7 @@ class _BinStructuredPayload {
     Map<String, dynamic> payload, {
     required String fallbackPlaca,
     required String fallbackRenavam,
+    String fallbackChassi = '',
   }) {
     final normalized = BinResultPage._asMap(payload['normalized']);
     final identificacao = BinResultPage._asMap(
@@ -481,11 +501,14 @@ class _BinStructuredPayload {
     final gravames = BinResultPage._asMap(normalized?['gravames']);
     final fonte = BinResultPage._asMap(payload['fonte']);
 
-    final displayPlaca =
-        _nonEmptyString(identificacao?['placa']) ?? fallbackPlaca;
-    final displayRenavam =
-        _nonEmptyString(identificacao?['renavam']) ?? fallbackRenavam;
-    final displayChassi = _nonEmptyString(identificacao?['chassi']);
+    final displayPlaca = _nonEmptyString(identificacao?['placa']) ??
+        _nonEmptyString(fallbackPlaca) ??
+        '';
+    final displayRenavam = _nonEmptyString(identificacao?['renavam']) ??
+        _nonEmptyString(fallbackRenavam) ??
+        '';
+    final displayChassi = _nonEmptyString(identificacao?['chassi']) ??
+        _nonEmptyString(fallbackChassi);
     final displayProprietario = _nonEmptyString(gravames?['nome_financiado']);
 
     return _BinStructuredPayload(
@@ -620,7 +643,7 @@ class _BinPdfGenerator {
         ),
         pw.SizedBox(height: 10),
         pw.Text(
-          'Placa: $placa   |   Renavam: $renavam   |   Chassi: ${_formatDisplayValue(chassi)}',
+          'Placa: ${_formatDisplayValue(placa)}   |   Renavam: ${_formatDisplayValue(renavam)}   |   Chassi: ${_formatDisplayValue(chassi)}',
           style: const pw.TextStyle(fontSize: 11),
         ),
         if (proprietario != null && proprietario.trim().isNotEmpty)
