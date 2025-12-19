@@ -1,6 +1,8 @@
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:http/http.dart' as http;
+import 'package:shared_preferences/shared_preferences.dart';
 
 class AuthException implements Exception {
   AuthException(this.message);
@@ -28,6 +30,10 @@ class AuthUser {
       username: json['username'] as String,
       email: json['email'] as String,
     );
+  }
+
+  Map<String, dynamic> toJson() {
+    return {'id': id, 'username': username, 'email': email};
   }
 }
 
@@ -58,9 +64,39 @@ class AuthService {
 
   static AuthSession? _sharedSession;
   static List<String> _cachedPermissions = [];
+  static final Future<SharedPreferences> _prefs =
+      SharedPreferences.getInstance();
+  static const _tokenKey = 'auth_token';
+  static const _userKey = 'auth_user';
+  static const _rememberKey = 'auth_remember_me';
 
   AuthSession? get session => _sharedSession;
   List<String> get permissions => List.unmodifiable(_cachedPermissions);
+
+  Future<bool> restoreSession() async {
+    final prefs = await _prefs;
+    final remember = prefs.getBool(_rememberKey) ?? false;
+    final token = prefs.getString(_tokenKey);
+    final rawUser = prefs.getString(_userKey);
+
+    if (!remember || token == null || token.isEmpty || rawUser == null) {
+      return false;
+    }
+
+    try {
+      final decoded = jsonDecode(rawUser);
+      if (decoded is! Map<String, dynamic>) {
+        await _clearPersistedSession();
+        return false;
+      }
+      final user = AuthUser.fromJson(decoded);
+      _sharedSession = AuthSession(token: token, user: user);
+      return true;
+    } catch (_) {
+      await _clearPersistedSession();
+      return false;
+    }
+  }
 
   static String _sanitizeBaseUrl(String baseUrl) {
     if (baseUrl.endsWith('/')) {
@@ -114,17 +150,23 @@ class AuthService {
   Future<AuthSession> login({
     required String identifier,
     required String password,
+    bool rememberMe = false,
   }) async {
     final uri = _buildUri('/api/auth/login');
     final response = await _client.post(
       uri,
       headers: _jsonHeaders(),
-      body: jsonEncode({'identifier': identifier, 'password': password}),
+      body: jsonEncode({
+        'identifier': identifier,
+        'password': password,
+        'remember_me': rememberMe,
+      }),
     );
 
     final payload = _handleResponse(response);
     final session = _createOrUpdateSession(payload);
     await fetchPermissions();
+    await _persistSession(session, rememberMe: rememberMe);
     return session;
   }
 
@@ -138,7 +180,7 @@ class AuthService {
     );
 
     _handleResponse(response);
-    clearSession();
+    clearSession(clearPersisted: true);
   }
 
   Future<void> deleteAccount() async {
@@ -150,7 +192,7 @@ class AuthService {
     );
 
     _handleResponse(response);
-    clearSession();
+    clearSession(clearPersisted: true);
   }
 
   Future<AuthUser> fetchCurrentUser() async {
@@ -168,6 +210,7 @@ class AuthService {
     _sharedSession =
         _sharedSession?.copyWith(user: user) ??
         AuthSession(token: token, user: user);
+    await _updatePersistedUser(user);
     return user;
   }
 
@@ -188,9 +231,12 @@ class AuthService {
     return session;
   }
 
-  void clearSession() {
+  void clearSession({bool clearPersisted = false}) {
     _sharedSession = null;
     _cachedPermissions = [];
+    if (clearPersisted) {
+      unawaited(_clearPersistedSession());
+    }
   }
 
   Map<String, dynamic> _handleResponse(http.Response response) {
@@ -242,6 +288,42 @@ class AuthService {
     }
     _cachedPermissions = slugs;
     return List.unmodifiable(_cachedPermissions);
+  }
+
+  Future<void> _persistSession(
+    AuthSession session, {
+    required bool rememberMe,
+  }) async {
+    final prefs = await _prefs;
+    if (!rememberMe) {
+      await _clearPersistedSession();
+      return;
+    }
+    await prefs.setString(_tokenKey, session.token);
+    await prefs.setString(_userKey, jsonEncode(session.user.toJson()));
+    await prefs.setBool(_rememberKey, true);
+  }
+
+  Future<void> _updatePersistedUser(AuthUser user) async {
+    final prefs = await _prefs;
+    if (prefs.getBool(_rememberKey) != true) {
+      return;
+    }
+    final token = prefs.getString(_tokenKey);
+    if (token == null || token.isEmpty) {
+      return;
+    }
+    if (_sharedSession?.token != token) {
+      return;
+    }
+    await prefs.setString(_userKey, jsonEncode(user.toJson()));
+  }
+
+  Future<void> _clearPersistedSession() async {
+    final prefs = await _prefs;
+    await prefs.remove(_tokenKey);
+    await prefs.remove(_userKey);
+    await prefs.remove(_rememberKey);
   }
 
   List<String> _extractSlugList(dynamic raw) {

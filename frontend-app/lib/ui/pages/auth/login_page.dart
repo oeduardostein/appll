@@ -20,11 +20,11 @@ class LoginPage extends StatefulWidget {
 
 class _LoginPageState extends State<LoginPage> {
   final _formKey = GlobalKey<FormState>();
-  final _identifierController =
-      TextEditingController(text: '');
+  final _identifierController = TextEditingController(text: '');
   final _passwordController = TextEditingController(text: '');
   final _authService = AuthService();
   bool _obscurePassword = true;
+  bool _rememberMe = false;
 
   @override
   void dispose() {
@@ -47,6 +47,7 @@ class _LoginPageState extends State<LoginPage> {
       await _authService.login(
         identifier: _identifierController.text.trim(),
         password: _passwordController.text,
+        rememberMe: _rememberMe,
       );
       if (!mounted) return;
       Navigator.of(context, rootNavigator: true).pop();
@@ -148,23 +149,34 @@ class _LoginPageState extends State<LoginPage> {
                               return null;
                             },
                           ),
-                        const SizedBox(height: 12),
-                        Align(
-                          alignment: Alignment.centerRight,
-                          child: TextButton(
-                            onPressed: () {
-                              Navigator.of(context).pushNamed(
-                                ForgotPasswordRequestPage.routeName,
-                              );
+                          const SizedBox(height: 12),
+                          CheckboxListTile(
+                            value: _rememberMe,
+                            contentPadding: EdgeInsets.zero,
+                            controlAffinity: ListTileControlAffinity.leading,
+                            title: const Text('Manter conectado'),
+                            onChanged: (value) {
+                              setState(() {
+                                _rememberMe = value ?? false;
+                              });
                             },
-                            child: const Text('Esqueci minha senha'),
                           ),
-                        ),
-                        const SizedBox(height: 24),
-                        FilledButton(
-                          onPressed: _submit,
-                          child: const Text('Entrar'),
-                        ),
+                          Align(
+                            alignment: Alignment.centerRight,
+                            child: TextButton(
+                              onPressed: () {
+                                Navigator.of(context).pushNamed(
+                                  ForgotPasswordRequestPage.routeName,
+                                );
+                              },
+                              child: const Text('Esqueci minha senha'),
+                            ),
+                          ),
+                          const SizedBox(height: 24),
+                          FilledButton(
+                            onPressed: _submit,
+                            child: const Text('Entrar'),
+                          ),
                         ],
                       ),
                     ),

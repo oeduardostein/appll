@@ -3286,7 +3286,7 @@ class _HomePageState extends State<HomePage> {
   }
 
   void _handleUnauthorized() {
-    _authService.clearSession();
+    _authService.clearSession(clearPersisted: true);
     if (mounted) {
       setState(() {
         _allowedPermissionSlugs = {};

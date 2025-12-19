@@ -145,7 +145,7 @@ class _ProfilePageState extends State<ProfilePage> {
   }
 
   void _handleUnauthorized() {
-    _authService.clearSession();
+    _authService.clearSession(clearPersisted: true);
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
       Navigator.of(
