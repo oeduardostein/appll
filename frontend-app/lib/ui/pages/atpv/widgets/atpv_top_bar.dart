@@ -33,6 +33,10 @@ class AtpvTopBar extends StatelessWidget implements PreferredSizeWidget {
             decoration: BoxDecoration(
               color: Colors.white,
               shape: BoxShape.circle,
+              image: const DecorationImage(
+                image: AssetImage('assets/images/logoLL.png'),
+                fit: BoxFit.cover,
+              ),
               boxShadow: [
                 BoxShadow(
                   color: Colors.black.withOpacity(0.08),
@@ -40,11 +44,6 @@ class AtpvTopBar extends StatelessWidget implements PreferredSizeWidget {
                   offset: const Offset(0, 6),
                 ),
               ],
-            ),
-            padding: const EdgeInsets.all(12),
-            child: Image.asset(
-              'assets/images/logoLL.png',
-              fit: BoxFit.contain,
             ),
           ),
           const SizedBox(width: 14),

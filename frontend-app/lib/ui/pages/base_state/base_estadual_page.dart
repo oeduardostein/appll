@@ -453,7 +453,7 @@ class _BlueHeader extends StatelessWidget {
               Expanded(
                 child: Center(
                   child: Image.asset(
-                    'assets/images/logoLL.png',
+                    'assets/images/logoll.png',
                     height: 40,
                   ),
                 ),
@@ -1716,7 +1716,7 @@ class _BaseEstadualPdfGenerator {
 
   Future<pw.MemoryImage?> _loadLogo() async {
     try {
-      final data = await rootBundle.load('assets/images/logoLL.png');
+      final data = await rootBundle.load('assets/images/logoll.png');
       return pw.MemoryImage(data.buffer.asUint8List());
     } catch (_) {
       return null;

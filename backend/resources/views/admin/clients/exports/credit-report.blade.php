@@ -71,18 +71,50 @@
             font-weight: 600;
             color: #2563eb;
         }
+
+        .header-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 0 0 16px;
+        }
+
+        .header-table td {
+            padding: 0;
+            border-bottom: none;
+            vertical-align: middle;
+        }
+
+        .header-logo {
+            width: 92px;
+        }
+
+        .header-logo img {
+            width: 72px;
+            height: auto;
+            display: block;
+        }
     </style>
 </head>
 
 <body>
     @php
         $formatCurrency = static fn (float $value): string => 'R$ ' . number_format($value, 2, ',', '.');
+        $logoPath = public_path('images/logoll.png');
     @endphp
 
-    <h1>Relatório de créditos</h1>
-    <p class="subtitle">
-        Cliente {{ $user->name }} — {{ $selectedMonthLabel }}
-    </p>
+    <table class="header-table">
+        <tr>
+            <td class="header-logo">
+                <img src="{{ $logoPath }}" alt="Logo LL">
+            </td>
+            <td>
+                <h1>Relatório de créditos</h1>
+                <p class="subtitle">
+                    Cliente {{ $user->name }} — {{ $selectedMonthLabel }}
+                </p>
+            </td>
+        </tr>
+    </table>
 
     <div class="summary-grid">
         @foreach ($creditSummary as $card)

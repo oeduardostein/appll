@@ -39,13 +39,7 @@ class HomeHeader extends StatelessWidget {
               CircleAvatar(
                 radius: 28,
                 backgroundColor: Colors.white,
-                child: Padding(
-                  padding: const EdgeInsets.all(6),
-                  child: Image.asset(
-                    'assets/images/logoLL.png',
-                    fit: BoxFit.contain,
-                  ),
-                ),
+                backgroundImage: const AssetImage('assets/images/logoLL.png'),
               ),
               const Spacer(),
               if (onProfileTap != null) ...[

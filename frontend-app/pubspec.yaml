@@ -1,7 +1,7 @@
 name: frontend_app
 description: A new Flutter project.
 publish_to: none
-version: 1.0.9+11
+version: 1.0.10+12
 environment:
   sdk: ^3.8.0
 dependencies:
@@ -25,6 +25,7 @@ flutter:
   uses-material-design: true
   assets:
   - assets/images/logoLL.png
+  - assets/images/logoll.png
 flutter_launcher_icons:
   android: true
   ios: true

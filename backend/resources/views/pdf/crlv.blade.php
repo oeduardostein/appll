@@ -46,6 +46,29 @@
             margin: 0;
         }
 
+        .header-table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        .header-table td {
+            vertical-align: top;
+        }
+
+        .header-logo {
+            width: 90px;
+            text-align: right;
+        }
+
+        .header-logo img {
+            width: 70px;
+            height: auto;
+            display: block;
+            background: #ffffff;
+            border-radius: 12px;
+            padding: 6px;
+        }
+
         .columns {
             width: 100%;
             display: table;
@@ -147,23 +170,33 @@
         $status = $metadata['status_texto'] ?? null;
         $statusClass = $status ? (stripos($status, 'nada consta') !== false ? 'highlight' : 'warning') : '';
         $safe = fn($value, $fallback = '-') => $value !== null && $value !== '' ? $value : $fallback;
+        $logoPath = public_path('images/logoll.png');
     @endphp
 
     <div class="header-card">
-        <p class="title">CRLV-e Digital</p>
-        <p class="subtitle">
-            Emitido em {{ $metadata['emitido_em'] ?? '-' }}
-            @if(!empty($metadata['documento']))
-                • Doc: {{ $metadata['documento'] }}
-            @endif
-        </p>
-        <p class="plate">{{ $safe($veiculo['placa'] ?? null, 'PLACA') }}</p>
-        @if ($proprietario)
-            <p style="margin: 6px 0 0; font-size: 13px;">Proprietário: <strong>{{ $proprietario }}</strong></p>
-        @endif
-        @if ($status)
-            <span class="badge {{ $statusClass }}">{{ $status }}</span>
-        @endif
+        <table class="header-table">
+            <tr>
+                <td>
+                    <p class="title">CRLV-e Digital</p>
+                    <p class="subtitle">
+                        Emitido em {{ $metadata['emitido_em'] ?? '-' }}
+                        @if(!empty($metadata['documento']))
+                            • Doc: {{ $metadata['documento'] }}
+                        @endif
+                    </p>
+                    <p class="plate">{{ $safe($veiculo['placa'] ?? null, 'PLACA') }}</p>
+                    @if ($proprietario)
+                        <p style="margin: 6px 0 0; font-size: 13px;">Proprietário: <strong>{{ $proprietario }}</strong></p>
+                    @endif
+                    @if ($status)
+                        <span class="badge {{ $statusClass }}">{{ $status }}</span>
+                    @endif
+                </td>
+                <td class="header-logo">
+                    <img src="{{ $logoPath }}" alt="Logo LL">
+                </td>
+            </tr>
+        </table>
     </div>
 
     <div class="columns">

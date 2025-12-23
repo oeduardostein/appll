@@ -47,13 +47,7 @@ class _HeaderSection extends StatelessWidget {
               CircleAvatar(
                 radius: 24,
                 backgroundColor: Colors.white,
-                child: Padding(
-                  padding: const EdgeInsets.all(4),
-                  child: Image.asset(
-                    'assets/images/logoLL.png',
-                    fit: BoxFit.contain,
-                  ),
-                ),
+                backgroundImage: const AssetImage('assets/images/logoLL.png'),
               ),
               const Spacer(),
               Container(

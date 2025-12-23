@@ -1154,7 +1154,7 @@ class _BloqueiosPdfGenerator {
 
   Future<pw.MemoryImage?> _loadLogo() async {
     try {
-      final data = await rootBundle.load('assets/images/logoLL.png');
+      final data = await rootBundle.load('assets/images/logoll.png');
       return pw.MemoryImage(data.buffer.asUint8List());
     } catch (_) {
       return null;
