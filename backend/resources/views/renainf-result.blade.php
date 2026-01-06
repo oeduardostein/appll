@@ -8,18 +8,14 @@
     <style>
         :root {
             color-scheme: light;
-            --primary: #0047AB;
-            --bg: #F8FAFC;
+            --primary: #0B4FCA;
+            --bg: #F7F9FC;
             --text-strong: #1E293B;
-            --text-muted: #64748B;
+            --text-muted: #6B7280;
             --card-border: rgba(226, 232, 240, 0.9);
         }
 
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
 
         body {
             font-family: 'Roboto', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
@@ -32,222 +28,117 @@
             background: var(--primary);
             color: #fff;
             border-radius: 0 0 32px 32px;
-            padding: 20px;
+            padding: 20px 18px 22px;
+            box-shadow: 0 14px 32px rgba(11, 79, 202, 0.35);
         }
 
         .renainf-header-inner {
-            max-width: 720px;
+            max-width: 820px;
             margin: 0 auto;
             display: flex;
             align-items: center;
-            gap: 16px;
+            gap: 14px;
         }
 
-        .renainf-title {
-            flex: 1;
-            display: flex;
-            flex-direction: column;
-            gap: 4px;
-        }
+        .renainf-title { flex: 1; display: flex; flex-direction: column; gap: 6px; }
+        .renainf-title-text { font-size: 22px; font-weight: 800; letter-spacing: 0.2px; }
+        .renainf-title-subtitle { font-size: 14px; color: rgba(255,255,255,0.88); }
 
-        .renainf-title-text {
-            font-size: 20px;
-            font-weight: 700;
-        }
-
-        .renainf-title-subtitle {
-            font-size: 13px;
-            color: rgba(255, 255, 255, 0.85);
-        }
-
-        .header-actions {
-            display: flex;
-            align-items: center;
-            gap: 10px;
-        }
+        .header-actions { display: flex; align-items: center; gap: 10px; }
 
         .icon-button {
-            width: 44px;
-            height: 44px;
+            width: 44px; height: 44px;
             border-radius: 999px;
-            border: 1px solid rgba(255, 255, 255, 0.3);
+            border: 1px solid rgba(255, 255, 255, 0.32);
             background: rgba(255, 255, 255, 0.12);
             color: #fff;
-            display: flex;
+            display: inline-flex;
             align-items: center;
             justify-content: center;
             cursor: pointer;
             transition: background 0.2s ease, transform 0.2s ease;
         }
-
-        .icon-button svg {
-            width: 20px;
-            height: 20px;
-        }
-
-        .icon-button:hover {
-            background: rgba(255, 255, 255, 0.2);
-            transform: translateY(-1px);
-        }
-
-        .icon-button.is-loading {
-            opacity: 0.7;
-            cursor: not-allowed;
-        }
-
-        .icon-button.is-loading svg {
-            display: none;
-        }
+        .icon-button svg { width: 20px; height: 20px; }
+        .icon-button:hover { background: rgba(255, 255, 255, 0.18); transform: translateY(-1px); }
+        .icon-button.is-loading { opacity: 0.7; cursor: not-allowed; }
+        .icon-button.is-loading svg { display: none; }
 
         .header-spinner {
-            width: 18px;
-            height: 18px;
-            border-radius: 50%;
+            width: 18px; height: 18px; border-radius: 50%;
             border: 2px solid rgba(255, 255, 255, 0.4);
             border-top-color: #fff;
             animation: spin 0.8s linear infinite;
             display: none;
         }
 
-        @keyframes spin {
-            to {
-                transform: rotate(360deg);
-            }
-        }
+        @keyframes spin { to { transform: rotate(360deg); } }
 
         .renainf-body {
-            max-width: 720px;
+            max-width: 820px;
             margin: 0 auto;
-            padding: 20px 20px 32px;
+            padding: 22px 18px 36px;
             display: flex;
             flex-direction: column;
-            gap: 16px;
+            gap: 18px;
         }
 
-        .renainf-card {
+        .card {
             background: #fff;
             border-radius: 24px;
-            box-shadow: 0 12px 24px rgba(15, 23, 42, 0.08);
             border: 1px solid var(--card-border);
-            padding: 22px;
+            box-shadow: 0 16px 26px rgba(15, 23, 42, 0.08);
+            padding: 22px 22px 20px;
+        }
+
+        .card + .card { margin-top: 4px; }
+        .card-title { font-size: 17px; font-weight: 800; margin-bottom: 12px; letter-spacing: 0.2px; }
+        .muted { color: var(--text-muted); }
+
+        .hero-card {
             display: flex;
             flex-direction: column;
-            gap: 12px;
+            gap: 14px;
         }
-
-        .renainf-card-title {
-            font-size: 16px;
-            font-weight: 700;
+        .hero-top { display: flex; gap: 14px; align-items: center; }
+        .hero-icon {
+            width: 54px; height: 54px;
+            border-radius: 18px;
+            background: rgba(11,79,202,0.12);
+            display: grid; place-items: center;
         }
+        .hero-icon svg { width: 28px; height: 28px; color: var(--primary); }
+        .hero-title { font-size: 22px; font-weight: 800; }
+        .hero-subtitle { font-size: 14px; color: var(--text-muted); margin-top: 4px; }
+        .divider { height: 1px; background: rgba(226, 232, 240, 0.9); margin: 4px 0 6px; }
 
-        .renainf-row {
-            display: flex;
-            gap: 12px;
-            flex-wrap: wrap;
-        }
-
-        .renainf-tile {
-            flex: 1;
-            min-width: 140px;
-            background: #F8FAFC;
-            border-radius: 16px;
-            padding: 12px 14px;
-            border: 1px solid rgba(226, 232, 240, 0.9);
-        }
-
-        .renainf-label {
-            font-size: 12px;
-            font-weight: 600;
-            text-transform: uppercase;
-            color: var(--text-muted);
-        }
-
-        .renainf-value {
-            font-size: 16px;
-            font-weight: 600;
-            margin-top: 6px;
-        }
-
-        .renainf-chip {
-            font-size: 12px;
-            font-weight: 700;
-            padding: 6px 12px;
-            border-radius: 14px;
-            background: rgba(0, 71, 171, 0.12);
-            color: var(--primary);
-            align-self: flex-start;
-        }
-
-        .renainf-section-card {
-            background: #fff;
-            border-radius: 20px;
-            border: 1px solid rgba(226, 232, 240, 0.85);
-            padding: 18px;
-            box-shadow: 0 10px 20px rgba(15, 23, 42, 0.05);
-            display: flex;
-            flex-direction: column;
-            gap: 12px;
-        }
-
-        .renainf-section-title {
-            font-size: 15px;
-            font-weight: 700;
-        }
-
-        .renainf-occurrence,
-        .renainf-infraction {
-            background: #F8FAFC;
-            border-radius: 16px;
-            padding: 14px;
-            border: 1px solid rgba(226, 232, 240, 0.7);
+        .info-grid {
             display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
-            gap: 10px;
-            font-size: 13px;
+            grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+            gap: 12px 16px;
+            margin-top: 4px;
         }
+        .info-item { display: flex; flex-direction: column; gap: 4px; }
+        .label { font-size: 13px; font-weight: 600; color: var(--text-muted); }
+        .value { font-size: 16px; font-weight: 700; color: var(--text-strong); }
 
-        .renainf-detail-label {
-            font-size: 11px;
-            font-weight: 600;
+        .table-card { padding: 16px 16px 10px; }
+        .table-head { font-size: 15px; font-weight: 800; margin: 0 6px 12px; }
+        table { width: 100%; border-collapse: collapse; }
+        th, td { padding: 12px 10px; text-align: left; font-size: 14px; }
+        th { color: var(--text-muted); font-weight: 700; }
+        tr + tr td { border-top: 1px solid rgba(226,232,240,0.8); }
+
+        .empty {
+            text-align: center;
             color: var(--text-muted);
-            text-transform: uppercase;
-        }
-
-        .renainf-detail-value {
+            padding: 18px 0;
             font-size: 14px;
-            font-weight: 600;
-            color: var(--text-strong);
         }
 
-        .renainf-json-section {
-            background: #fff;
-            border-radius: 20px;
-            border: 1px solid rgba(226, 232, 240, 0.9);
-            padding: 20px;
-            box-shadow: 0 12px 24px rgba(15, 23, 42, 0.06);
-        }
-
-        .renainf-json-title {
-            font-size: 16px;
-            font-weight: 700;
-            margin-bottom: 12px;
-        }
-
-        .renainf-json-pre {
-            background: #F8FAFC;
-            border-radius: 16px;
-            border: 1px solid #E2E8F0;
-            padding: 16px;
-            font-size: 13px;
-            color: var(--text-muted);
-            overflow-x: auto;
-            white-space: pre-wrap;
-        }
-
-        @media (min-width: 768px) {
-            .renainf-body {
-                padding: 28px 20px 36px;
-            }
+        @media (max-width: 520px) {
+            .renainf-header { border-radius: 0 0 26px 26px; }
+            .card { border-radius: 20px; }
+            .hero-title { font-size: 20px; }
         }
     </style>
 </head>
@@ -264,10 +155,11 @@
                 <span class="renainf-title-subtitle" id="renainfSubtitle"></span>
             </div>
             <div class="header-actions">
-                <button class="icon-button" type="button" id="renainfCopyBtn" title="Copiar resultado">
+                <button class="icon-button" type="button" id="renainfCopyBtn" title="Compartilhar">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                        <rect x="9" y="9" width="13" height="13" rx="2"></rect>
-                        <rect x="2" y="2" width="13" height="13" rx="2"></rect>
+                        <path d="M4 12v7a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-7"></path>
+                        <path d="M16 6l-4-4-4 4"></path>
+                        <path d="M12 2v13"></path>
                     </svg>
                 </button>
                 <button class="icon-button" type="button" id="renainfPdfBtn" title="Emitir PDF" onclick="emitRenainfPdf()">
@@ -283,26 +175,19 @@
     </div>
 
     <main class="renainf-body">
-        <section id="renainfSummary"></section>
-        <section id="renainfStats"></section>
+        <section id="renainfHero"></section>
         <section id="renainfConsulta"></section>
+        <section id="renainfFonte"></section>
         <section id="renainfOccurrences"></section>
-        <section id="renainfInfractions"></section>
-        <section class="renainf-json-section">
-            <div class="renainf-json-title">Resposta completa</div>
-            <pre class="renainf-json-pre" id="renainfJson"></pre>
-        </section>
     </main>
 
     <script>
         const authToken = localStorage.getItem('auth_token');
         const csrfToken = document.querySelector('meta[name="csrf-token"]')?.content;
-        const renainfSummary = document.getElementById('renainfSummary');
-        const renainfStats = document.getElementById('renainfStats');
+        const renainfHero = document.getElementById('renainfHero');
         const renainfConsulta = document.getElementById('renainfConsulta');
+        const renainfFonte = document.getElementById('renainfFonte');
         const renainfOccurrences = document.getElementById('renainfOccurrences');
-        const renainfInfractions = document.getElementById('renainfInfractions');
-        const renainfJson = document.getElementById('renainfJson');
         const renainfSubtitle = document.getElementById('renainfSubtitle');
         const copyBtn = document.getElementById('renainfCopyBtn');
         const pdfBtn = document.getElementById('renainfPdfBtn');
@@ -341,26 +226,9 @@
         }
 
         function formatSubtitle(result) {
-            const plate = result?.plate || renainfMeta?.plate;
+            const plate = result?.consulta?.placa || result?.plate || renainfMeta?.plate;
             if (!plate) return '';
             return `Placa: ${plate}`;
-        }
-
-        function toNumber(value) {
-            if (value === null || value === undefined) return NaN;
-            if (typeof value === 'number') return value;
-            const sanitized = value.toString().replace(/[^0-9\-,\.]/g, '').replace(',', '.');
-            const parsed = parseFloat(sanitized);
-            return Number.isNaN(parsed) ? NaN : parsed;
-        }
-
-        function formatCurrency(value) {
-            const number = toNumber(value);
-            if (Number.isNaN(number)) return '—';
-            return new Intl.NumberFormat('pt-BR', {
-                style: 'currency',
-                currency: 'BRL',
-            }).format(number);
         }
 
         function formatPeriod(start, end) {
@@ -376,17 +244,6 @@
             return `${parts[2]}/${parts[1]}/${parts[0]}`;
         }
 
-        function getSummary(result) {
-            const summary = result?.summary || result?.resumo || result?.totals || {};
-            const fromInfractions = Array.isArray(result?.infractions);
-            const infractionsCount = fromInfractions ? result.infractions.length : 0;
-            const totalInfractions = summary.totalInfractions ?? summary.total_infractions ?? summary.total ?? infractionsCount;
-            const totalValue = summary.totalValue ?? summary.total_value ?? summary.valor_total ?? summary.total ?? 0;
-            const openValue = summary.openValue ?? summary.open_value ?? summary.valor_em_aberto ?? 0;
-            const lastUpdated = summary.lastUpdatedLabel || summary.last_updated_at || result?.sourceGeneratedAt || '—';
-            return { totalInfractions, totalValue, openValue, lastUpdated };
-        }
-
         function deductionOccurrences(result) {
             if (Array.isArray(result?.occurrences) && result.occurrences.length) {
                 return result.occurrences;
@@ -398,188 +255,129 @@
             return [];
         }
 
-        function deductionInfractions(result) {
-            if (Array.isArray(result?.infractions) && result.infractions.length) {
-                return result.infractions;
-            }
-            const aliases = ['infracoes', 'items', 'itens', 'infractions_list', 'resultado'];
-            for (const key of aliases) {
-                if (Array.isArray(result?.[key]) && result[key].length) {
-                    return result[key];
-                }
-            }
-            return [];
+        function buildInfoGrid(items) {
+            if (!items.length) return '';
+            return `<div class="info-grid">${items.map(item => `
+                <div class="info-item">
+                    <span class="label">${item.label}</span>
+                    <span class="value">${item.value ?? '—'}</span>
+                </div>
+            `).join('')}</div>`;
         }
 
-        function renderSummary(result) {
-            const plate = result?.plate || '—';
-            const uf = result?.uf || '—';
-            const statusLabel = result?.statusLabel || result?.status || '—';
-            const period = formatPeriod(renainfMeta?.startDate, renainfMeta?.endDate);
+        function renderHero(result, meta, occurrences) {
+            const plate = result?.consulta?.placa || result?.plate || meta?.plate || '—';
+            const source = result?.fonte?.titulo || 'eCRVsp - DETRAN';
+            const period = formatPeriod(meta?.startDate, meta?.endDate);
+            const ufPesquisada = (meta?.uf || result?.consulta?.uf_pesquisada || '').toUpperCase() || '—';
+            const ufEmplacamento = result?.consulta?.uf_emplacamento || '—';
+            const exigibilidade = result?.consulta?.indicador_exigibilidade || meta?.statusLabel || '—';
+            const ocorrencias = result?.renainf?.quantidade_ocorrencias || occurrences.length || '—';
+
+            const info = buildInfoGrid([
+                { label: 'Período pesquisado', value: period },
+                { label: 'UF pesquisada', value: ufPesquisada },
+                { label: 'UF de emplacamento', value: ufEmplacamento },
+                { label: 'Indicador de exigibilidade', value: exigibilidade },
+                { label: 'Ocorrências encontradas', value: ocorrencias },
+            ]);
+
             return `
-                <div class="renainf-card">
-                    <div class="renainf-card-title">Resumo da consulta</div>
-                    <div class="renainf-row">
-                        <div class="renainf-tile">
-                            <div class="renainf-label">Placa</div>
-                            <div class="renainf-value">${plate}</div>
+                <section class="card hero-card">
+                    <div class="hero-top">
+                        <div class="hero-icon" aria-hidden="true">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <rect x="3" y="11" width="18" height="7" rx="2"></rect>
+                                <path d="M7 11V7a2 2 0 0 1 2-2h6a2 2 0 0 1 2 2v4"></path>
+                                <circle cx="7.5" cy="18" r="1.5"></circle>
+                                <circle cx="16.5" cy="18" r="1.5"></circle>
+                            </svg>
                         </div>
-                        <div class="renainf-tile">
-                            <div class="renainf-label">UF pesquisada</div>
-                            <div class="renainf-value">${uf}</div>
-                        </div>
-                    </div>
-                    <div class="renainf-row">
-                        <div class="renainf-tile">
-                            <div class="renainf-label">Status da multa</div>
-                            <div class="renainf-value">${statusLabel}</div>
-                        </div>
-                        <div class="renainf-tile">
-                            <div class="renainf-label">Período</div>
-                            <div class="renainf-value">${period}</div>
+                        <div>
+                            <div class="hero-title">${plate}</div>
+                            <div class="hero-subtitle">${source}</div>
                         </div>
                     </div>
-                </div>
+                    <div class="divider"></div>
+                    ${info}
+                </section>
             `;
         }
 
-        function renderStats(summary) {
+        function renderConsultaCard(result, meta, occurrences) {
+            const plate = result?.consulta?.placa || result?.plate || meta?.plate || '—';
+            const ufPesq = (meta?.uf || result?.consulta?.uf_pesquisada || '').toUpperCase() || '—';
+            const ufEmpl = result?.consulta?.uf_emplacamento || '—';
+            const exigibilidade = result?.consulta?.indicador_exigibilidade || meta?.statusLabel || '—';
+            const statusFiltro = meta?.statusLabel || '—';
+            const qtd = result?.renainf?.quantidade_ocorrencias || occurrences.length || '—';
+
+            const info = buildInfoGrid([
+                { label: 'Placa consultada', value: plate },
+                { label: 'UF de emplacamento', value: ufEmpl },
+                { label: 'Indicador de exigibilidade', value: exigibilidade },
+                { label: 'UF pesquisada', value: ufPesq },
+                { label: 'Filtro de status', value: statusFiltro },
+                { label: 'Quantidade de ocorrências', value: qtd },
+            ]);
+
             return `
-                <div class="renainf-card">
-                    <div class="renainf-card-title">Resumo financeiro</div>
-                    <div class="renainf-row">
-                        <div class="renainf-tile">
-                            <div class="renainf-label">Total de infrações</div>
-                            <div class="renainf-value">${summary.totalInfractions}</div>
-                        </div>
-                        <div class="renainf-tile">
-                            <div class="renainf-label">Valor total</div>
-                            <div class="renainf-value">${formatCurrency(summary.totalValue)}</div>
-                        </div>
-                    </div>
-                    <div class="renainf-row">
-                        <div class="renainf-tile">
-                            <div class="renainf-label">Valor em aberto</div>
-                            <div class="renainf-value">${formatCurrency(summary.openValue)}</div>
-                        </div>
-                        <div class="renainf-tile">
-                            <div class="renainf-label">Última atualização</div>
-                            <div class="renainf-value">${summary.lastUpdated}</div>
-                        </div>
-                    </div>
-                </div>
+                <section class="card">
+                    <div class="card-title">Dados da consulta</div>
+                    ${info}
+                </section>
             `;
         }
 
-        function renderConsulta(result) {
-            const consulta = result?.consulta || {}; 
-            const fields = [];
-            if (consulta.placa) fields.push({ label: 'Placa consultada', value: consulta.placa });
-            if (consulta.uf_emplacamento) fields.push({ label: 'UF de emplacamento', value: consulta.uf_emplacamento });
-            if (consulta.indicador_exigibilidade) fields.push({ label: 'Indicador de exigibilidade', value: consulta.indicador_exigibilidade });
-            if (!fields.length) return '';
-
-            const rows = fields
-                .map(item => `
-                    <div class="renainf-detail-row">
-                        <span class="renainf-detail-label">${item.label}</span>
-                        <span class="renainf-detail-value">${item.value}</span>
-                    </div>
-                `)
-                .join('');
-
-            return `
-                <div class="renainf-section-card">
-                    <div class="renainf-section-title">Dados da consulta</div>
-                    ${rows}
-                </div>
-            `;
-        }
-
-        function renderFonte(result) {
-            const title = result?.sourceTitle || result?.fonte?.titulo || result?.fonte_title;
-            const generated = result?.sourceGeneratedAt || result?.fonte?.gerado_em || result?.fonte_generated_at;
+        function renderFonteCard(result) {
+            const title = result?.fonte?.titulo || result?.sourceTitle;
+            const generated = result?.fonte?.gerado_em || result?.sourceGeneratedAt;
             if (!title && !generated) return '';
+            const info = buildInfoGrid([
+                { label: 'Sistema', value: title || '—' },
+                { label: 'Gerado em', value: generated || '—' },
+            ]);
             return `
-                <div class="renainf-section-card">
-                    <div class="renainf-section-title">Fonte</div>
-                    ${title ? `<p class="renainf-detail-label">Sistema</p><p class="renainf-detail-value">${title}</p>` : ''}
-                    ${generated ? `<p class="renainf-detail-label">Gerado em</p><p class="renainf-detail-value">${generated}</p>` : ''}
-                </div>
+                <section class="card">
+                    <div class="card-title" style="color: var(--primary);">Fonte</div>
+                    ${info}
+                </section>
             `;
         }
 
-        function renderOccurrences(occurrences) {
-            if (!occurrences.length) return '';
-            const items = occurrences
-                .map((occurrence) => `
-                    <div class="renainf-occurrence">
-                        <div>
-                            <div class="renainf-detail-label">Orgão autuador</div>
-                            <div class="renainf-detail-value">${occurrence.orgao_autuador || occurrence.orgao}</div>
-                        </div>
-                        <div>
-                            <div class="renainf-detail-label">Auto de infração</div>
-                            <div class="renainf-detail-value">${occurrence.auto_infracao || occurrence.auto}</div>
-                        </div>
-                        <div>
-                            <div class="renainf-detail-label">Infração</div>
-                            <div class="renainf-detail-value">${occurrence.infracao || occurrence.codigo_infracao}</div>
-                        </div>
-                        <div>
-                            <div class="renainf-detail-label">Data</div>
-                            <div class="renainf-detail-value">${occurrence.data_infracao || occurrence.data}</div>
-                        </div>
-                        <div>
-                            <div class="renainf-detail-label">Exigibilidade</div>
-                            <div class="renainf-detail-value">${occurrence.exigibilidade || occurrence.indicador_exigibilidade || '—'}</div>
-                        </div>
-                    </div>
-                `)
-                .join('');
+        function renderOccurrencesTable(occurrences) {
+            if (!occurrences.length) {
+                return `<section class="card table-card"><div class="table-head">Ocorrências encontradas</div><div class="empty">Nenhuma ocorrência encontrada.</div></section>`;
+            }
+
+            const rows = occurrences.map(item => `
+                <tr>
+                    <td>${item.orgao_autuador || item.orgao || '—'}</td>
+                    <td>${item.auto_infracao || item.auto || '—'}</td>
+                    <td>${item.infracao || item.codigo_infracao || '—'}</td>
+                    <td>${formatDateDisplay(item.data_infracao || item.data)}</td>
+                    <td>${item.exigibilidade || item.indicador_exigibilidade || '—'}</td>
+                </tr>
+            `).join('');
 
             return `
-                <div class="renainf-section-card">
-                    <div class="renainf-section-title">Ocorrências</div>
-                    ${items}
-                </div>
-            `;
-        }
-
-        function renderInfractions(infractions) {
-            if (!infractions.length) return '';
-            const items = infractions
-                .map((infraction) => `
-                    <div class="renainf-infraction">
-                        <div>
-                            <div class="renainf-detail-label">Auto</div>
-                            <div class="renainf-detail-value">${infraction.auto_infracao || infraction.code || '—'}</div>
-                        </div>
-                        <div>
-                            <div class="renainf-detail-label">Descrição</div>
-                            <div class="renainf-detail-value">${infraction.description || infraction.descricao || '—'}</div>
-                        </div>
-                        <div>
-                            <div class="renainf-detail-label">Valor</div>
-                            <div class="renainf-detail-value">${formatCurrency(infraction.amount ?? infraction.valor ?? infraction.valor_infracao)}</div>
-                        </div>
-                        <div>
-                            <div class="renainf-detail-label">Status</div>
-                            <div class="renainf-detail-value">${infraction.status || infraction.situacao || '—'}</div>
-                        </div>
-                        <div>
-                            <div class="renainf-detail-label">Data</div>
-                            <div class="renainf-detail-value">${infraction.date || infraction.data || infraction.data_emissao || '—'}</div>
-                        </div>
-                    </div>
-                `)
-                .join('');
-
-            return `
-                <div class="renainf-section-card">
-                    <div class="renainf-section-title">Infrações</div>
-                    ${items}
-                </div>
+                <section class="card table-card">
+                    <div class="table-head">Ocorrências encontradas</div>
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Órgão autuador</th>
+                                <th>Auto de infração</th>
+                                <th>Infração</th>
+                                <th>Data da infração</th>
+                                <th>Exigibilidade</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            ${rows}
+                        </tbody>
+                    </table>
+                </section>
             `;
         }
 
@@ -652,12 +450,10 @@
         }
 
         function renderEmpty() {
-            renainfSummary.innerHTML = '<p style="color:#94A3B8; text-align:center;">Nenhum resultado disponível.</p>';
-            renainfStats.innerHTML = '';
+            renainfHero.innerHTML = '<div class="card"><div class="empty">Nenhum resultado disponível.</div></div>';
             renainfConsulta.innerHTML = '';
+            renainfFonte.innerHTML = '';
             renainfOccurrences.innerHTML = '';
-            renainfInfractions.innerHTML = '';
-            renainfJson.textContent = 'Nenhum resultado disponível.';
         }
 
         function copyResult() {
@@ -673,14 +469,13 @@
         if (checkAuth()) {
             renainfResultData = loadResultFromStorage();
             renainfMeta = loadMetaFromStorage();
+            const occurrences = deductionOccurrences(renainfResultData);
             renainfSubtitle.textContent = formatSubtitle(renainfResultData);
             if (renainfResultData) {
-                renainfSummary.innerHTML = renderSummary(renainfResultData);
-                renainfStats.innerHTML = renderStats(getSummary(renainfResultData));
-                renainfConsulta.innerHTML = renderConsulta(renainfResultData);
-                renainfOccurrences.innerHTML = renderOccurrences(deductionOccurrences(renainfResultData));
-                renainfInfractions.innerHTML = renderInfractions(deductionInfractions(renainfResultData));
-                renainfJson.textContent = JSON.stringify(renainfResultData, null, 2);
+                renainfHero.innerHTML = renderHero(renainfResultData, renainfMeta, occurrences);
+                renainfConsulta.innerHTML = renderConsultaCard(renainfResultData, renainfMeta, occurrences);
+                renainfFonte.innerHTML = renderFonteCard(renainfResultData);
+                renainfOccurrences.innerHTML = renderOccurrencesTable(occurrences);
             } else {
                 renderEmpty();
             }
