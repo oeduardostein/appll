@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="csrf-token" content="{{ csrf_token() }}">
-    <title>Resultado Base Estadual - LL Despachante</title>
+    <title>Resultado Base Outros Estados - LL Despachante</title>
     <style>
         :root {
             color-scheme: light;
@@ -434,9 +434,9 @@
                         <polyline points="15 18 9 12 15 6"></polyline>
                     </svg>
                 </button>
-                <div class="be-result-title">Consulta base estadual</div>
+                <div class="be-result-title">Consulta base outros estados</div>
                 <div class="header-actions">
-                    <button class="icon-button" type="button" id="basePdfTopBtn" title="Emitir PDF" onclick="emitBaseEstadualPdf()">
+                    <button class="icon-button" type="button" id="baseOutrosPdfBtn" title="Emitir PDF" onclick="emitBaseOutrosEstadosPdf()">
                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                             <path d="M12 3v12"></path>
                             <path d="m7 10 5 5 5-5"></path>
@@ -467,6 +467,7 @@
         const baseResultBack = document.getElementById('baseResultBack');
         const authToken = localStorage.getItem('auth_token');
         const csrfToken = document.querySelector('meta[name="csrf-token"]')?.content;
+        let metaData = null;
 
         function checkAuth() {
             if (!authToken) {
@@ -526,8 +527,31 @@
             return html;
         }
 
-        function displayBaseEstadualResult(data) {
+        function renderQueryCard(meta) {
+            if (!meta || (!meta.chassi && !meta.uf)) {
+                return '';
+            }
+
+            const rows = buildInfoRows(
+                { chassi: meta.chassi, uf: meta.uf },
+                { chassi: 'Chassi', uf: 'UF' }
+            );
+
+            if (!rows) {
+                return '';
+            }
+
+            return `
+                <div class="section-card">
+                    <div class="section-title">Consulta realizada</div>
+                    ${rows}
+                </div>
+            `;
+        }
+
+        function displayBaseOutrosEstadosResult(data) {
             const content = baseResultContent;
+            const metaHtml = renderQueryCard(metaData);
 
             if (data.veiculo || data.fonte) {
                 const veiculo = data.veiculo || {};
@@ -546,6 +570,7 @@
                 const licStatus = licenciamentoData !== '—' ? 'em dia' : 'Não informado';
 
                 let html = `
+                    ${metaHtml}
                     <div class="vehicle-summary-card">
                         <div class="vehicle-header">
                             <div class="vehicle-icon">
@@ -651,6 +676,7 @@
                 window.baseResultData = data;
             } else if (data.message) {
                 content.innerHTML = `
+                    ${metaHtml}
                     <div class="result-card">
                         <div style="padding: 16px; text-align: center;">
                             <p style="font-size: 16px; color: #1E293B;">${data.message}</p>
@@ -659,6 +685,7 @@
                 `;
             } else {
                 content.innerHTML = `
+                    ${metaHtml}
                     <div class="result-card">
                         <pre style="background: #F8FAFC; padding: 16px; border-radius: 12px; border: 1px solid #E2E8F0; font-size: 13px; overflow-x: auto;">${JSON.stringify(data, null, 2)}</pre>
                     </div>
@@ -669,13 +696,13 @@
         let isPdfGenerating = false;
 
         function setPdfLoading(isLoading) {
-            const pdfBtn = document.getElementById('basePdfTopBtn');
+            const pdfBtn = document.getElementById('baseOutrosPdfBtn');
             if (!pdfBtn) return;
             pdfBtn.classList.toggle('is-loading', isLoading);
             pdfBtn.disabled = isLoading;
         }
 
-        async function emitBaseEstadualPdf() {
+        async function emitBaseOutrosEstadosPdf() {
             if (isPdfGenerating) return;
             if (!window.baseResultData || !window.baseResultData.veiculo) {
                 alert('Nenhum resultado disponível para gerar o PDF.');
@@ -697,11 +724,12 @@
                     headers['X-CSRF-TOKEN'] = csrfToken;
                 }
 
-                const response = await fetch('/api/base-estadual/pdf', {
+                const response = await fetch('/api/base-outros-estados/pdf', {
                     method: 'POST',
                     headers,
                     body: JSON.stringify({
                         payload: window.baseResultData,
+                        meta: metaData,
                     }),
                 });
 
@@ -721,10 +749,10 @@
                 }
 
                 const blob = await response.blob();
-                const placa = (window.baseResultData.veiculo?.placa || 'consulta')
+                const chassiValue = (window.baseResultData.veiculo?.chassi || metaData?.chassi || 'consulta')
                     .toString()
                     .replace(/[^A-Za-z0-9]/g, '');
-                const filename = `pesquisa_base_estadual_${placa || 'consulta'}.pdf`;
+                const filename = `pesquisa_base_outros_estados_${chassiValue || 'consulta'}.pdf`;
 
                 const url = URL.createObjectURL(blob);
                 const link = document.createElement('a');
@@ -982,7 +1010,19 @@
         });
 
         function loadResultFromStorage() {
-            const stored = sessionStorage.getItem('base_estadual_result');
+            const stored = sessionStorage.getItem('base_outros_estados_result');
+            if (!stored) {
+                return null;
+            }
+            try {
+                return JSON.parse(stored);
+            } catch (error) {
+                return null;
+            }
+        }
+
+        function loadMetaFromStorage() {
+            const stored = sessionStorage.getItem('base_outros_estados_meta');
             if (!stored) {
                 return null;
             }
@@ -1004,14 +1044,16 @@
         }
 
         baseResultBack.addEventListener('click', () => {
-            sessionStorage.removeItem('base_estadual_result');
+            sessionStorage.removeItem('base_outros_estados_result');
+            sessionStorage.removeItem('base_outros_estados_meta');
             window.location.href = '/home';
         });
 
         if (checkAuth()) {
             const resultData = loadResultFromStorage();
+            metaData = loadMetaFromStorage();
             if (resultData) {
-                displayBaseEstadualResult(resultData);
+                displayBaseOutrosEstadosResult(resultData);
             } else {
                 showEmptyResult();
             }

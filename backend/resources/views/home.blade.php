@@ -495,6 +495,88 @@
             gap: 16px;
         }
 
+        .be-dialog-helper {
+            font-size: 14px;
+            line-height: 1.4;
+            color: var(--text-soft);
+        }
+
+        .be-radio-group {
+            display: flex;
+            gap: 16px;
+            flex-wrap: wrap;
+        }
+
+        .be-radio-option {
+            flex: 1;
+            min-width: 140px;
+            background: #F5F6FF;
+            border-radius: 16px;
+            padding: 10px 12px;
+            display: inline-flex;
+            align-items: center;
+            gap: 10px;
+            cursor: pointer;
+            border: 1px solid transparent;
+            transition: border-color 0.2s ease, background 0.2s ease;
+        }
+
+        .be-radio-option input {
+            position: absolute;
+            opacity: 0;
+            pointer-events: none;
+        }
+
+        .be-radio-mark {
+            width: 18px;
+            height: 18px;
+            border-radius: 999px;
+            border: 2px solid #94A3B8;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            flex-shrink: 0;
+        }
+
+        .be-radio-mark::after {
+            content: '';
+            width: 8px;
+            height: 8px;
+            border-radius: 999px;
+            background: var(--primary);
+            transform: scale(0);
+            transition: transform 0.2s ease;
+        }
+
+        .be-radio-option input:checked + .be-radio-mark {
+            border-color: var(--primary);
+        }
+
+        .be-radio-option input:checked + .be-radio-mark::after {
+            transform: scale(1);
+        }
+
+        .be-radio-option input:checked ~ .be-radio-text {
+            color: var(--primary);
+            font-weight: 600;
+        }
+
+        .be-radio-option:hover {
+            border-color: rgba(0, 71, 171, 0.25);
+            background: #EEF2FF;
+        }
+
+        .be-radio-text {
+            font-size: 14px;
+            color: var(--text-strong);
+        }
+
+        .be-field-group {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+
         .be-captcha-box {
             background: #FFFFFF;
             border-radius: 18px;
@@ -562,6 +644,15 @@
             outline: none;
             border-color: var(--primary);
             box-shadow: 0 0 0 2px rgba(0, 71, 171, 0.15);
+        }
+
+        .be-select {
+            appearance: none;
+            background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='10' viewBox='0 0 16 10'%3E%3Cpath fill='%23667085' d='M1.41 0 8 6.58 14.59 0 16 1.41 8 9.41 0 1.41z'/%3E%3C/svg%3E");
+            background-repeat: no-repeat;
+            background-position: right 16px center;
+            background-size: 14px;
+            padding-right: 42px;
         }
 
         .be-dialog-error {
@@ -656,6 +747,10 @@
 
     @include('components.home.base-estadual-modal')
     @include('components.home.base-estadual-captcha-modal')
+    @include('components.home.base-outros-estados-modal')
+    @include('components.home.base-outros-estados-captcha-modal')
+    @include('components.home.bin-modal')
+    @include('components.home.bin-captcha-modal')
 
     <script>
         const API_BASE_URL = window.location.origin;
@@ -921,8 +1016,58 @@
         const baseCaptchaError = document.getElementById('baseCaptchaError');
         const baseCaptchaSubmit = document.getElementById('baseCaptchaSubmit');
 
+        const otherStatesOverlay = document.getElementById('otherStatesOverlay');
+        const otherStatesClose = document.getElementById('otherStatesClose');
+        const otherStatesCancel = document.getElementById('otherStatesCancel');
+        const otherStatesChassi = document.getElementById('otherStatesChassi');
+        const otherStatesUf = document.getElementById('otherStatesUf');
+        const otherStatesError = document.getElementById('otherStatesError');
+        const otherStatesSubmit = document.getElementById('otherStatesSubmit');
+
+        const otherStatesCaptchaOverlay = document.getElementById('otherStatesCaptchaOverlay');
+        const otherStatesCaptchaClose = document.getElementById('otherStatesCaptchaClose');
+        const otherStatesCaptchaCancel = document.getElementById('otherStatesCaptchaCancel');
+        const otherStatesCaptchaRefresh = document.getElementById('otherStatesCaptchaRefresh');
+        const otherStatesCaptchaChassi = document.getElementById('otherStatesCaptchaChassi');
+        const otherStatesCaptchaUf = document.getElementById('otherStatesCaptchaUf');
+        const otherStatesCaptchaInput = document.getElementById('otherStatesCaptchaInput');
+        const otherStatesCaptchaImage = document.getElementById('otherStatesCaptchaImage');
+        const otherStatesCaptchaLoading = document.getElementById('otherStatesCaptchaLoading');
+        const otherStatesCaptchaError = document.getElementById('otherStatesCaptchaError');
+        const otherStatesCaptchaSubmit = document.getElementById('otherStatesCaptchaSubmit');
+
+        const binOverlay = document.getElementById('binOverlay');
+        const binClose = document.getElementById('binClose');
+        const binCancel = document.getElementById('binCancel');
+        const binError = document.getElementById('binError');
+        const binSubmit = document.getElementById('binSubmit');
+        const binPlacaInput = document.getElementById('binPlacaInput');
+        const binRenavamInput = document.getElementById('binRenavamInput');
+        const binChassiInput = document.getElementById('binChassiInput');
+        const binPlacaGroup = document.getElementById('binPlacaGroup');
+        const binChassiGroup = document.getElementById('binChassiGroup');
+        const binOptionInputs = Array.from(document.querySelectorAll('input[name="binSearchOption"]'));
+
+        const binCaptchaOverlay = document.getElementById('binCaptchaOverlay');
+        const binCaptchaClose = document.getElementById('binCaptchaClose');
+        const binCaptchaCancel = document.getElementById('binCaptchaCancel');
+        const binCaptchaRefresh = document.getElementById('binCaptchaRefresh');
+        const binCaptchaError = document.getElementById('binCaptchaError');
+        const binCaptchaSubmit = document.getElementById('binCaptchaSubmit');
+        const binCaptchaInput = document.getElementById('binCaptchaInput');
+        const binCaptchaPlacaInput = document.getElementById('binCaptchaPlacaInput');
+        const binCaptchaRenavamInput = document.getElementById('binCaptchaRenavamInput');
+        const binCaptchaChassiInput = document.getElementById('binCaptchaChassiInput');
+        const binCaptchaPlacaGroup = document.getElementById('binCaptchaPlacaGroup');
+        const binCaptchaChassiGroup = document.getElementById('binCaptchaChassiGroup');
+        const binCaptchaOptionInputs = Array.from(document.querySelectorAll('input[name="binCaptchaSearchOption"]'));
+        const binCaptchaImage = document.getElementById('binCaptchaImage');
+        const binCaptchaLoading = document.getElementById('binCaptchaLoading');
+
         const oldPlatePattern = /^[A-Z]{3}[0-9]{4}$/;
         const mercosurPlatePattern = /^[A-Z]{3}[0-9][A-Z0-9][0-9]{2}$/;
+        const chassiPattern = /^[A-HJ-NPR-Z0-9]{17}$/;
+        const renavamPattern = /^\d{11}$/;
 
         function normalizePlate(value) {
             return value.replace(/[^A-Za-z0-9]/g, '').toUpperCase();
@@ -934,6 +1079,27 @@
                 return false;
             }
             return oldPlatePattern.test(normalized) || mercosurPlatePattern.test(normalized);
+        }
+
+        function normalizeChassi(value) {
+            return value.replace(/[^A-Za-z0-9]/g, '').toUpperCase();
+        }
+
+        function isValidChassi(value) {
+            const normalized = normalizeChassi(value);
+            if (normalized.length !== 17) {
+                return false;
+            }
+            return chassiPattern.test(normalized);
+        }
+
+        function normalizeRenavam(value) {
+            return value.replace(/\D/g, '');
+        }
+
+        function isValidRenavam(value) {
+            const normalized = normalizeRenavam(value);
+            return renavamPattern.test(normalized);
         }
 
         function openBaseEstadualModal() {
@@ -1135,6 +1301,492 @@
             }
         }
 
+        function openOtherStatesModal() {
+            otherStatesChassi.value = '';
+            otherStatesUf.value = '';
+            otherStatesError.textContent = '';
+            otherStatesOverlay.classList.remove('hidden');
+            otherStatesOverlay.classList.add('show');
+            otherStatesOverlay.setAttribute('aria-hidden', 'false');
+            setTimeout(() => otherStatesChassi.focus(), 0);
+        }
+
+        function closeOtherStatesModal() {
+            otherStatesOverlay.classList.remove('show');
+            otherStatesOverlay.classList.add('hidden');
+            otherStatesOverlay.setAttribute('aria-hidden', 'true');
+        }
+
+        function openOtherStatesCaptchaModal(chassi, uf, message = '') {
+            otherStatesCaptchaChassi.value = chassi;
+            otherStatesCaptchaUf.value = uf;
+            otherStatesCaptchaInput.value = '';
+            otherStatesCaptchaError.textContent = message;
+            otherStatesCaptchaOverlay.classList.remove('hidden');
+            otherStatesCaptchaOverlay.classList.add('show');
+            otherStatesCaptchaOverlay.setAttribute('aria-hidden', 'false');
+            loadOtherStatesCaptchaImage();
+            setTimeout(() => otherStatesCaptchaInput.focus(), 0);
+        }
+
+        function closeOtherStatesCaptchaModal() {
+            otherStatesCaptchaOverlay.classList.remove('show');
+            otherStatesCaptchaOverlay.classList.add('hidden');
+            otherStatesCaptchaOverlay.setAttribute('aria-hidden', 'true');
+            clearOtherStatesCaptchaImage();
+        }
+
+        function setOtherStatesLoading(isLoading) {
+            otherStatesSubmit.disabled = isLoading;
+            otherStatesSubmit.classList.toggle('loading', isLoading);
+        }
+
+        function setOtherStatesCaptchaLoading(isLoading) {
+            otherStatesCaptchaSubmit.disabled = isLoading;
+            otherStatesCaptchaSubmit.classList.toggle('loading', isLoading);
+        }
+
+        function clearOtherStatesCaptchaImage() {
+            const currentUrl = otherStatesCaptchaImage.dataset.objectUrl;
+            if (currentUrl) {
+                URL.revokeObjectURL(currentUrl);
+                delete otherStatesCaptchaImage.dataset.objectUrl;
+            }
+            otherStatesCaptchaImage.src = '';
+        }
+
+        async function loadOtherStatesCaptchaImage() {
+            otherStatesCaptchaError.textContent = '';
+            otherStatesCaptchaLoading.classList.remove('hidden');
+            otherStatesCaptchaImage.classList.add('hidden');
+            clearOtherStatesCaptchaImage();
+
+            let hasImage = false;
+
+            try {
+                const response = await fetch(`${API_BASE_URL}/api/captcha`, { cache: 'no-store' });
+                if (!response.ok) {
+                    throw new Error('Não foi possível carregar o captcha.');
+                }
+                const blob = await response.blob();
+                const objectUrl = URL.createObjectURL(blob);
+                otherStatesCaptchaImage.src = objectUrl;
+                otherStatesCaptchaImage.dataset.objectUrl = objectUrl;
+                hasImage = true;
+            } catch (error) {
+                otherStatesCaptchaError.textContent = error.message || 'Não foi possível carregar o captcha.';
+            } finally {
+                otherStatesCaptchaLoading.classList.add('hidden');
+                otherStatesCaptchaImage.classList.toggle('hidden', !hasImage);
+            }
+        }
+
+        async function fetchOtherStates(chassi, uf, captcha) {
+            const params = new URLSearchParams({
+                chassi: chassi,
+                uf: uf,
+                captcha: captcha,
+            });
+
+            const response = await fetch(`${API_BASE_URL}/api/another-base-estadual?${params}`);
+            if (!response.ok) {
+                const errorData = await response.json().catch(() => ({ message: 'Erro ao consultar outros estados.' }));
+                throw new Error(errorData.message || 'Erro ao consultar outros estados.');
+            }
+
+            return await response.json();
+        }
+
+        function redirectToOtherStatesResult(result, chassi, uf) {
+            sessionStorage.setItem('base_outros_estados_result', JSON.stringify(result));
+            sessionStorage.setItem('base_outros_estados_meta', JSON.stringify({ chassi, uf }));
+            window.location.href = '/resultado-base-outros-estados';
+        }
+
+        async function registerOtherStatesPesquisa(chassi, uf) {
+            try {
+                await fetch(`${API_BASE_URL}/api/pesquisas`, {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': `Bearer ${authToken}`,
+                        'Content-Type': 'application/json',
+                        'Accept': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        nome: 'Base outros estados',
+                        chassi: chassi,
+                        opcaoPesquisa: uf,
+                    }),
+                });
+            } catch (error) {
+                console.error('Erro ao registrar pesquisa:', error);
+            }
+        }
+
+        async function performOtherStatesSearch() {
+            const chassi = normalizeChassi(otherStatesChassi.value);
+            const uf = (otherStatesUf.value || '').trim().toUpperCase();
+
+            if (!chassi) {
+                otherStatesError.textContent = 'Informe o chassi.';
+                return;
+            }
+            if (!isValidChassi(chassi)) {
+                otherStatesError.textContent = 'Chassi inválido.';
+                return;
+            }
+            if (!uf) {
+                otherStatesError.textContent = 'Selecione a UF.';
+                return;
+            }
+
+            otherStatesError.textContent = '';
+            setOtherStatesLoading(true);
+
+            try {
+                let captcha;
+                try {
+                    captcha = await solveBaseCaptcha();
+                } catch (captchaError) {
+                    closeOtherStatesModal();
+                    openOtherStatesCaptchaModal(chassi, uf, 'Captcha automático indisponível. Digite o captcha manualmente.');
+                    return;
+                }
+
+                const result = await fetchOtherStates(chassi, uf, captcha);
+                await registerOtherStatesPesquisa(chassi, uf);
+                closeOtherStatesModal();
+                redirectToOtherStatesResult(result, chassi, uf);
+            } catch (error) {
+                const message = error.message || 'Não foi possível consultar a base de outros estados.';
+                if (message.toLowerCase().includes('captcha')) {
+                    closeOtherStatesModal();
+                    openOtherStatesCaptchaModal(chassi, uf, 'Captcha automático falhou. Digite o captcha manualmente.');
+                    return;
+                }
+                otherStatesError.textContent = message;
+            } finally {
+                setOtherStatesLoading(false);
+            }
+        }
+
+        async function performOtherStatesCaptchaSearch() {
+            const chassi = normalizeChassi(otherStatesCaptchaChassi.value);
+            const uf = (otherStatesCaptchaUf.value || '').trim().toUpperCase();
+            const captcha = otherStatesCaptchaInput.value.trim().toUpperCase();
+
+            if (!captcha) {
+                otherStatesCaptchaError.textContent = 'Informe o captcha.';
+                return;
+            }
+
+            otherStatesCaptchaError.textContent = '';
+            setOtherStatesCaptchaLoading(true);
+
+            try {
+                const result = await fetchOtherStates(chassi, uf, captcha);
+                await registerOtherStatesPesquisa(chassi, uf);
+                closeOtherStatesCaptchaModal();
+                redirectToOtherStatesResult(result, chassi, uf);
+            } catch (error) {
+                otherStatesCaptchaError.textContent =
+                    error.message || 'Não foi possível consultar a base de outros estados.';
+                loadOtherStatesCaptchaImage();
+            } finally {
+                setOtherStatesCaptchaLoading(false);
+            }
+        }
+
+        function getSelectedBinOption(inputs, fallback = 'placa') {
+            const selected = inputs.find((input) => input.checked);
+            return selected ? selected.value : fallback;
+        }
+
+        function setSelectedBinOption(inputs, value) {
+            inputs.forEach((input) => {
+                input.checked = input.value === value;
+            });
+        }
+
+        function updateBinMode(option, placaGroup, chassiGroup) {
+            const isChassi = option === 'chassi';
+            placaGroup.classList.toggle('hidden', isChassi);
+            chassiGroup.classList.toggle('hidden', !isChassi);
+        }
+
+        function openBinModal() {
+            binPlacaInput.value = '';
+            binRenavamInput.value = '';
+            binChassiInput.value = '';
+            binError.textContent = '';
+            setSelectedBinOption(binOptionInputs, 'placa');
+            updateBinMode('placa', binPlacaGroup, binChassiGroup);
+            binOverlay.classList.remove('hidden');
+            binOverlay.classList.add('show');
+            binOverlay.setAttribute('aria-hidden', 'false');
+            setTimeout(() => binPlacaInput.focus(), 0);
+        }
+
+        function closeBinModal() {
+            binOverlay.classList.remove('show');
+            binOverlay.classList.add('hidden');
+            binOverlay.setAttribute('aria-hidden', 'true');
+        }
+
+        function openBinCaptchaModal(values, message = '') {
+            const option = values.option || 'placa';
+            setSelectedBinOption(binCaptchaOptionInputs, option);
+            updateBinMode(option, binCaptchaPlacaGroup, binCaptchaChassiGroup);
+            binCaptchaPlacaInput.value = values.placa || '';
+            binCaptchaRenavamInput.value = values.renavam || '';
+            binCaptchaChassiInput.value = values.chassi || '';
+            binCaptchaInput.value = '';
+            binCaptchaError.textContent = message;
+            binCaptchaOverlay.classList.remove('hidden');
+            binCaptchaOverlay.classList.add('show');
+            binCaptchaOverlay.setAttribute('aria-hidden', 'false');
+            loadBinCaptchaImage();
+            setTimeout(() => binCaptchaInput.focus(), 0);
+        }
+
+        function closeBinCaptchaModal() {
+            binCaptchaOverlay.classList.remove('show');
+            binCaptchaOverlay.classList.add('hidden');
+            binCaptchaOverlay.setAttribute('aria-hidden', 'true');
+            clearBinCaptchaImage();
+        }
+
+        function setBinLoading(isLoading) {
+            binSubmit.disabled = isLoading;
+            binSubmit.classList.toggle('loading', isLoading);
+        }
+
+        function setBinCaptchaLoading(isLoading) {
+            binCaptchaSubmit.disabled = isLoading;
+            binCaptchaSubmit.classList.toggle('loading', isLoading);
+        }
+
+        function clearBinCaptchaImage() {
+            const currentUrl = binCaptchaImage.dataset.objectUrl;
+            if (currentUrl) {
+                URL.revokeObjectURL(currentUrl);
+                delete binCaptchaImage.dataset.objectUrl;
+            }
+            binCaptchaImage.src = '';
+        }
+
+        async function loadBinCaptchaImage() {
+            binCaptchaError.textContent = '';
+            binCaptchaLoading.classList.remove('hidden');
+            binCaptchaImage.classList.add('hidden');
+            clearBinCaptchaImage();
+
+            let hasImage = false;
+
+            try {
+                const response = await fetch(`${API_BASE_URL}/api/captcha`, { cache: 'no-store' });
+                if (!response.ok) {
+                    throw new Error('Não foi possível carregar o captcha.');
+                }
+                const blob = await response.blob();
+                const objectUrl = URL.createObjectURL(blob);
+                binCaptchaImage.src = objectUrl;
+                binCaptchaImage.dataset.objectUrl = objectUrl;
+                hasImage = true;
+            } catch (error) {
+                binCaptchaError.textContent = error.message || 'Não foi possível carregar o captcha.';
+            } finally {
+                binCaptchaLoading.classList.add('hidden');
+                binCaptchaImage.classList.toggle('hidden', !hasImage);
+            }
+        }
+
+        async function fetchBin(payload) {
+            const params = new URLSearchParams({
+                captcha: payload.captcha,
+                opcao: payload.option,
+            });
+
+            if (payload.option === '1') {
+                params.set('chassi', payload.chassi);
+            } else {
+                params.set('placa', payload.placa);
+                params.set('renavam', payload.renavam);
+            }
+
+            const response = await fetch(`${API_BASE_URL}/api/bin?${params}`);
+            if (!response.ok) {
+                const errorData = await response.json().catch(() => ({ message: 'Erro ao consultar BIN.' }));
+                throw new Error(errorData.message || 'Erro ao consultar BIN.');
+            }
+
+            return await response.json();
+        }
+
+        function redirectToBinResult(result, meta) {
+            sessionStorage.setItem('bin_result', JSON.stringify(result));
+            sessionStorage.setItem('bin_meta', JSON.stringify(meta));
+            window.location.href = '/resultado-bin';
+        }
+
+        async function registerBinPesquisa(meta) {
+            try {
+                await fetch(`${API_BASE_URL}/api/pesquisas`, {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': `Bearer ${authToken}`,
+                        'Content-Type': 'application/json',
+                        'Accept': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        nome: 'BIN',
+                        placa: meta.placa || null,
+                        renavam: meta.renavam || null,
+                        chassi: meta.chassi || null,
+                        opcaoPesquisa: meta.option,
+                    }),
+                });
+            } catch (error) {
+                console.error('Erro ao registrar pesquisa BIN:', error);
+            }
+        }
+
+        function buildBinPayload(option, placa, renavam, chassi, captcha) {
+            return {
+                option,
+                placa: placa,
+                renavam: renavam,
+                chassi: chassi,
+                captcha: captcha,
+            };
+        }
+
+        async function performBinSearch() {
+            const option = getSelectedBinOption(binOptionInputs);
+            const isChassi = option === 'chassi';
+            const placa = normalizePlate(binPlacaInput.value);
+            const renavam = normalizeRenavam(binRenavamInput.value);
+            const chassi = normalizeChassi(binChassiInput.value);
+
+            if (isChassi) {
+                if (!chassi) {
+                    binError.textContent = 'Informe o chassi.';
+                    return;
+                }
+                if (!isValidChassi(chassi)) {
+                    binError.textContent = 'Chassi inválido.';
+                    return;
+                }
+            } else {
+                if (!placa) {
+                    binError.textContent = 'Informe a placa.';
+                    return;
+                }
+                if (!isValidPlate(placa)) {
+                    binError.textContent = 'Placa inválida.';
+                    return;
+                }
+                if (!renavam) {
+                    binError.textContent = 'Informe o renavam.';
+                    return;
+                }
+                if (!isValidRenavam(renavam)) {
+                    binError.textContent = 'Renavam inválido.';
+                    return;
+                }
+            }
+
+            binError.textContent = '';
+            setBinLoading(true);
+
+            const searchOption = isChassi ? '1' : '2';
+            const meta = {
+                option: searchOption,
+                placa: isChassi ? '' : placa,
+                renavam: isChassi ? '' : renavam,
+                chassi: isChassi ? chassi : '',
+            };
+
+            try {
+                let captcha;
+                try {
+                    captcha = await solveBaseCaptcha();
+                } catch (captchaError) {
+                    closeBinModal();
+                    openBinCaptchaModal({ ...meta, option: option }, 'Captcha automático indisponível. Digite o captcha manualmente.');
+                    return;
+                }
+
+                const result = await fetchBin(buildBinPayload(searchOption, meta.placa, meta.renavam, meta.chassi, captcha));
+                await registerBinPesquisa(meta);
+                closeBinModal();
+                redirectToBinResult(result, meta);
+            } catch (error) {
+                const message = error.message || 'Não foi possível concluir a pesquisa BIN.';
+                if (message.toLowerCase().includes('captcha')) {
+                    closeBinModal();
+                    openBinCaptchaModal({ ...meta, option: option }, 'Captcha automático falhou. Digite o captcha manualmente.');
+                    return;
+                }
+                binError.textContent = message;
+            } finally {
+                setBinLoading(false);
+            }
+        }
+
+        async function performBinCaptchaSearch() {
+            const option = getSelectedBinOption(binCaptchaOptionInputs);
+            const isChassi = option === 'chassi';
+            const placa = normalizePlate(binCaptchaPlacaInput.value);
+            const renavam = normalizeRenavam(binCaptchaRenavamInput.value);
+            const chassi = normalizeChassi(binCaptchaChassiInput.value);
+            const captcha = binCaptchaInput.value.trim().toUpperCase();
+
+            if (!captcha) {
+                binCaptchaError.textContent = 'Informe o captcha.';
+                return;
+            }
+
+            if (isChassi) {
+                if (!chassi || !isValidChassi(chassi)) {
+                    binCaptchaError.textContent = 'Chassi inválido.';
+                    return;
+                }
+            } else {
+                if (!placa || !isValidPlate(placa)) {
+                    binCaptchaError.textContent = 'Placa inválida.';
+                    return;
+                }
+                if (!renavam || !isValidRenavam(renavam)) {
+                    binCaptchaError.textContent = 'Renavam inválido.';
+                    return;
+                }
+            }
+
+            binCaptchaError.textContent = '';
+            setBinCaptchaLoading(true);
+
+            const searchOption = isChassi ? '1' : '2';
+            const meta = {
+                option: searchOption,
+                placa: isChassi ? '' : placa,
+                renavam: isChassi ? '' : renavam,
+                chassi: isChassi ? chassi : '',
+            };
+
+            try {
+                const result = await fetchBin(buildBinPayload(searchOption, meta.placa, meta.renavam, meta.chassi, captcha));
+                await registerBinPesquisa(meta);
+                closeBinCaptchaModal();
+                redirectToBinResult(result, meta);
+            } catch (error) {
+                binCaptchaError.textContent = error.message || 'Não foi possível concluir a pesquisa BIN.';
+                loadBinCaptchaImage();
+            } finally {
+                setBinCaptchaLoading(false);
+            }
+        }
+
         function setupActionToggles() {
             document.querySelectorAll('[data-toggle]').forEach((toggle) => {
                 toggle.addEventListener('click', () => {
@@ -1148,6 +1800,18 @@
             document.querySelectorAll('[data-action="base-estadual"]').forEach((item) => {
                 item.addEventListener('click', () => {
                     openBaseEstadualModal();
+                });
+            });
+
+            document.querySelectorAll('[data-action="base-outros-estados"]').forEach((item) => {
+                item.addEventListener('click', () => {
+                    openOtherStatesModal();
+                });
+            });
+
+            document.querySelectorAll('[data-action="bin"]').forEach((item) => {
+                item.addEventListener('click', () => {
+                    openBinModal();
                 });
             });
 
@@ -1239,8 +1903,133 @@
         });
         baseCaptchaSubmit.addEventListener('click', performBaseCaptchaSearch);
 
+        otherStatesClose.addEventListener('click', closeOtherStatesModal);
+        otherStatesCancel.addEventListener('click', closeOtherStatesModal);
+        otherStatesOverlay.addEventListener('click', (event) => {
+            if (event.target === otherStatesOverlay) {
+                closeOtherStatesModal();
+            }
+        });
+        otherStatesChassi.addEventListener('input', () => {
+            otherStatesChassi.value = normalizeChassi(otherStatesChassi.value);
+            otherStatesError.textContent = '';
+        });
+        otherStatesUf.addEventListener('change', () => {
+            otherStatesError.textContent = '';
+        });
+        otherStatesChassi.addEventListener('keydown', (event) => {
+            if (event.key === 'Enter') {
+                event.preventDefault();
+                performOtherStatesSearch();
+            }
+        });
+        otherStatesSubmit.addEventListener('click', performOtherStatesSearch);
+
+        otherStatesCaptchaClose.addEventListener('click', closeOtherStatesCaptchaModal);
+        otherStatesCaptchaCancel.addEventListener('click', closeOtherStatesCaptchaModal);
+        otherStatesCaptchaRefresh.addEventListener('click', loadOtherStatesCaptchaImage);
+        otherStatesCaptchaOverlay.addEventListener('click', (event) => {
+            if (event.target === otherStatesCaptchaOverlay) {
+                closeOtherStatesCaptchaModal();
+            }
+        });
+        otherStatesCaptchaInput.addEventListener('input', () => {
+            otherStatesCaptchaInput.value = otherStatesCaptchaInput.value.replace(/\s/g, '').toUpperCase();
+            otherStatesCaptchaError.textContent = '';
+        });
+        otherStatesCaptchaInput.addEventListener('keydown', (event) => {
+            if (event.key === 'Enter') {
+                event.preventDefault();
+                performOtherStatesCaptchaSearch();
+            }
+        });
+        otherStatesCaptchaSubmit.addEventListener('click', performOtherStatesCaptchaSearch);
+
+        binClose.addEventListener('click', closeBinModal);
+        binCancel.addEventListener('click', closeBinModal);
+        binOverlay.addEventListener('click', (event) => {
+            if (event.target === binOverlay) {
+                closeBinModal();
+            }
+        });
+        binOptionInputs.forEach((input) => {
+            input.addEventListener('change', () => {
+                const option = getSelectedBinOption(binOptionInputs);
+                updateBinMode(option, binPlacaGroup, binChassiGroup);
+                binError.textContent = '';
+            });
+        });
+        binPlacaInput.addEventListener('input', () => {
+            binPlacaInput.value = normalizePlate(binPlacaInput.value);
+            binError.textContent = '';
+        });
+        binRenavamInput.addEventListener('input', () => {
+            binRenavamInput.value = normalizeRenavam(binRenavamInput.value);
+            binError.textContent = '';
+        });
+        binChassiInput.addEventListener('input', () => {
+            binChassiInput.value = normalizeChassi(binChassiInput.value);
+            binError.textContent = '';
+        });
+        binSubmit.addEventListener('click', performBinSearch);
+
+        binCaptchaClose.addEventListener('click', closeBinCaptchaModal);
+        binCaptchaCancel.addEventListener('click', closeBinCaptchaModal);
+        binCaptchaRefresh.addEventListener('click', loadBinCaptchaImage);
+        binCaptchaOverlay.addEventListener('click', (event) => {
+            if (event.target === binCaptchaOverlay) {
+                closeBinCaptchaModal();
+            }
+        });
+        binCaptchaOptionInputs.forEach((input) => {
+            input.addEventListener('change', () => {
+                const option = getSelectedBinOption(binCaptchaOptionInputs);
+                updateBinMode(option, binCaptchaPlacaGroup, binCaptchaChassiGroup);
+                binCaptchaError.textContent = '';
+            });
+        });
+        binCaptchaPlacaInput.addEventListener('input', () => {
+            binCaptchaPlacaInput.value = normalizePlate(binCaptchaPlacaInput.value);
+            binCaptchaError.textContent = '';
+        });
+        binCaptchaRenavamInput.addEventListener('input', () => {
+            binCaptchaRenavamInput.value = normalizeRenavam(binCaptchaRenavamInput.value);
+            binCaptchaError.textContent = '';
+        });
+        binCaptchaChassiInput.addEventListener('input', () => {
+            binCaptchaChassiInput.value = normalizeChassi(binCaptchaChassiInput.value);
+            binCaptchaError.textContent = '';
+        });
+        binCaptchaInput.addEventListener('input', () => {
+            binCaptchaInput.value = binCaptchaInput.value.replace(/\s/g, '').toUpperCase();
+            binCaptchaError.textContent = '';
+        });
+        binCaptchaInput.addEventListener('keydown', (event) => {
+            if (event.key === 'Enter') {
+                event.preventDefault();
+                performBinCaptchaSearch();
+            }
+        });
+        binCaptchaSubmit.addEventListener('click', performBinCaptchaSearch);
+
         document.addEventListener('keydown', (event) => {
             if (event.key !== 'Escape') {
+                return;
+            }
+            if (!binCaptchaOverlay.classList.contains('hidden')) {
+                closeBinCaptchaModal();
+                return;
+            }
+            if (!binOverlay.classList.contains('hidden')) {
+                closeBinModal();
+                return;
+            }
+            if (!otherStatesCaptchaOverlay.classList.contains('hidden')) {
+                closeOtherStatesCaptchaModal();
+                return;
+            }
+            if (!otherStatesOverlay.classList.contains('hidden')) {
+                closeOtherStatesModal();
                 return;
             }
             if (!baseCaptchaOverlay.classList.contains('hidden')) {

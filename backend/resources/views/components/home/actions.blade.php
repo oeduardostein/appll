@@ -46,7 +46,7 @@
                         </svg>
                     </div>
                 </button>
-                <button class="action-subitem" type="button" data-permission="pesquisa_base_outros_estados" data-disabled="true">
+                <button class="action-subitem" type="button" data-permission="pesquisa_base_outros_estados" data-action="base-outros-estados">
                     <div class="action-subitem__icon">
                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                             <circle cx="12" cy="12" r="10"></circle>
@@ -61,7 +61,7 @@
                         </svg>
                     </div>
                 </button>
-                <button class="action-subitem" type="button" data-permission="pesquisa_bin" data-disabled="true">
+                <button class="action-subitem" type="button" data-permission="pesquisa_bin" data-action="bin">
                     <div class="action-subitem__icon">
                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                             <rect x="2" y="5" width="20" height="14" rx="2"></rect>
