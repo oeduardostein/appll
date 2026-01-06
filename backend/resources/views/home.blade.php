@@ -467,7 +467,7 @@
         <div class="header-inner">
             <div class="header-top">
                 <div class="brand-avatar">
-                    <img src="{{ asset('images/logoll.png') }}" alt="LL Despachante">
+                    <img src="{{ request()->getBaseUrl() }}/images/logoll.png" alt="LL Despachante">
                 </div>
                 <div class="header-actions">
                     <button class="icon-button" id="profileBtn" title="Meu perfil">
@@ -988,7 +988,7 @@
         });
 
         document.getElementById('profileBtn').addEventListener('click', function() {
-            alert('Funcionalidade em desenvolvimento.');
+            window.location.href = '/perfil';
         });
 
         document.getElementById('openPortalBtn').addEventListener('click', function() {

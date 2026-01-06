@@ -18,6 +18,7 @@ Route::view('/politica-de-privacidade', 'privacy-policy')->name('privacy-policy'
 Route::view('/suporte', 'support')->name('support');
 Route::view('/login', 'login')->name('login');
 Route::view('/home', 'home')->name('home');
+Route::view('/perfil', 'profile')->name('profile');
 Route::view('/base-estadual', 'base-estadual')->name('base-estadual');
 Route::get('/excluir-conta', [AccountDeletionController::class, 'show'])->name('account-deletion.form');
 Route::post('/excluir-conta', [AccountDeletionController::class, 'destroy'])->name('account-deletion.submit');
