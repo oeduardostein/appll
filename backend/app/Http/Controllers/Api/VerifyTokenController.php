@@ -35,38 +35,59 @@ class VerifyTokenController extends Controller
                 ], Response::HTTP_NOT_FOUND);
             }
 
-            // Fazer requisição de teste para o endpoint de captcha do DETRAN
-            // Este é um endpoint simples que não requer muitos parâmetros
-            $captchaUrl = 'https://www.e-crvsp.sp.gov.br/gever/jcaptcha?id=' . time();
+            // Fazer requisição de teste para a página inicial do DETRAN
+            // Isso valida se a sessão está ativa sem fazer uma consulta real
+            $testUrl = 'https://www.e-crvsp.sp.gov.br/gever/GVR/pesquisa/baseEstadual.do';
 
             $headers = [
-                'Accept' => 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8',
+                'Accept' => 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7',
                 'Accept-Language' => 'pt-BR,pt;q=0.9,en-US;q=0.8,en;q=0.7',
                 'Cache-Control' => 'max-age=0',
                 'Connection' => 'keep-alive',
-                'Cookie' => 'dataUsuarPublic=Thu%20Aug%2001%202024%2014%3A46%3A49%20GMT-0300%20(Hor%C3%A1rio%20Padr%C3%A3o%20de%20Bras%C3%ADlia); naoExibirPublic=sim; JSESSIONID=' . $token,
-                'Sec-Fetch-Dest' => 'document',
+                'Referer' => 'https://www.e-crvsp.sp.gov.br/gever/GVR/pesquisa/baseEstadual.do',
+                'Sec-Fetch-Dest' => 'frame',
                 'Sec-Fetch-Mode' => 'navigate',
-                'Sec-Fetch-Site' => 'none',
+                'Sec-Fetch-Site' => 'same-origin',
                 'Sec-Fetch-User' => '?1',
                 'Upgrade-Insecure-Requests' => '1',
-                'User-Agent' => 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36',
+                'User-Agent' => 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/134.0.0.0 Safari/537.36',
+                'sec-ch-ua' => '"Chromium";v="134", "Not:A-Brand";v="24", "Google Chrome";v="134"',
+                'sec-ch-ua-mobile' => '?0',
+                'sec-ch-ua-platform' => '"macOS"',
             ];
+
+            $cookieDomain = 'www.e-crvsp.sp.gov.br';
 
             $response = Http::timeout(10)
                 ->withHeaders($headers)
                 ->withOptions(['verify' => false])
-                ->get($captchaUrl);
+                ->withCookies([
+                    'dataUsuarPublic' => 'Mon Mar 24 2025 08:14:44 GMT-0300 (Horário Padrão de Brasília)',
+                    'JSESSIONID' => $token,
+                ], $cookieDomain)
+                ->get($testUrl);
 
             $isValid = $response->successful();
             $statusCode = $response->status();
-            $bodyLength = strlen($response->body());
+            $body = $response->body();
+            $bodyLength = strlen($body);
 
-            // Verificar se a resposta parece ser uma imagem de captcha válida
+            // Verificar se a resposta contém conteúdo válido (não é página de erro ou login)
             $contentType = $response->header('Content-Type', '');
-            $isImage = str_contains($contentType, 'image') || $bodyLength > 1000;
+            $isHtml = str_contains($contentType, 'html') || str_contains($body, '<html');
+            
+            // Verificar se não é página de erro ou redirecionamento para login
+            $hasError = stripos($body, 'erro') !== false || 
+                       stripos($body, 'sessão expirada') !== false ||
+                       stripos($body, 'login') !== false ||
+                       stripos($body, 'acesso negado') !== false;
+            
+            // Verificar se contém elementos esperados da página de pesquisa
+            $hasValidContent = stripos($body, 'baseEstadual') !== false ||
+                              stripos($body, 'pesquisa') !== false ||
+                              stripos($body, 'placa') !== false;
 
-            $tokenValid = $isValid && $isImage;
+            $tokenValid = $isValid && $isHtml && !$hasError && ($hasValidContent || $bodyLength > 500);
 
             Log::info('Verificação de token realizada', [
                 'token_exists' => true,
@@ -74,6 +95,8 @@ class VerifyTokenController extends Controller
                 'status_code' => $statusCode,
                 'content_type' => $contentType,
                 'body_length' => $bodyLength,
+                'has_error' => $hasError,
+                'has_valid_content' => $hasValidContent,
             ]);
 
             if ($tokenValid) {
@@ -100,7 +123,9 @@ class VerifyTokenController extends Controller
                     'status_code' => $statusCode,
                     'content_type' => $contentType,
                     'response_size' => $bodyLength,
-                    'error' => $statusCode >= 400 ? 'Requisição falhou' : 'Resposta não é uma imagem válida',
+                    'has_error' => $hasError,
+                    'has_valid_content' => $hasValidContent,
+                    'error' => $statusCode >= 400 ? 'Requisição falhou' : ($hasError ? 'Página contém erros ou redirecionamento' : 'Resposta não contém conteúdo válido'),
                 ],
             ], Response::HTTP_OK);
 
