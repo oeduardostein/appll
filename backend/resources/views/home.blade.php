@@ -81,16 +81,6 @@
             width: 100%;
             height: 100%;
             object-fit: contain;
-        }
-
-        .brand-avatar-text {
-            font-size: 20px;
-            font-weight: 700;
-            color: var(--primary);
-            display: none;
-        }
-
-        .brand-avatar.no-image .brand-avatar-text {
             display: block;
         }
 
@@ -114,6 +104,12 @@
             transition: background 0.2s ease, transform 0.2s ease;
         }
 
+        .icon-button svg {
+            width: 20px;
+            height: 20px;
+            display: block;
+        }
+
         .icon-button:hover {
             background: rgba(255, 255, 255, 0.2);
             transform: translateY(-1px);
@@ -132,6 +128,12 @@
             gap: 8px;
             cursor: pointer;
             transition: background 0.2s ease, transform 0.2s ease;
+        }
+
+        .btn-outline svg {
+            width: 18px;
+            height: 18px;
+            display: block;
         }
 
         .btn-outline:hover {
@@ -219,6 +221,12 @@
             flex-shrink: 0;
         }
 
+        .action-card__icon svg {
+            width: 26px;
+            height: 26px;
+            display: block;
+        }
+
         .action-card__title {
             font-size: 18px;
             font-weight: 600;
@@ -236,6 +244,12 @@
             margin-left: auto;
             color: #6377B8;
             transition: transform 0.2s ease;
+        }
+
+        .action-card__chevron svg {
+            width: 18px;
+            height: 18px;
+            display: block;
         }
 
         .action-card--expanded .action-card__chevron {
@@ -282,6 +296,12 @@
             flex-shrink: 0;
         }
 
+        .action-subitem__icon svg {
+            width: 20px;
+            height: 20px;
+            display: block;
+        }
+
         .action-subitem__label {
             font-size: 15px;
             font-weight: 500;
@@ -291,6 +311,12 @@
 
         .action-subitem__chevron {
             color: #7D8FBD;
+        }
+
+        .action-subitem__chevron svg {
+            width: 18px;
+            height: 18px;
+            display: block;
         }
 
         .section-title {
@@ -329,6 +355,12 @@
             gap: 6px;
             cursor: pointer;
             padding: 0;
+        }
+
+        .text-link-button svg {
+            width: 18px;
+            height: 18px;
+            display: block;
         }
 
         .recent-section {
@@ -435,8 +467,7 @@
         <div class="header-inner">
             <div class="header-top">
                 <div class="brand-avatar">
-                    <img src="{{ asset('images/logoLL.png') }}" alt="LL Despachante" onerror="this.style.display='none'; this.parentElement.classList.add('no-image');">
-                    <span class="brand-avatar-text">LL</span>
+                    <img src="{{ asset('images/logoll.png') }}" alt="LL Despachante">
                 </div>
                 <div class="header-actions">
                     <button class="icon-button" id="profileBtn" title="Meu perfil">
