@@ -442,6 +442,189 @@
             }
         }
 
+        .be-overlay {
+            position: fixed;
+            inset: 0;
+            background: rgba(15, 23, 42, 0.45);
+            display: none;
+            align-items: center;
+            justify-content: center;
+            padding: 24px;
+            z-index: 900;
+        }
+
+        .be-overlay.show {
+            display: flex;
+        }
+
+        .be-dialog {
+            width: min(420px, 92vw);
+            background: #ECECF4;
+            border-radius: 24px;
+            padding: 20px;
+            box-shadow: 0 24px 48px rgba(15, 23, 42, 0.2);
+        }
+
+        .be-dialog-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 16px;
+        }
+
+        .be-dialog-title {
+            font-size: 20px;
+            font-weight: 700;
+            color: #1E293B;
+        }
+
+        .be-dialog-close {
+            width: 32px;
+            height: 32px;
+            border: none;
+            background: none;
+            font-size: 24px;
+            line-height: 1;
+            color: #64748B;
+            cursor: pointer;
+        }
+
+        .be-dialog-body {
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+        }
+
+        .be-captcha-box {
+            background: #FFFFFF;
+            border-radius: 18px;
+            border: 1px solid #E2E8F0;
+            padding: 14px;
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+
+        .be-captcha-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            font-size: 14px;
+            font-weight: 600;
+            color: #1E293B;
+        }
+
+        .be-captcha-refresh {
+            border: none;
+            background: none;
+            color: var(--accent);
+            font-weight: 600;
+            cursor: pointer;
+        }
+
+        .be-captcha-image {
+            position: relative;
+            min-height: 88px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: #F8FAFC;
+            border-radius: 14px;
+            border: 1px dashed #CBD5F5;
+            overflow: hidden;
+        }
+
+        .be-captcha-image img {
+            max-width: 100%;
+            height: auto;
+            display: block;
+        }
+
+        .be-captcha-loading {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            font-size: 13px;
+            color: var(--text-soft);
+        }
+
+        .be-input {
+            width: 100%;
+            border-radius: 20px;
+            border: 1px solid #E2E8F0;
+            padding: 14px 16px;
+            font-size: 16px;
+            background: #FFFFFF;
+            color: #1E293B;
+        }
+
+        .be-input:focus {
+            outline: none;
+            border-color: var(--primary);
+            box-shadow: 0 0 0 2px rgba(0, 71, 171, 0.15);
+        }
+
+        .be-dialog-error {
+            color: var(--error);
+            font-size: 13px;
+            min-height: 16px;
+        }
+
+        .be-dialog-submit {
+            width: 100%;
+            border: none;
+            border-radius: 18px;
+            padding: 14px;
+            font-size: 16px;
+            font-weight: 600;
+            color: #fff;
+            background: var(--primary);
+            cursor: pointer;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+            transition: background 0.2s ease, transform 0.2s ease;
+        }
+
+        .be-dialog-submit:hover:not(:disabled) {
+            background: var(--primary-dark);
+            transform: translateY(-1px);
+        }
+
+        .be-dialog-submit:disabled {
+            opacity: 0.7;
+            cursor: not-allowed;
+        }
+
+        .be-dialog-submit .be-btn-spinner {
+            display: none;
+            width: 18px;
+            height: 18px;
+            border-radius: 50%;
+            border: 2px solid rgba(255, 255, 255, 0.4);
+            border-top-color: #fff;
+            animation: spin 0.8s linear infinite;
+        }
+
+        .be-dialog-submit.loading .be-btn-text {
+            display: none;
+        }
+
+        .be-dialog-submit.loading .be-btn-spinner {
+            display: inline-block;
+        }
+
+        .be-dialog-cancel {
+            border: none;
+            background: none;
+            font-size: 16px;
+            font-weight: 600;
+            color: var(--accent);
+            cursor: pointer;
+            align-self: center;
+        }
+
         @media (min-width: 768px) {
             .header {
                 padding: 32px 40px 44px;
@@ -463,232 +646,16 @@
     </style>
 </head>
 <body>
-    <div class="header">
-        <div class="header-inner">
-            <div class="header-top">
-                <div class="brand-avatar">
-                    <img src="{{ request()->getBaseUrl() }}/images/logoll.png" alt="LL Despachante">
-                </div>
-                <div class="header-actions">
-                    <button class="icon-button" id="profileBtn" title="Meu perfil">
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                            <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
-                            <circle cx="12" cy="7" r="4"></circle>
-                        </svg>
-                    </button>
-                    <button class="btn-outline" id="logoutBtn">
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                            <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path>
-                            <polyline points="16 17 21 12 16 7"></polyline>
-                            <line x1="21" y1="12" x2="9" y2="12"></line>
-                        </svg>
-                        <span>Sair</span>
-                    </button>
-                </div>
-            </div>
-            <div class="header-info" id="userInfo">Usuário: -- • Créditos usados este mês: --</div>
-        </div>
-    </div>
+    @include('components.home.header')
 
     <main class="content">
-        <section class="actions-section">
-            <div class="loading" id="permissionsLoading">
-                <div class="spinner"></div>
-                <span>Carregando permissões...</span>
-            </div>
-            <div class="status-message error hidden" id="permissionsError">
-                <span id="permissionsErrorText">Não foi possível carregar as permissões.</span>
-                <button class="text-link-button" id="permissionsRetry" type="button">Tentar novamente</button>
-            </div>
-            <div class="status-message hidden" id="noActionsMessage">
-                Nenhuma funcionalidade liberada para este usuário.
-            </div>
-            <div class="actions-list" id="actionsList">
-                <div class="action-card" data-action="pesquisas">
-                    <button class="action-card__main" type="button" data-toggle="pesquisas" aria-expanded="false">
-                        <div class="action-card__icon">
-                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                                <circle cx="11" cy="11" r="7"></circle>
-                                <path d="m21 21-4.35-4.35"></path>
-                            </svg>
-                        </div>
-                        <div>
-                            <div class="action-card__title">Pesquisas</div>
-                            <div class="action-card__description">
-                                Base estadual, BIN, outros Estados, RENAINF, Gravame e bloqueios ativos.
-                            </div>
-                        </div>
-                        <div class="action-card__chevron">
-                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                                <polyline points="9 18 15 12 9 6"></polyline>
-                            </svg>
-                        </div>
-                    </button>
-                    <div class="action-card__sublist">
-                        <button class="action-subitem" type="button" data-permission="pesquisa_base_estadual" data-href="/base-estadual">
-                            <div class="action-subitem__icon">
-                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                                    <path d="M21 10c0 6-9 12-9 12S3 16 3 10a9 9 0 1 1 18 0z"></path>
-                                    <circle cx="12" cy="10" r="3"></circle>
-                                </svg>
-                            </div>
-                            <div class="action-subitem__label">Base estadual</div>
-                            <div class="action-subitem__chevron">
-                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                                    <polyline points="9 18 15 12 9 6"></polyline>
-                                </svg>
-                            </div>
-                        </button>
-                        <button class="action-subitem" type="button" data-permission="pesquisa_base_outros_estados" data-disabled="true">
-                            <div class="action-subitem__icon">
-                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                                    <circle cx="12" cy="12" r="10"></circle>
-                                    <path d="M2 12h20"></path>
-                                    <path d="M12 2a15 15 0 0 1 0 20"></path>
-                                </svg>
-                            </div>
-                            <div class="action-subitem__label">Base Outros Estados</div>
-                            <div class="action-subitem__chevron">
-                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                                    <polyline points="9 18 15 12 9 6"></polyline>
-                                </svg>
-                            </div>
-                        </button>
-                        <button class="action-subitem" type="button" data-permission="pesquisa_bin" data-disabled="true">
-                            <div class="action-subitem__icon">
-                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                                    <rect x="2" y="5" width="20" height="14" rx="2"></rect>
-                                    <line x1="2" y1="10" x2="22" y2="10"></line>
-                                </svg>
-                            </div>
-                            <div class="action-subitem__label">BIN</div>
-                            <div class="action-subitem__chevron">
-                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                                    <polyline points="9 18 15 12 9 6"></polyline>
-                                </svg>
-                            </div>
-                        </button>
-                        <button class="action-subitem" type="button" data-permission="pesquisa_gravame" data-disabled="true">
-                            <div class="action-subitem__icon">
-                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                                    <rect x="3" y="4" width="18" height="14" rx="2"></rect>
-                                    <path d="M8 20h8"></path>
-                                </svg>
-                            </div>
-                            <div class="action-subitem__label">Gravame</div>
-                            <div class="action-subitem__chevron">
-                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                                    <polyline points="9 18 15 12 9 6"></polyline>
-                                </svg>
-                            </div>
-                        </button>
-                        <button class="action-subitem" type="button" data-permission="pesquisa_renainf" data-disabled="true">
-                            <div class="action-subitem__icon">
-                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                                    <path d="M5 17H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2h-1"></path>
-                                    <path d="M7 17l-1 4h12l-1-4"></path>
-                                    <path d="M8 11h8"></path>
-                                </svg>
-                            </div>
-                            <div class="action-subitem__label">Renainf</div>
-                            <div class="action-subitem__chevron">
-                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                                    <polyline points="9 18 15 12 9 6"></polyline>
-                                </svg>
-                            </div>
-                        </button>
-                        <button class="action-subitem" type="button" data-permission="pesquisa_bloqueios_ativos" data-disabled="true">
-                            <div class="action-subitem__icon">
-                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                                    <rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect>
-                                    <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
-                                </svg>
-                            </div>
-                            <div class="action-subitem__label">Bloqueios Ativos</div>
-                            <div class="action-subitem__chevron">
-                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                                    <polyline points="9 18 15 12 9 6"></polyline>
-                                </svg>
-                            </div>
-                        </button>
-                        <button class="action-subitem" type="button" data-permission="pesquisa_andamento_processo" data-disabled="true">
-                            <div class="action-subitem__icon">
-                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                                    <path d="M3 3v18h18"></path>
-                                    <path d="m19 9-5 5-4-4-4 4"></path>
-                                </svg>
-                            </div>
-                            <div class="action-subitem__label">Andamento do processo e-CRV</div>
-                            <div class="action-subitem__chevron">
-                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                                    <polyline points="9 18 15 12 9 6"></polyline>
-                                </svg>
-                            </div>
-                        </button>
-                    </div>
-                </div>
-
-                <div class="action-card" data-permission="crlv">
-                    <button class="action-card__main" type="button" data-disabled="true">
-                        <div class="action-card__icon">
-                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
-                                <path d="M14 2v6h6"></path>
-                                <line x1="8" y1="13" x2="16" y2="13"></line>
-                            </svg>
-                        </div>
-                        <div>
-                            <div class="action-card__title">CRLV-e</div>
-                            <div class="action-card__description">Emissão do CRLV digital</div>
-                        </div>
-                    </button>
-                </div>
-
-                <div class="action-card" data-permission="atpv">
-                    <button class="action-card__main" type="button" data-disabled="true">
-                        <div class="action-card__icon">
-                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                                <rect x="3" y="4" width="18" height="18" rx="2"></rect>
-                                <path d="M9 2h6"></path>
-                                <path d="m9 14 2 2 4-4"></path>
-                            </svg>
-                        </div>
-                        <div>
-                            <div class="action-card__title">Emissão da ATPV-e</div>
-                            <div class="action-card__description">Preencher a autorização para transferência</div>
-                        </div>
-                    </button>
-                </div>
-            </div>
-        </section>
-
-        <section class="disclaimer-card">
-            <h3>Aviso importante</h3>
-            <p>Este aplicativo não é afiliado nem representa qualquer órgão governamental.</p>
-            <p>As consultas exibidas aqui acessam diretamente as informações do portal oficial e-CRV SP (www.e-crvsp.sp.gov.br).</p>
-            <button class="text-link-button" type="button" id="openPortalBtn">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <path d="M14 3h7v7"></path>
-                    <path d="M10 14 21 3"></path>
-                    <path d="M21 14v7h-7"></path>
-                    <path d="M3 10v11h11"></path>
-                </svg>
-                <span>Acessar e-CRV SP</span>
-            </button>
-        </section>
-
-        <section class="recent-section">
-            <div class="section-title">Últimos veículos pesquisados</div>
-            <div class="loading" id="recentLoading">
-                <div class="spinner"></div>
-                <span>Carregando pesquisas...</span>
-            </div>
-            <div class="status-message error hidden" id="recentError"></div>
-            <div class="status-message hidden" id="recentEmpty">Nenhuma pesquisa recente encontrada.</div>
-            <div class="recent-list" id="recentList"></div>
-            <button class="text-link-button hidden" id="recentRetry" type="button">Tentar novamente</button>
-        </section>
+        @include('components.home.actions')
+        @include('components.home.disclaimer')
+        @include('components.home.recent')
     </main>
+
+    @include('components.home.base-estadual-modal')
+    @include('components.home.base-estadual-captcha-modal')
 
     <script>
         const API_BASE_URL = window.location.origin;
@@ -936,6 +903,238 @@
             }
         }
 
+        const baseQueryOverlay = document.getElementById('baseQueryOverlay');
+        const baseQueryClose = document.getElementById('baseQueryClose');
+        const baseCancelBtn = document.getElementById('baseCancelBtn');
+        const basePlateInput = document.getElementById('basePlateInput');
+        const basePlateError = document.getElementById('basePlateError');
+        const baseConsultBtn = document.getElementById('baseConsultBtn');
+
+        const baseCaptchaOverlay = document.getElementById('baseCaptchaOverlay');
+        const baseCaptchaClose = document.getElementById('baseCaptchaClose');
+        const baseCaptchaCancel = document.getElementById('baseCaptchaCancel');
+        const baseCaptchaRefresh = document.getElementById('baseCaptchaRefresh');
+        const baseCaptchaPlate = document.getElementById('baseCaptchaPlate');
+        const baseCaptchaInput = document.getElementById('baseCaptchaInput');
+        const baseCaptchaImage = document.getElementById('baseCaptchaImage');
+        const baseCaptchaLoading = document.getElementById('baseCaptchaLoading');
+        const baseCaptchaError = document.getElementById('baseCaptchaError');
+        const baseCaptchaSubmit = document.getElementById('baseCaptchaSubmit');
+
+        const oldPlatePattern = /^[A-Z]{3}[0-9]{4}$/;
+        const mercosurPlatePattern = /^[A-Z]{3}[0-9][A-Z0-9][0-9]{2}$/;
+
+        function normalizePlate(value) {
+            return value.replace(/[^A-Za-z0-9]/g, '').toUpperCase();
+        }
+
+        function isValidPlate(value) {
+            const normalized = normalizePlate(value);
+            if (normalized.length !== 7) {
+                return false;
+            }
+            return oldPlatePattern.test(normalized) || mercosurPlatePattern.test(normalized);
+        }
+
+        function openBaseEstadualModal() {
+            basePlateInput.value = '';
+            basePlateError.textContent = '';
+            baseQueryOverlay.classList.remove('hidden');
+            baseQueryOverlay.classList.add('show');
+            baseQueryOverlay.setAttribute('aria-hidden', 'false');
+            setTimeout(() => basePlateInput.focus(), 0);
+        }
+
+        function closeBaseEstadualModal() {
+            baseQueryOverlay.classList.remove('show');
+            baseQueryOverlay.classList.add('hidden');
+            baseQueryOverlay.setAttribute('aria-hidden', 'true');
+        }
+
+        function openBaseCaptchaModal(placa, message = '') {
+            baseCaptchaPlate.value = placa;
+            baseCaptchaInput.value = '';
+            baseCaptchaError.textContent = message;
+            baseCaptchaOverlay.classList.remove('hidden');
+            baseCaptchaOverlay.classList.add('show');
+            baseCaptchaOverlay.setAttribute('aria-hidden', 'false');
+            loadBaseCaptchaImage();
+            setTimeout(() => baseCaptchaInput.focus(), 0);
+        }
+
+        function closeBaseCaptchaModal() {
+            baseCaptchaOverlay.classList.remove('show');
+            baseCaptchaOverlay.classList.add('hidden');
+            baseCaptchaOverlay.setAttribute('aria-hidden', 'true');
+            clearCaptchaImage();
+        }
+
+        function setBaseConsultLoading(isLoading) {
+            baseConsultBtn.disabled = isLoading;
+            baseConsultBtn.classList.toggle('loading', isLoading);
+        }
+
+        function setBaseCaptchaLoading(isLoading) {
+            baseCaptchaSubmit.disabled = isLoading;
+            baseCaptchaSubmit.classList.toggle('loading', isLoading);
+        }
+
+        async function solveBaseCaptcha() {
+            const response = await fetch(`${API_BASE_URL}/api/captcha/solve`);
+            if (!response.ok) {
+                const errorData = await response.json().catch(() => ({}));
+                throw new Error(errorData.message || 'Não foi possível resolver o captcha automaticamente.');
+            }
+            const data = await response.json();
+            const solution = data.solution ? String(data.solution).trim() : '';
+            if (!solution) {
+                throw new Error('Resposta inválida ao resolver o captcha.');
+            }
+            return solution.toUpperCase();
+        }
+
+        function clearCaptchaImage() {
+            const currentUrl = baseCaptchaImage.dataset.objectUrl;
+            if (currentUrl) {
+                URL.revokeObjectURL(currentUrl);
+                delete baseCaptchaImage.dataset.objectUrl;
+            }
+            baseCaptchaImage.src = '';
+        }
+
+        async function loadBaseCaptchaImage() {
+            baseCaptchaError.textContent = '';
+            baseCaptchaLoading.classList.remove('hidden');
+            baseCaptchaImage.classList.add('hidden');
+            clearCaptchaImage();
+
+            let hasImage = false;
+
+            try {
+                const response = await fetch(`${API_BASE_URL}/api/captcha`, { cache: 'no-store' });
+                if (!response.ok) {
+                    throw new Error('Não foi possível carregar o captcha.');
+                }
+                const blob = await response.blob();
+                const objectUrl = URL.createObjectURL(blob);
+                baseCaptchaImage.src = objectUrl;
+                baseCaptchaImage.dataset.objectUrl = objectUrl;
+                hasImage = true;
+            } catch (error) {
+                baseCaptchaError.textContent = error.message || 'Não foi possível carregar o captcha.';
+            } finally {
+                baseCaptchaLoading.classList.add('hidden');
+                baseCaptchaImage.classList.toggle('hidden', !hasImage);
+            }
+        }
+
+        async function fetchBaseEstadual(placa, captcha) {
+            const params = new URLSearchParams({
+                placa: placa,
+                renavam: '',
+                captcha: captcha,
+            });
+
+            const response = await fetch(`${API_BASE_URL}/api/base-estadual?${params}`);
+            if (!response.ok) {
+                const errorData = await response.json().catch(() => ({ message: 'Erro ao consultar base estadual.' }));
+                throw new Error(errorData.message || 'Erro ao consultar base estadual.');
+            }
+
+            return await response.json();
+        }
+
+        function redirectToBaseEstadualResult(result) {
+            sessionStorage.setItem('base_estadual_result', JSON.stringify(result));
+            window.location.href = '/resultado-base-estadual';
+        }
+
+        async function registerBaseEstadualPesquisa(placa) {
+            try {
+                await fetch(`${API_BASE_URL}/api/pesquisas`, {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': `Bearer ${authToken}`,
+                        'Content-Type': 'application/json',
+                        'Accept': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        nome: 'Base estadual',
+                        placa: placa,
+                        renavam: null,
+                    }),
+                });
+            } catch (error) {
+                console.error('Erro ao registrar pesquisa:', error);
+            }
+        }
+
+        async function performBaseEstadualSearch() {
+            const placa = normalizePlate(basePlateInput.value);
+            if (!placa) {
+                basePlateError.textContent = 'Informe a placa do veículo.';
+                return;
+            }
+            if (!isValidPlate(placa)) {
+                basePlateError.textContent = 'Placa inválida.';
+                return;
+            }
+
+            basePlateError.textContent = '';
+            setBaseConsultLoading(true);
+
+            try {
+                let captcha;
+                try {
+                    captcha = await solveBaseCaptcha();
+                } catch (captchaError) {
+                    closeBaseEstadualModal();
+                    openBaseCaptchaModal(placa, 'Captcha automático indisponível. Digite o captcha manualmente.');
+                    return;
+                }
+
+                const result = await fetchBaseEstadual(placa, captcha);
+                await registerBaseEstadualPesquisa(placa);
+                closeBaseEstadualModal();
+                redirectToBaseEstadualResult(result);
+            } catch (error) {
+                const message = error.message || 'Não foi possível consultar a base estadual.';
+                if (message.toLowerCase().includes('captcha')) {
+                    closeBaseEstadualModal();
+                    openBaseCaptchaModal(placa, 'Captcha automático falhou. Digite o captcha manualmente.');
+                    return;
+                }
+                basePlateError.textContent = message;
+            } finally {
+                setBaseConsultLoading(false);
+            }
+        }
+
+        async function performBaseCaptchaSearch() {
+            const placa = normalizePlate(baseCaptchaPlate.value);
+            const captcha = baseCaptchaInput.value.trim().toUpperCase();
+
+            if (!captcha) {
+                baseCaptchaError.textContent = 'Informe o captcha.';
+                return;
+            }
+
+            baseCaptchaError.textContent = '';
+            setBaseCaptchaLoading(true);
+
+            try {
+                const result = await fetchBaseEstadual(placa, captcha);
+                await registerBaseEstadualPesquisa(placa);
+                closeBaseCaptchaModal();
+                redirectToBaseEstadualResult(result);
+            } catch (error) {
+                baseCaptchaError.textContent = error.message || 'Não foi possível consultar a base estadual.';
+                loadBaseCaptchaImage();
+            } finally {
+                setBaseCaptchaLoading(false);
+            }
+        }
+
         function setupActionToggles() {
             document.querySelectorAll('[data-toggle]').forEach((toggle) => {
                 toggle.addEventListener('click', () => {
@@ -943,6 +1142,12 @@
                     if (!card) return;
                     const expanded = card.classList.toggle('action-card--expanded');
                     toggle.setAttribute('aria-expanded', expanded ? 'true' : 'false');
+                });
+            });
+
+            document.querySelectorAll('[data-action="base-estadual"]').forEach((item) => {
+                item.addEventListener('click', () => {
+                    openBaseEstadualModal();
                 });
             });
 
@@ -993,6 +1198,58 @@
 
         document.getElementById('openPortalBtn').addEventListener('click', function() {
             window.open('https://www.e-crvsp.sp.gov.br/', '_blank', 'noopener');
+        });
+
+        baseQueryClose.addEventListener('click', closeBaseEstadualModal);
+        baseCancelBtn.addEventListener('click', closeBaseEstadualModal);
+        baseQueryOverlay.addEventListener('click', (event) => {
+            if (event.target === baseQueryOverlay) {
+                closeBaseEstadualModal();
+            }
+        });
+        basePlateInput.addEventListener('input', () => {
+            basePlateInput.value = normalizePlate(basePlateInput.value);
+            basePlateError.textContent = '';
+        });
+        basePlateInput.addEventListener('keydown', (event) => {
+            if (event.key === 'Enter') {
+                event.preventDefault();
+                performBaseEstadualSearch();
+            }
+        });
+        baseConsultBtn.addEventListener('click', performBaseEstadualSearch);
+
+        baseCaptchaClose.addEventListener('click', closeBaseCaptchaModal);
+        baseCaptchaCancel.addEventListener('click', closeBaseCaptchaModal);
+        baseCaptchaRefresh.addEventListener('click', loadBaseCaptchaImage);
+        baseCaptchaOverlay.addEventListener('click', (event) => {
+            if (event.target === baseCaptchaOverlay) {
+                closeBaseCaptchaModal();
+            }
+        });
+        baseCaptchaInput.addEventListener('input', () => {
+            baseCaptchaInput.value = baseCaptchaInput.value.replace(/\s/g, '').toUpperCase();
+            baseCaptchaError.textContent = '';
+        });
+        baseCaptchaInput.addEventListener('keydown', (event) => {
+            if (event.key === 'Enter') {
+                event.preventDefault();
+                performBaseCaptchaSearch();
+            }
+        });
+        baseCaptchaSubmit.addEventListener('click', performBaseCaptchaSearch);
+
+        document.addEventListener('keydown', (event) => {
+            if (event.key !== 'Escape') {
+                return;
+            }
+            if (!baseCaptchaOverlay.classList.contains('hidden')) {
+                closeBaseCaptchaModal();
+                return;
+            }
+            if (!baseQueryOverlay.classList.contains('hidden')) {
+                closeBaseEstadualModal();
+            }
         });
 
         permissionsRetry.addEventListener('click', loadPermissions);
