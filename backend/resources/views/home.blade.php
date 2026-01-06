@@ -751,6 +751,8 @@
     @include('components.home.base-outros-estados-captcha-modal')
     @include('components.home.bin-modal')
     @include('components.home.bin-captcha-modal')
+    @include('components.home.gravame-modal')
+    @include('components.home.gravame-captcha-modal')
 
     <script>
         const API_BASE_URL = window.location.origin;
@@ -1063,6 +1065,23 @@
         const binCaptchaOptionInputs = Array.from(document.querySelectorAll('input[name="binCaptchaSearchOption"]'));
         const binCaptchaImage = document.getElementById('binCaptchaImage');
         const binCaptchaLoading = document.getElementById('binCaptchaLoading');
+        const gravameOverlay = document.getElementById('gravameOverlay');
+        const gravameClose = document.getElementById('gravameClose');
+        const gravameCancel = document.getElementById('gravameCancel');
+        const gravamePlateInput = document.getElementById('gravamePlateInput');
+        const gravameError = document.getElementById('gravameError');
+        const gravameSubmit = document.getElementById('gravameSubmit');
+
+        const gravameCaptchaOverlay = document.getElementById('gravameCaptchaOverlay');
+        const gravameCaptchaClose = document.getElementById('gravameCaptchaClose');
+        const gravameCaptchaCancel = document.getElementById('gravameCaptchaCancel');
+        const gravameCaptchaRefresh = document.getElementById('gravameCaptchaRefresh');
+        const gravameCaptchaPlate = document.getElementById('gravameCaptchaPlate');
+        const gravameCaptchaInput = document.getElementById('gravameCaptchaInput');
+        const gravameCaptchaImage = document.getElementById('gravameCaptchaImage');
+        const gravameCaptchaLoading = document.getElementById('gravameCaptchaLoading');
+        const gravameCaptchaError = document.getElementById('gravameCaptchaError');
+        const gravameCaptchaSubmit = document.getElementById('gravameCaptchaSubmit');
 
         const oldPlatePattern = /^[A-Z]{3}[0-9]{4}$/;
         const mercosurPlatePattern = /^[A-Z]{3}[0-9][A-Z0-9][0-9]{2}$/;
@@ -1497,6 +1516,201 @@
             }
         }
 
+        function openGravameModal() {
+            gravamePlateInput.value = '';
+            gravameError.textContent = '';
+            gravameOverlay.classList.remove('hidden');
+            gravameOverlay.classList.add('show');
+            gravameOverlay.setAttribute('aria-hidden', 'false');
+            setTimeout(() => gravamePlateInput.focus(), 0);
+        }
+
+        function closeGravameModal() {
+            gravameOverlay.classList.remove('show');
+            gravameOverlay.classList.add('hidden');
+            gravameOverlay.setAttribute('aria-hidden', 'true');
+        }
+
+        function openGravameCaptchaModal(placa, message = '') {
+            gravameCaptchaPlate.value = placa;
+            gravameCaptchaInput.value = '';
+            gravameCaptchaError.textContent = message;
+            gravameCaptchaOverlay.classList.remove('hidden');
+            gravameCaptchaOverlay.classList.add('show');
+            gravameCaptchaOverlay.setAttribute('aria-hidden', 'false');
+            loadGravameCaptchaImage();
+            setTimeout(() => gravameCaptchaInput.focus(), 0);
+        }
+
+        function closeGravameCaptchaModal() {
+            gravameCaptchaOverlay.classList.remove('show');
+            gravameCaptchaOverlay.classList.add('hidden');
+            gravameCaptchaOverlay.setAttribute('aria-hidden', 'true');
+            clearGravameCaptchaImage();
+        }
+
+        function setGravameLoading(isLoading) {
+            gravameSubmit.disabled = isLoading;
+            gravameSubmit.classList.toggle('loading', isLoading);
+        }
+
+        function setGravameCaptchaLoading(isLoading) {
+            gravameCaptchaSubmit.disabled = isLoading;
+            gravameCaptchaSubmit.classList.toggle('loading', isLoading);
+        }
+
+        function clearGravameCaptchaImage() {
+            const currentUrl = gravameCaptchaImage.dataset.objectUrl;
+            if (currentUrl) {
+                URL.revokeObjectURL(currentUrl);
+                delete gravameCaptchaImage.dataset.objectUrl;
+            }
+            gravameCaptchaImage.src = '';
+        }
+
+        async function loadGravameCaptchaImage() {
+            gravameCaptchaError.textContent = '';
+            gravameCaptchaLoading.classList.remove('hidden');
+            gravameCaptchaImage.classList.add('hidden');
+            clearGravameCaptchaImage();
+
+            let hasImage = false;
+
+            try {
+                const response = await fetch(`${API_BASE_URL}/api/captcha`, { cache: 'no-store' });
+                if (!response.ok) {
+                    throw new Error('Não foi possível carregar o captcha.');
+                }
+                const blob = await response.blob();
+                const objectUrl = URL.createObjectURL(blob);
+                gravameCaptchaImage.src = objectUrl;
+                gravameCaptchaImage.dataset.objectUrl = objectUrl;
+                hasImage = true;
+            } catch (error) {
+                gravameCaptchaError.textContent = error.message || 'Não foi possível carregar o captcha.';
+            } finally {
+                gravameCaptchaLoading.classList.add('hidden');
+                gravameCaptchaImage.classList.toggle('hidden', !hasImage);
+            }
+        }
+
+        async function fetchGravame(placa, captcha) {
+            const params = new URLSearchParams({
+                placa: placa,
+                captcha: captcha,
+            });
+
+            const response = await fetch(`${API_BASE_URL}/api/gravame?${params}`);
+            if (!response.ok) {
+                const errorData = await response.json().catch(() => ({ message: 'Erro ao consultar gravame.' }));
+                throw new Error(errorData.message || 'Erro ao consultar gravame.');
+            }
+
+            return await response.json();
+        }
+
+        function redirectToGravameResult(result, meta) {
+            sessionStorage.setItem('gravame_result', JSON.stringify(result));
+            sessionStorage.setItem('gravame_meta', JSON.stringify(meta));
+            window.location.href = '/resultado-gravame';
+        }
+
+        async function registerGravamePesquisa(placa) {
+            try {
+                await fetch(`${API_BASE_URL}/api/pesquisas`, {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': `Bearer ${authToken}`,
+                        'Content-Type': 'application/json',
+                        'Accept': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        nome: 'Gravame',
+                        placa: placa,
+                    }),
+                });
+            } catch (error) {
+                console.error('Erro ao registrar pesquisa Gravame:', error);
+            }
+        }
+
+        async function performGravameSearch() {
+            const placa = normalizePlate(gravamePlateInput.value);
+
+            if (!placa) {
+                gravameError.textContent = 'Informe a placa do veículo.';
+                return;
+            }
+            if (!isValidPlate(placa)) {
+                gravameError.textContent = 'Placa inválida.';
+                return;
+            }
+
+            gravameError.textContent = '';
+            setGravameLoading(true);
+
+            try {
+                let captcha;
+                try {
+                    captcha = await solveBaseCaptcha();
+                } catch (captchaError) {
+                    closeGravameModal();
+                    openGravameCaptchaModal(placa, 'Captcha automático indisponível. Digite o captcha manualmente.');
+                    return;
+                }
+
+                const result = await fetchGravame(placa, captcha);
+                await registerGravamePesquisa(placa);
+                closeGravameModal();
+                const veiculoData = result?.veiculo || {};
+                redirectToGravameResult(result, {
+                    placa,
+                    renavam: veiculoData.renavam || '',
+                    uf: veiculoData.uf || '',
+                });
+            } catch (error) {
+                const message = error.message || 'Não foi possível concluir a pesquisa Gravame.';
+                if (message.toLowerCase().includes('captcha')) {
+                    closeGravameModal();
+                    openGravameCaptchaModal(placa, 'Captcha automático falhou. Digite o captcha manualmente.');
+                    return;
+                }
+                gravameError.textContent = message;
+            } finally {
+                setGravameLoading(false);
+            }
+        }
+
+        async function performGravameCaptchaSearch() {
+            const placa = normalizePlate(gravameCaptchaPlate.value);
+            const captcha = gravameCaptchaInput.value.trim().toUpperCase();
+
+            if (!captcha) {
+                gravameCaptchaError.textContent = 'Informe o captcha.';
+                return;
+            }
+
+            gravameCaptchaError.textContent = '';
+            setGravameCaptchaLoading(true);
+
+            try {
+                const result = await fetchGravame(placa, captcha);
+                await registerGravamePesquisa(placa);
+                closeGravameCaptchaModal();
+                const veiculoData = result?.veiculo || {};
+                redirectToGravameResult(result, {
+                    placa,
+                    renavam: veiculoData.renavam || '',
+                    uf: veiculoData.uf || '',
+                });
+            } catch (error) {
+                gravameCaptchaError.textContent = error.message || 'Não foi possível concluir a pesquisa Gravame.';
+                loadGravameCaptchaImage();
+            } finally {
+                setGravameCaptchaLoading(false);
+            }
+        }
+
         function getSelectedBinOption(inputs, fallback = 'placa') {
             const selected = inputs.find((input) => input.checked);
             return selected ? selected.value : fallback;
@@ -1814,6 +2028,11 @@
                     openBinModal();
                 });
             });
+            document.querySelectorAll('[data-action="gravame"]').forEach((item) => {
+                item.addEventListener('click', () => {
+                    openGravameModal();
+                });
+            });
 
             document.querySelectorAll('[data-href]').forEach((item) => {
                 item.addEventListener('click', () => {
@@ -2012,6 +2231,45 @@
         });
         binCaptchaSubmit.addEventListener('click', performBinCaptchaSearch);
 
+        gravameClose.addEventListener('click', closeGravameModal);
+        gravameCancel.addEventListener('click', closeGravameModal);
+        gravameOverlay.addEventListener('click', (event) => {
+            if (event.target === gravameOverlay) {
+                closeGravameModal();
+            }
+        });
+        gravamePlateInput.addEventListener('input', () => {
+            gravamePlateInput.value = normalizePlate(gravamePlateInput.value);
+            gravameError.textContent = '';
+        });
+        gravamePlateInput.addEventListener('keydown', (event) => {
+            if (event.key === 'Enter') {
+                event.preventDefault();
+                performGravameSearch();
+            }
+        });
+        gravameSubmit.addEventListener('click', performGravameSearch);
+
+        gravameCaptchaClose.addEventListener('click', closeGravameCaptchaModal);
+        gravameCaptchaCancel.addEventListener('click', closeGravameCaptchaModal);
+        gravameCaptchaRefresh.addEventListener('click', loadGravameCaptchaImage);
+        gravameCaptchaOverlay.addEventListener('click', (event) => {
+            if (event.target === gravameCaptchaOverlay) {
+                closeGravameCaptchaModal();
+            }
+        });
+        gravameCaptchaInput.addEventListener('input', () => {
+            gravameCaptchaInput.value = gravameCaptchaInput.value.replace(/\s/g, '').toUpperCase();
+            gravameCaptchaError.textContent = '';
+        });
+        gravameCaptchaInput.addEventListener('keydown', (event) => {
+            if (event.key === 'Enter') {
+                event.preventDefault();
+                performGravameCaptchaSearch();
+            }
+        });
+        gravameCaptchaSubmit.addEventListener('click', performGravameCaptchaSearch);
+
         document.addEventListener('keydown', (event) => {
             if (event.key !== 'Escape') {
                 return;
@@ -2022,6 +2280,14 @@
             }
             if (!binOverlay.classList.contains('hidden')) {
                 closeBinModal();
+                return;
+            }
+            if (!gravameCaptchaOverlay.classList.contains('hidden')) {
+                closeGravameCaptchaModal();
+                return;
+            }
+            if (!gravameOverlay.classList.contains('hidden')) {
+                closeGravameModal();
                 return;
             }
             if (!otherStatesCaptchaOverlay.classList.contains('hidden')) {
