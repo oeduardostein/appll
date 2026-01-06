@@ -134,47 +134,6 @@
             flex-direction: column;
             gap: 12px;
         }
-        .renainf-plate-card {
-            background: #fff;
-            border-radius: 24px;
-            border: 1px solid rgba(226, 232, 240, 0.9);
-            box-shadow: 0 12px 24px rgba(15, 23, 42, 0.08);
-            padding: 20px;
-            display: flex;
-            gap: 16px;
-            align-items: center;
-        }
-        .renainf-plate-icon {
-            width: 60px;
-            height: 60px;
-            border-radius: 18px;
-            background: rgba(15, 23, 42, 0.08);
-            display: flex;
-            align-items: center;
-            justify-content: center;
-        }
-        .renainf-plate-icon svg {
-            width: 32px;
-            height: 32px;
-            stroke: var(--primary);
-        }
-        .renainf-plate-content {
-            flex: 1;
-        }
-        .renainf-plate-title {
-            font-size: 22px;
-            font-weight: 700;
-            color: #1D1C3F;
-        }
-        .renainf-plate-subtitle {
-            font-size: 14px;
-            color: #4B5563;
-        }
-        .renainf-highlight-row {
-            font-size: 14px;
-            color: #1D1C3F;
-            font-weight: 600;
-        }
 
         .renainf-card-title {
             font-size: 16px;
@@ -228,33 +187,6 @@
             display: flex;
             flex-direction: column;
             gap: 12px;
-        }
-
-        .renainf-occurrences-table table {
-            width: 100%;
-            border-collapse: collapse;
-            font-size: 13px;
-            color: #1D1E33;
-        }
-
-        .renainf-occurrences-table th,
-        .renainf-occurrences-table td {
-            padding: 10px 8px;
-            text-align: left;
-        }
-
-        .renainf-occurrences-table thead {
-            font-weight: 700;
-            color: #667085;
-            text-transform: none;
-        }
-
-        .renainf-occurrences-table tbody tr {
-            border-bottom: 1px solid rgba(226, 232, 240, 0.7);
-        }
-
-        .renainf-occurrences-table tbody tr:last-child {
-            border-bottom: none;
         }
 
         .renainf-section-title {
@@ -351,22 +283,26 @@
     </div>
 
     <main class="renainf-body">
-        <section id="renainfPlateCard"></section>
-        <section id="renainfConsultaCard"></section>
-        <section id="renainfFonteCard"></section>
-        <section class="renainf-section-card">
-            <div class="renainf-section-title">Ocorrências encontradas</div>
-            <div class="renainf-occurrences-table" id="renainfOccurrencesTable"></div>
+        <section id="renainfSummary"></section>
+        <section id="renainfStats"></section>
+        <section id="renainfConsulta"></section>
+        <section id="renainfOccurrences"></section>
+        <section id="renainfInfractions"></section>
+        <section class="renainf-json-section">
+            <div class="renainf-json-title">Resposta completa</div>
+            <pre class="renainf-json-pre" id="renainfJson"></pre>
         </section>
     </main>
 
     <script>
         const authToken = localStorage.getItem('auth_token');
         const csrfToken = document.querySelector('meta[name="csrf-token"]')?.content;
-        const renainfPlateCard = document.getElementById('renainfPlateCard');
-        const renainfConsultaCard = document.getElementById('renainfConsultaCard');
-        const renainfFonteCard = document.getElementById('renainfFonteCard');
-        const renainfOccurrencesTable = document.getElementById('renainfOccurrencesTable');
+        const renainfSummary = document.getElementById('renainfSummary');
+        const renainfStats = document.getElementById('renainfStats');
+        const renainfConsulta = document.getElementById('renainfConsulta');
+        const renainfOccurrences = document.getElementById('renainfOccurrences');
+        const renainfInfractions = document.getElementById('renainfInfractions');
+        const renainfJson = document.getElementById('renainfJson');
         const renainfSubtitle = document.getElementById('renainfSubtitle');
         const copyBtn = document.getElementById('renainfCopyBtn');
         const pdfBtn = document.getElementById('renainfPdfBtn');
@@ -475,56 +411,83 @@
             return [];
         }
 
-        function renderPlateCard(result) {
+        function renderSummary(result) {
             const plate = result?.plate || '—';
-            const subtitle = result?.sourceTitle || 'Consulta RENAINF';
-            const subText = result?.sourceGeneratedAt
-                ? `Gerado em ${result.sourceGeneratedAt}`
-                : renainfMeta?.startDate
-                    ? `Período pesquisado ${formatDateDisplay(renainfMeta.startDate)} • ${formatDateDisplay(renainfMeta.endDate)}`
-                    : '';
+            const uf = result?.uf || '—';
+            const statusLabel = result?.statusLabel || result?.status || '—';
+            const period = formatPeriod(renainfMeta?.startDate, renainfMeta?.endDate);
             return `
-                <div class="renainf-plate-card">
-                    <div class="renainf-plate-icon">
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                            <rect x="3" y="7" width="18" height="10" rx="2"></rect>
-                            <path d="M3 17h18"></path>
-                            <path d="M7 9V7"></path>
-                            <path d="M17 9V7"></path>
-                        </svg>
+                <div class="renainf-card">
+                    <div class="renainf-card-title">Resumo da consulta</div>
+                    <div class="renainf-row">
+                        <div class="renainf-tile">
+                            <div class="renainf-label">Placa</div>
+                            <div class="renainf-value">${plate}</div>
+                        </div>
+                        <div class="renainf-tile">
+                            <div class="renainf-label">UF pesquisada</div>
+                            <div class="renainf-value">${uf}</div>
+                        </div>
                     </div>
-                    <div class="renainf-plate-content">
-                        <div class="renainf-plate-title">${plate}</div>
-                        <div class="renainf-plate-subtitle">${subtitle}</div>
-                        ${subText ? `<div class="renainf-highlight-row">${subText}</div>` : ''}
+                    <div class="renainf-row">
+                        <div class="renainf-tile">
+                            <div class="renainf-label">Status da multa</div>
+                            <div class="renainf-value">${statusLabel}</div>
+                        </div>
+                        <div class="renainf-tile">
+                            <div class="renainf-label">Período</div>
+                            <div class="renainf-value">${period}</div>
+                        </div>
                     </div>
                 </div>
             `;
         }
 
-        function renderConsultaCard(result) {
-            const consulta = result?.consulta || {};
-            const status = result?.statusLabel || result?.status || '—';
-            const indicator = consulta.indicador_exigibilidade || status;
-            const plate = consulta.placa || result?.plate || '—';
-            const ufEmplac = consulta.uf_emplacamento || result?.uf || '—';
-            const ufPesquisa = result?.uf || '—';
-            const period = formatPeriod(renainfMeta?.startDate, renainfMeta?.endDate);
-            const minimap = [
-                { label: 'Placa consultada', value: plate },
-                { label: 'UF de emplacamento', value: ufEmplac },
-                { label: 'Indicador de exigibilidade', value: indicator },
-                { label: 'UF pesquisada', value: ufPesquisa },
-                { label: 'Ocorrências encontradas', value: deductionOccurrences(result).length },
-            ];
-            const rows = minimap
-                .map((item) => `
+        function renderStats(summary) {
+            return `
+                <div class="renainf-card">
+                    <div class="renainf-card-title">Resumo financeiro</div>
+                    <div class="renainf-row">
+                        <div class="renainf-tile">
+                            <div class="renainf-label">Total de infrações</div>
+                            <div class="renainf-value">${summary.totalInfractions}</div>
+                        </div>
+                        <div class="renainf-tile">
+                            <div class="renainf-label">Valor total</div>
+                            <div class="renainf-value">${formatCurrency(summary.totalValue)}</div>
+                        </div>
+                    </div>
+                    <div class="renainf-row">
+                        <div class="renainf-tile">
+                            <div class="renainf-label">Valor em aberto</div>
+                            <div class="renainf-value">${formatCurrency(summary.openValue)}</div>
+                        </div>
+                        <div class="renainf-tile">
+                            <div class="renainf-label">Última atualização</div>
+                            <div class="renainf-value">${summary.lastUpdated}</div>
+                        </div>
+                    </div>
+                </div>
+            `;
+        }
+
+        function renderConsulta(result) {
+            const consulta = result?.consulta || {}; 
+            const fields = [];
+            if (consulta.placa) fields.push({ label: 'Placa consultada', value: consulta.placa });
+            if (consulta.uf_emplacamento) fields.push({ label: 'UF de emplacamento', value: consulta.uf_emplacamento });
+            if (consulta.indicador_exigibilidade) fields.push({ label: 'Indicador de exigibilidade', value: consulta.indicador_exigibilidade });
+            if (!fields.length) return '';
+
+            const rows = fields
+                .map(item => `
                     <div class="renainf-detail-row">
                         <span class="renainf-detail-label">${item.label}</span>
                         <span class="renainf-detail-value">${item.value}</span>
                     </div>
                 `)
                 .join('');
+
             return `
                 <div class="renainf-section-card">
                     <div class="renainf-section-title">Dados da consulta</div>
@@ -533,56 +496,90 @@
             `;
         }
 
-        function renderFonteCard(result) {
+        function renderFonte(result) {
             const title = result?.sourceTitle || result?.fonte?.titulo || result?.fonte_title;
             const generated = result?.sourceGeneratedAt || result?.fonte?.gerado_em || result?.fonte_generated_at;
             if (!title && !generated) return '';
             return `
                 <div class="renainf-section-card">
                     <div class="renainf-section-title">Fonte</div>
-                    ${title ? `<div class="renainf-detail-row"><span class="renainf-detail-label">Sistema</span><span class="renainf-detail-value">${title}</span></div>` : ''}
-                    ${generated ? `<div class="renainf-detail-row"><span class="renainf-detail-label">Gerado em</span><span class="renainf-detail-value">${generated}</span></div>` : ''}
+                    ${title ? `<p class="renainf-detail-label">Sistema</p><p class="renainf-detail-value">${title}</p>` : ''}
+                    ${generated ? `<p class="renainf-detail-label">Gerado em</p><p class="renainf-detail-value">${generated}</p>` : ''}
                 </div>
             `;
         }
 
-        function renderOccurrencesTable(occurrences) {
-            if (!occurrences.length) {
-                return '<p style="color:#94A3B8; text-align:center;">Nenhuma ocorrência encontrada.</p>';
-            }
-            const rows = occurrences
-                .map((occurrence) => {
-                    const orgao = occurrence.orgao_autuador || occurrence.orgao || '—';
-                    const auto = occurrence.auto_infracao || occurrence.auto || '—';
-                    const infracao = occurrence.infracao || occurrence.codigo_infracao || '—';
-                    const data = occurrence.data_infracao || occurrence.data || '—';
-                    const exig = occurrence.exigibilidade || occurrence.indicador_exigibilidade || '—';
-                    return `
-                        <tr>
-                            <td>${orgao}</td>
-                            <td>${auto}</td>
-                            <td>${infracao}</td>
-                            <td>${formatDateDisplay(data)}</td>
-                            <td>${exig}</td>
-                        </tr>
-                    `;
-                })
+        function renderOccurrences(occurrences) {
+            if (!occurrences.length) return '';
+            const items = occurrences
+                .map((occurrence) => `
+                    <div class="renainf-occurrence">
+                        <div>
+                            <div class="renainf-detail-label">Orgão autuador</div>
+                            <div class="renainf-detail-value">${occurrence.orgao_autuador || occurrence.orgao}</div>
+                        </div>
+                        <div>
+                            <div class="renainf-detail-label">Auto de infração</div>
+                            <div class="renainf-detail-value">${occurrence.auto_infracao || occurrence.auto}</div>
+                        </div>
+                        <div>
+                            <div class="renainf-detail-label">Infração</div>
+                            <div class="renainf-detail-value">${occurrence.infracao || occurrence.codigo_infracao}</div>
+                        </div>
+                        <div>
+                            <div class="renainf-detail-label">Data</div>
+                            <div class="renainf-detail-value">${occurrence.data_infracao || occurrence.data}</div>
+                        </div>
+                        <div>
+                            <div class="renainf-detail-label">Exigibilidade</div>
+                            <div class="renainf-detail-value">${occurrence.exigibilidade || occurrence.indicador_exigibilidade || '—'}</div>
+                        </div>
+                    </div>
+                `)
                 .join('');
+
             return `
-                <table>
-                    <thead>
-                        <tr>
-                            <th>Orgão autuador</th>
-                            <th>Auto de infração</th>
-                            <th>Infração</th>
-                            <th>Data da infração</th>
-                            <th>Exigibilidade</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        ${rows}
-                    </tbody>
-                </table>
+                <div class="renainf-section-card">
+                    <div class="renainf-section-title">Ocorrências</div>
+                    ${items}
+                </div>
+            `;
+        }
+
+        function renderInfractions(infractions) {
+            if (!infractions.length) return '';
+            const items = infractions
+                .map((infraction) => `
+                    <div class="renainf-infraction">
+                        <div>
+                            <div class="renainf-detail-label">Auto</div>
+                            <div class="renainf-detail-value">${infraction.auto_infracao || infraction.code || '—'}</div>
+                        </div>
+                        <div>
+                            <div class="renainf-detail-label">Descrição</div>
+                            <div class="renainf-detail-value">${infraction.description || infraction.descricao || '—'}</div>
+                        </div>
+                        <div>
+                            <div class="renainf-detail-label">Valor</div>
+                            <div class="renainf-detail-value">${formatCurrency(infraction.amount ?? infraction.valor ?? infraction.valor_infracao)}</div>
+                        </div>
+                        <div>
+                            <div class="renainf-detail-label">Status</div>
+                            <div class="renainf-detail-value">${infraction.status || infraction.situacao || '—'}</div>
+                        </div>
+                        <div>
+                            <div class="renainf-detail-label">Data</div>
+                            <div class="renainf-detail-value">${infraction.date || infraction.data || infraction.data_emissao || '—'}</div>
+                        </div>
+                    </div>
+                `)
+                .join('');
+
+            return `
+                <div class="renainf-section-card">
+                    <div class="renainf-section-title">Infrações</div>
+                    ${items}
+                </div>
             `;
         }
 
