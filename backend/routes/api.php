@@ -9,6 +9,7 @@ use App\Http\Controllers\Api\BaseEstadualPdfController;
 use App\Http\Controllers\Api\BaseOutrosEstadosPdfController;
 use App\Http\Controllers\Api\BinPdfController;
 use App\Http\Controllers\Api\GravamePdfController;
+use App\Http\Controllers\Api\RenainfPdfController;
 use App\Http\Controllers\Api\AnotherBaseStateController;
 use App\Http\Controllers\Api\AtpvPdfController;
 use App\Http\Controllers\Api\BinController;
@@ -56,6 +57,7 @@ Route::post('emissao-atpv/assinatura', RegistrarAssinaturaAtpvController::class)
 Route::get('emissao-atpv/pdf', AtpvPdfController::class);
 Route::get('emissao-crlv', ImpressaoCrlvController::class);
 Route::get('renainf', RenainfPlacaController::class);
+Route::post('renainf/pdf', RenainfPdfController::class);
 Route::get('cep', CepLookupController::class);
 
 Route::get('pesquisas', [PesquisaController::class, 'index']);
