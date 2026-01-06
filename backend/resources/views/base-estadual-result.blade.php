@@ -32,6 +32,12 @@
             min-height: 100vh;
         }
 
+        @keyframes spin {
+            to {
+                transform: rotate(360deg);
+            }
+        }
+
         button,
         input,
         textarea {
@@ -255,6 +261,11 @@
             transition: background 0.2s ease;
         }
 
+        .action-menu-item.is-loading {
+            opacity: 0.7;
+            cursor: not-allowed;
+        }
+
         .action-menu-item:hover {
             background: #F8FAFC;
         }
@@ -281,6 +292,24 @@
             width: 18px;
             height: 18px;
             color: #94A3B8;
+        }
+
+        .action-menu-spinner {
+            width: 16px;
+            height: 16px;
+            border-radius: 50%;
+            border: 2px solid rgba(148, 163, 184, 0.35);
+            border-top-color: #2563EB;
+            animation: spin 0.8s linear infinite;
+            display: none;
+        }
+
+        .action-menu-item.is-loading .action-menu-spinner {
+            display: inline-block;
+        }
+
+        .action-menu-item.is-loading .action-menu-arrow {
+            display: none;
         }
 
         .section-card {
@@ -420,10 +449,11 @@
     <script>
         const baseResultContent = document.getElementById('baseResultContent');
         const baseResultBack = document.getElementById('baseResultBack');
+        const authToken = localStorage.getItem('auth_token');
+        const csrfToken = document.querySelector('meta[name="csrf-token"]')?.content;
 
         function checkAuth() {
-            const token = localStorage.getItem('auth_token');
-            if (!token) {
+            if (!authToken) {
                 window.location.href = '/login';
                 return false;
             }
@@ -534,6 +564,18 @@
                     </div>
 
                     <div class="action-menu-card">
+                        <button class="action-menu-item" type="button" id="basePdfBtn" onclick="emitBaseEstadualPdf()">
+                            <svg class="action-menu-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M12 3v12"></path>
+                                <path d="m7 10 5 5 5-5"></path>
+                                <rect x="4" y="17" width="16" height="4" rx="2"></rect>
+                            </svg>
+                            <span class="action-menu-label">Emitir PDF</span>
+                            <span class="action-menu-spinner" aria-hidden="true"></span>
+                            <svg class="action-menu-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <polyline points="9 18 15 12 9 6"></polyline>
+                            </svg>
+                        </button>
                         <button class="action-menu-item" type="button" onclick="showVehicleDetails()">
                             <svg class="action-menu-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                                 <path d="M5 17H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2h-1M5 17l-1 4h18l-1-4M5 17h14M9 9h6m-6 4h6"></path>
@@ -617,6 +659,82 @@
                         <pre style="background: #F8FAFC; padding: 16px; border-radius: 12px; border: 1px solid #E2E8F0; font-size: 13px; overflow-x: auto;">${JSON.stringify(data, null, 2)}</pre>
                     </div>
                 `;
+            }
+        }
+
+        let isPdfGenerating = false;
+
+        function setPdfLoading(isLoading) {
+            const pdfBtn = document.getElementById('basePdfBtn');
+            if (!pdfBtn) return;
+            pdfBtn.classList.toggle('is-loading', isLoading);
+            pdfBtn.disabled = isLoading;
+        }
+
+        async function emitBaseEstadualPdf() {
+            if (isPdfGenerating) return;
+            if (!window.baseResultData || !window.baseResultData.veiculo) {
+                alert('Nenhum resultado disponível para gerar o PDF.');
+                return;
+            }
+
+            isPdfGenerating = true;
+            setPdfLoading(true);
+
+            try {
+                const headers = {
+                    'Content-Type': 'application/json',
+                    'Accept': 'application/pdf',
+                };
+                if (authToken) {
+                    headers['Authorization'] = `Bearer ${authToken}`;
+                }
+                if (csrfToken) {
+                    headers['X-CSRF-TOKEN'] = csrfToken;
+                }
+
+                const response = await fetch('/api/base-estadual/pdf', {
+                    method: 'POST',
+                    headers,
+                    body: JSON.stringify({
+                        payload: window.baseResultData,
+                    }),
+                });
+
+                if (!response.ok) {
+                    let message = 'Não foi possível gerar o PDF.';
+                    const contentType = response.headers.get('content-type') || '';
+                    if (contentType.includes('application/json')) {
+                        const data = await response.json().catch(() => ({}));
+                        message = data.message || message;
+                    } else {
+                        const text = await response.text();
+                        if (text) {
+                            message = text;
+                        }
+                    }
+                    throw new Error(message);
+                }
+
+                const blob = await response.blob();
+                const placa = (window.baseResultData.veiculo?.placa || 'consulta')
+                    .toString()
+                    .replace(/[^A-Za-z0-9]/g, '');
+                const filename = `pesquisa_base_estadual_${placa || 'consulta'}.pdf`;
+
+                const url = URL.createObjectURL(blob);
+                const link = document.createElement('a');
+                link.href = url;
+                link.download = filename;
+                document.body.appendChild(link);
+                link.click();
+                link.remove();
+                URL.revokeObjectURL(url);
+            } catch (error) {
+                alert(error.message || 'Não foi possível gerar o PDF.');
+            } finally {
+                isPdfGenerating = false;
+                setPdfLoading(false);
             }
         }
 
