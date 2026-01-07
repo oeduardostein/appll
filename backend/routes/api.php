@@ -42,6 +42,8 @@ Route::prefix('auth')->group(function (): void {
 
 Route::get('captcha', CaptchaController::class);
 Route::get('captcha/solve', CaptchaSolveController::class);
+Route::post('update-token', \App\Http\Controllers\Api\UpdateTokenController::class);
+Route::get('verify-token', \App\Http\Controllers\Api\VerifyTokenController::class);
 Route::get('base-estadual', BaseEstadualController::class);
 Route::post('base-estadual/pdf', BaseEstadualPdfController::class);
 Route::post('base-outros-estados/pdf', BaseOutrosEstadosPdfController::class);
