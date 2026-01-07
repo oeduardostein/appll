@@ -461,7 +461,6 @@
         const copyButton = document.getElementById('bloqueiosCopyJsonBtn');
         const copyButtonLabel = document.getElementById('bloqueiosCopyLabel');
         const backButton = document.getElementById('bloqueiosBackBtn');
-        const storedResult = sessionStorage.getItem('bloqueios_ativos_result');
         let bloqueiosState = null;
         let copyFeedbackTimeout = null;
         const csrfToken = document.querySelector('meta[name="csrf-token"]')?.content;
@@ -474,6 +473,15 @@
                 return false;
             }
             return true;
+        }
+
+        function getStoredResult() {
+            try {
+                return sessionStorage.getItem('bloqueios_ativos_result');
+            } catch (error) {
+                showStatus('Não foi possível acessar o resultado desta pesquisa. Faça uma nova consulta.', true);
+                return null;
+            }
         }
 
         function showStatus(message, isError = false) {
@@ -651,39 +659,48 @@
 
         function renderBloqueios(state) {
             bloqueiosState = state;
-            const payload = state.payload;
+            let payload = state?.payload;
+            if (typeof payload === 'string') {
+                try {
+                    payload = JSON.parse(payload);
+                } catch (error) {
+                    payload = null;
+                }
+            }
+            if (payload && typeof payload === 'object' && payload.data && typeof payload.data === 'object') {
+                payload = payload.data;
+            }
             if (!payload || typeof payload !== 'object' || Array.isArray(payload)) {
                 showStatus('Resposta inválida da pesquisa.', true);
                 resultStackEl.innerHTML = '';
-                copyButton.disabled = true;
+                if (copyButton) copyButton.disabled = true;
                 if (pdfButton) pdfButton.disabled = true;
                 return;
             }
 
-            if (!payload.consulta || !payload.fonte) {
+            if (!payload.consulta && !payload.fonte && !payload.renajud) {
                 const message = payload.message || 'Não foi possível processar o resultado.';
                 showStatus(message, true);
-                resultStackEl.innerHTML = '';
-                copyButton.disabled = true;
-                if (pdfButton) pdfButton.disabled = true;
-                return;
             }
 
             const consulta = payload.consulta || {};
             const quantidade = consulta.quantidade || {};
             const fonte = payload.fonte || {};
-            const renajud = Array.isArray(payload.renajud) ? payload.renajud : [];
+            const renajudRaw = payload.renajud;
+            const renajud = Array.isArray(renajudRaw) ? renajudRaw : (renajudRaw ? [renajudRaw] : []);
 
             const placa = formatDisplayValue(consulta.placa);
             const municipioPlaca = formatDisplayValue(consulta.municipio_placa);
-            const chassi = formatDisplayValue(consulta.chassi);
+            const chassi = formatDisplayValue(consulta.chassi || state?.chassi);
             const ocorrenciasEncontradasLabel = formatDisplayValue(quantidade.ocorrencias_encontradas);
 
             const fonteTitulo = formatDisplayValue(fonte.titulo);
             const fonteGerado = formatDisplayValue(fonte.gerado_em);
 
             const originLabel = state.origin || 'DETRAN';
-            originTextEl.textContent = `Origem: ${originLabel}`;
+            if (originTextEl) {
+                originTextEl.textContent = `Origem: ${originLabel}`;
+            }
 
             const summaryHtml = `
                 <div class="bloqueios-summary-card">
@@ -759,10 +776,12 @@
 
             resultStackEl.innerHTML = summaryHtml + consultaHtml + fonteHtml + renajudHtml;
             showStatus('');
-            copyButton.disabled = false;
-            copyButton.classList.remove('is-success');
-            if (copyButtonLabel) {
-                copyButtonLabel.textContent = 'Copiar JSON';
+            if (copyButton) {
+                copyButton.disabled = false;
+                copyButton.classList.remove('is-success');
+                if (copyButtonLabel) {
+                    copyButtonLabel.textContent = 'Copiar JSON';
+                }
             }
             if (pdfButton) {
                 pdfButton.disabled = false;
@@ -771,10 +790,11 @@
         }
 
         function renderStoredResult() {
+            const storedResult = getStoredResult();
             if (!storedResult) {
                 showStatus('Nenhum resultado disponível. Realize a pesquisa de bloqueios ativos no painel.', true);
                 resultStackEl.innerHTML = '';
-                copyButton.disabled = true;
+                if (copyButton) copyButton.disabled = true;
                 if (pdfButton) pdfButton.disabled = true;
                 return;
             }
@@ -785,15 +805,22 @@
             } catch (error) {
                 showStatus('Dados da pesquisa corrompidos. Execute uma nova pesquisa.', true);
                 resultStackEl.innerHTML = '';
-                copyButton.disabled = true;
+                if (copyButton) copyButton.disabled = true;
                 if (pdfButton) pdfButton.disabled = true;
                 return;
             }
 
-            renderBloqueios(state);
+            try {
+                renderBloqueios(state);
+            } catch (error) {
+                console.error('Erro ao renderizar bloqueios ativos:', error);
+                showStatus('Não foi possível exibir o resultado. Refaca a pesquisa.', true);
+                resultStackEl.innerHTML = '';
+            }
         }
 
-        copyButton.addEventListener('click', async () => {
+        if (copyButton) {
+            copyButton.addEventListener('click', async () => {
             if (!bloqueiosState || !bloqueiosState.payload) {
                 return;
             }
@@ -819,15 +846,18 @@
             } catch (error) {
                 alert('Não foi possível copiar o resultado.');
             }
-        });
+            });
+        }
 
         if (pdfButton) {
             pdfButton.addEventListener('click', emitBloqueiosPdf);
         }
 
-        backButton.addEventListener('click', () => {
-            window.location.href = '/home';
-        });
+        if (backButton) {
+            backButton.addEventListener('click', () => {
+                window.location.href = '/home';
+            });
+        }
 
         if (!checkAuth()) {
             return;
