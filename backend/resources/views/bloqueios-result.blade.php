@@ -8,15 +8,18 @@
     <style>
         :root {
             color-scheme: light;
-            --primary: #0047AB;
-            --primary-dark: #0B3E98;
-            --bg: #F8FAFC;
-            --card: #E7EDFF;
-            --divider: #E4E7EC;
-            --text-strong: #1E293B;
-            --text-muted: #64748B;
-            --text-soft: #667085;
+            --primary: #0B52C2;
+            --primary-dark: #0A3D9A;
+            --bg: #F5F7FD;
+            --card: #FFFFFF;
+            --card-muted: #F3F5FB;
+            --divider: #E2E8F0;
+            --text-strong: #1F2937;
+            --text-muted: #6B7280;
+            --text-soft: #8A94A6;
             --error: #EF4444;
+            --shadow-lg: 0 18px 38px rgba(15, 23, 42, 0.12);
+            --shadow-md: 0 12px 28px rgba(15, 23, 42, 0.1);
         }
 
         * {
@@ -27,9 +30,15 @@
 
         body {
             font-family: 'Roboto', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-            background-color: var(--bg);
+            background: linear-gradient(180deg, #EEF3FF 0%, #F6F8FF 40%, #F8FAFC 100%);
             color: var(--text-strong);
             min-height: 100vh;
+        }
+
+        button,
+        input,
+        textarea {
+            font-family: inherit;
         }
 
         @keyframes spin {
@@ -38,45 +47,53 @@
             }
         }
 
-        .header {
-            background: var(--primary);
-            border-radius: 0 0 32px 32px;
-            padding: 28px 20px 36px;
-            color: #fff;
+        .sr-only {
+            position: absolute;
+            width: 1px;
+            height: 1px;
+            padding: 0;
+            margin: -1px;
+            overflow: hidden;
+            clip: rect(0, 0, 0, 0);
+            border: 0;
         }
 
-        .header-inner {
-            max-width: 860px;
+        .bloqueios-page {
+            min-height: 100vh;
+            background: transparent;
+        }
+
+        .bloqueios-header {
+            background: linear-gradient(135deg, var(--primary) 0%, var(--primary-dark) 100%);
+            border-radius: 0 0 36px 36px;
+            color: #fff;
+            padding: 20px 20px 28px;
+            box-shadow: 0 16px 28px rgba(11, 82, 194, 0.24);
+        }
+
+        .bloqueios-header-inner {
+            max-width: 720px;
             margin: 0 auto;
             display: flex;
-            flex-direction: column;
-            gap: 20px;
-        }
-
-        .header-top {
-            display: flex;
             align-items: center;
-            justify-content: space-between;
             gap: 16px;
         }
 
-        .brand-avatar {
-            width: 56px;
-            height: 56px;
-            background: #fff;
-            border-radius: 50%;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            padding: 6px;
-            flex-shrink: 0;
+        .bloqueios-header-title {
+            flex: 1;
+            min-width: 0;
         }
 
-        .brand-avatar img {
-            width: 100%;
-            height: 100%;
-            object-fit: contain;
-            display: block;
+        .bloqueios-header-title h1 {
+            font-size: 22px;
+            font-weight: 700;
+        }
+
+        .bloqueios-header-origin {
+            margin-top: 4px;
+            font-size: 14px;
+            color: rgba(255, 255, 255, 0.75);
+            font-weight: 500;
         }
 
         .header-actions {
@@ -86,17 +103,18 @@
         }
 
         .icon-button {
-            width: 44px;
-            height: 44px;
+            width: 42px;
+            height: 42px;
             border-radius: 999px;
-            border: 1px solid rgba(255, 255, 255, 0.3);
-            background: rgba(255, 255, 255, 0.12);
+            border: 1px solid rgba(255, 255, 255, 0.35);
+            background: rgba(255, 255, 255, 0.14);
             color: #fff;
-            display: flex;
+            display: inline-flex;
             align-items: center;
             justify-content: center;
             cursor: pointer;
             transition: background 0.2s ease, transform 0.2s ease;
+            position: relative;
         }
 
         .icon-button svg {
@@ -105,149 +123,68 @@
             display: block;
         }
 
-        .icon-button:hover {
-            background: rgba(255, 255, 255, 0.2);
+        .icon-button:hover:not(:disabled) {
+            background: rgba(255, 255, 255, 0.22);
             transform: translateY(-1px);
         }
 
-        .btn-outline {
-            border-radius: 18px;
-            border: 1px solid rgba(255, 255, 255, 0.3);
-            background: rgba(255, 255, 255, 0.12);
-            color: #fff;
-            padding: 10px 16px;
-            font-size: 15px;
-            font-weight: 600;
-            display: inline-flex;
-            align-items: center;
-            gap: 8px;
-            cursor: pointer;
-            transition: background 0.2s ease, transform 0.2s ease;
+        .icon-button:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+            transform: none;
         }
 
-        .btn-outline svg {
-            width: 18px;
-            height: 18px;
+        .icon-button.is-success {
+            background: rgba(255, 255, 255, 0.28);
+            border-color: rgba(255, 255, 255, 0.7);
+        }
+
+        .icon-button .icon-check {
+            display: none;
+        }
+
+        .icon-button.is-success .icon-copy {
+            display: none;
+        }
+
+        .icon-button.is-success .icon-check {
             display: block;
         }
 
-        .btn-outline:hover {
-            background: rgba(255, 255, 255, 0.2);
-            transform: translateY(-1px);
+        .icon-button.is-loading svg {
+            display: none;
         }
 
-        .header-info {
-            font-size: 16px;
-            line-height: 1.5;
-            font-weight: 600;
-            color: #fff;
+        .icon-button.is-loading .header-spinner {
+            display: inline-block;
         }
 
-        .bloqueios-result {
-            max-width: 860px;
-            margin: 0 auto;
-            padding: 32px 20px 64px;
+        .header-spinner {
+            width: 18px;
+            height: 18px;
+            border-radius: 50%;
+            border: 2px solid rgba(255, 255, 255, 0.4);
+            border-top-color: #fff;
+            animation: spin 0.8s linear infinite;
+            display: none;
         }
 
-        .bloqueios-result-inner {
+        .bloqueios-body {
             max-width: 720px;
             margin: 0 auto;
-        }
-
-        .bloqueios-result-heading {
-            display: flex;
-            align-items: flex-start;
-            justify-content: space-between;
-            gap: 16px;
-            flex-wrap: wrap;
-            margin-bottom: 20px;
-        }
-
-        .bloqueios-result-title {
-            font-size: 26px;
-            font-weight: 800;
-            color: var(--text-strong);
-        }
-
-        .bloqueios-result-origin {
-            font-size: 15px;
-            color: var(--text-muted);
-            font-weight: 600;
-            margin-top: 4px;
-        }
-
-        .bloqueios-result-actions {
-            display: flex;
-            gap: 10px;
-            flex-shrink: 0;
-        }
-
-        .bloqueios-result-copy-btn,
-        .bloqueios-result-back-btn {
-            border-radius: 18px;
-            border: none;
-            padding: 10px 18px;
-            font-size: 14px;
-            font-weight: 600;
-            cursor: pointer;
-            transition: transform 0.2s ease, box-shadow 0.2s ease;
-        }
-
-        .bloqueios-result-copy-btn {
-            background: #E7EDFF;
-            color: var(--primary);
-            box-shadow: 0 10px 16px rgba(0, 71, 171, 0.12);
-        }
-
-        .bloqueios-result-copy-btn:hover:not(:disabled) {
-            transform: translateY(-1px);
-        }
-
-        .bloqueios-result-copy-btn:disabled {
-            opacity: 0.6;
-            cursor: not-allowed;
-            box-shadow: none;
-        }
-
-        .bloqueios-result-pdf-btn {
-            border-radius: 18px;
-            border: none;
-            padding: 10px 18px;
-            font-size: 14px;
-            font-weight: 600;
-            cursor: pointer;
-            transition: transform 0.2s ease, box-shadow 0.2s ease;
-            background: #0047AB;
-            color: #fff;
-            box-shadow: 0 10px 16px rgba(0, 71, 171, 0.2);
-        }
-
-        .bloqueios-result-pdf-btn:disabled,
-        .bloqueios-result-pdf-btn.is-loading {
-            opacity: 0.6;
-            cursor: not-allowed;
-            box-shadow: none;
-        }
-
-        .bloqueios-result-back-btn {
-            background: #fff;
-            border: 1px solid #E4E7EC;
-            color: var(--text-strong);
-        }
-
-        .bloqueios-result-back-btn:hover {
-            transform: translateY(-1px);
+            padding: 20px 20px 36px;
         }
 
         .bloqueios-status-message {
             border: 1px solid var(--divider);
-            background: #fff;
-            border-radius: 16px;
+            background: var(--card);
+            border-radius: 18px;
             padding: 14px 16px;
-            margin-bottom: 24px;
+            margin-bottom: 20px;
             text-align: center;
             color: var(--text-muted);
             display: none;
+            box-shadow: var(--shadow-md);
         }
 
         .bloqueios-status-message.bloqueios-status-show {
@@ -263,14 +200,14 @@
         .bloqueios-result-stack {
             display: flex;
             flex-direction: column;
-            gap: 16px;
+            gap: 18px;
         }
 
         .bloqueios-summary-card {
-            background: #fff;
+            background: var(--card);
             border-radius: 28px;
-            padding: 24px;
-            box-shadow: 0 20px 38px rgba(15, 23, 42, 0.15);
+            padding: 22px;
+            box-shadow: var(--shadow-lg);
         }
 
         .bloqueios-summary-heading {
@@ -280,25 +217,25 @@
         }
 
         .bloqueios-summary-icon {
-            width: 60px;
-            height: 60px;
-            border-radius: 18px;
-            background: rgba(0, 71, 171, 0.18);
+            width: 62px;
+            height: 62px;
+            border-radius: 20px;
+            background: rgba(11, 82, 194, 0.15);
             display: flex;
             align-items: center;
             justify-content: center;
         }
 
         .bloqueios-summary-icon svg {
-            width: 32px;
-            height: 32px;
+            width: 34px;
+            height: 34px;
             fill: none;
-            stroke: #0047AB;
-            stroke-width: 1.5;
+            stroke: var(--primary);
+            stroke-width: 1.6;
         }
 
         .bloqueios-summary-title {
-            font-size: 20px;
+            font-size: 22px;
             font-weight: 800;
         }
 
@@ -316,36 +253,37 @@
         }
 
         .bloqueios-summary-grid {
-            margin-top: 20px;
+            margin-top: 18px;
             display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
-            gap: 12px 18px;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 14px 18px;
         }
 
         .bloqueios-summary-item {
             display: flex;
             flex-direction: column;
-            gap: 4px;
+            gap: 6px;
         }
 
         .bloqueios-summary-item .bloqueios-info-label {
-            font-size: 12px;
+            font-size: 13px;
             color: var(--text-soft);
-            text-transform: uppercase;
+            text-transform: none;
         }
 
         .bloqueios-summary-item .bloqueios-info-value {
-            font-size: 16px;
+            font-size: 18px;
             font-weight: 700;
             color: var(--text-strong);
+            word-break: break-word;
         }
 
         .bloqueios-section-card {
-            background: #fff;
+            background: var(--card);
             border-radius: 24px;
             padding: 20px;
             border: 1px solid rgba(14, 23, 42, 0.08);
-            box-shadow: 0 12px 26px rgba(15, 23, 42, 0.08);
+            box-shadow: var(--shadow-md);
         }
 
         .bloqueios-section-title {
@@ -355,19 +293,11 @@
             margin-bottom: 12px;
         }
 
-        .bloqueios-section-subtitle {
-            font-size: 13px;
-            font-weight: 600;
-            color: var(--primary);
-            margin-top: 12px;
-            margin-bottom: 6px;
-        }
-
         .bloqueios-info-row {
             display: flex;
             flex-direction: column;
-            gap: 4px;
-            margin-bottom: 12px;
+            gap: 6px;
+            margin-bottom: 14px;
         }
 
         .bloqueios-info-row:last-child {
@@ -375,47 +305,58 @@
         }
 
         .bloqueios-info-label {
-            font-size: 12px;
+            font-size: 13px;
             font-weight: 600;
             color: var(--text-soft);
-            text-transform: uppercase;
+            text-transform: none;
         }
 
         .bloqueios-info-value {
-            font-size: 15px;
-            font-weight: 600;
+            font-size: 17px;
+            font-weight: 700;
             color: var(--text-strong);
+            word-break: break-word;
         }
 
         .bloqueios-renajud-card {
-            background: #F6F7FB;
-            border-radius: 18px;
-            padding: 16px;
-            border: 1px solid rgba(0, 71, 171, 0.12);
+            background: var(--card-muted);
+            border-radius: 20px;
+            padding: 18px;
+            border: 1px solid rgba(11, 82, 194, 0.12);
             display: flex;
             flex-direction: column;
-            gap: 10px;
+            gap: 12px;
         }
 
         .bloqueios-renajud-badge {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            padding: 6px 14px;
+            border-radius: 999px;
+            background: #E7EEFF;
+            color: var(--primary);
             font-size: 12px;
             font-weight: 700;
-            color: #0047AB;
-            letter-spacing: 0.02em;
+            letter-spacing: 0.08em;
+            text-transform: uppercase;
+            width: fit-content;
         }
 
         .bloqueios-renajud-title {
-            font-size: 16px;
+            font-size: 18px;
             font-weight: 700;
+            color: var(--text-strong);
         }
 
         .bloqueios-renajud-detail {
             display: flex;
             flex-direction: column;
-            gap: 4px;
+            gap: 6px;
             background: #fff;
-            border-radius: 12px;
-            padding: 12px;
+            border-radius: 14px;
+            padding: 14px;
+            border: 1px solid rgba(15, 23, 42, 0.08);
         }
 
         .bloqueios-renajud-label {
@@ -429,13 +370,10 @@
             font-size: 14px;
             font-weight: 600;
             color: var(--text-strong);
+            line-height: 1.4;
         }
 
-        .bloqueios-renajud-meta {
-            font-size: 13px;
-            color: var(--text-muted);
-        }
-
+        .bloqueios-renajud-meta,
         .bloqueios-renajud-info {
             font-size: 13px;
             color: var(--text-muted);
@@ -449,52 +387,79 @@
         }
 
         @media (max-width: 640px) {
-            .bloqueios-result-heading {
-                flex-direction: column;
-                align-items: flex-start;
+            .bloqueios-header-inner {
+                gap: 12px;
             }
 
-            .bloqueios-result-actions {
-                width: 100%;
-                justify-content: space-between;
+            .bloqueios-header-title h1 {
+                font-size: 20px;
             }
 
-            .bloqueios-result-copy-btn,
-            .bloqueios-result-back-btn {
-                flex: 1;
+            .header-actions {
+                gap: 8px;
+            }
+
+            .icon-button {
+                width: 38px;
+                height: 38px;
+            }
+
+            .bloqueios-summary-grid {
+                grid-template-columns: 1fr;
             }
         }
     </style>
 </head>
 <body>
-    @include('components.home.header')
-
-    <main class="bloqueios-result">
-        <div class="bloqueios-result-inner">
-            <header class="bloqueios-result-heading">
-                <div>
-                    <div class="bloqueios-result-title">Bloqueios ativos</div>
-                    <div class="bloqueios-result-origin" id="bloqueiosOriginText">Origem: —</div>
+    <div class="bloqueios-page">
+        <header class="bloqueios-header">
+            <div class="bloqueios-header-inner">
+                <button class="icon-button" type="button" id="bloqueiosBackBtn" title="Voltar">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <polyline points="15 18 9 12 15 6"></polyline>
+                    </svg>
+                </button>
+                <div class="bloqueios-header-title">
+                    <h1>Bloqueios ativos</h1>
+                    <div class="bloqueios-header-origin" id="bloqueiosOriginText">Origem: —</div>
                 </div>
-                <div class="bloqueios-result-actions">
-                <button class="bloqueios-result-copy-btn" type="button" id="bloqueiosCopyJsonBtn" disabled>Copiar JSON</button>
-                <button class="bloqueios-result-pdf-btn" type="button" id="bloqueiosPdfBtn" disabled>Gerar PDF</button>
-                <button class="bloqueios-result-back-btn" type="button" id="bloqueiosBackBtn">Voltar</button>
+                <div class="header-actions">
+                    <button class="icon-button" type="button" id="bloqueiosCopyJsonBtn" title="Copiar JSON" disabled>
+                        <svg class="icon-copy" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <rect x="9" y="9" width="12" height="12" rx="2"></rect>
+                            <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
+                        </svg>
+                        <svg class="icon-check" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <polyline points="20 6 9 17 4 12"></polyline>
+                        </svg>
+                        <span class="sr-only" id="bloqueiosCopyLabel">Copiar JSON</span>
+                    </button>
+                    <button class="icon-button" type="button" id="bloqueiosPdfBtn" title="Gerar PDF" disabled>
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M12 3v12"></path>
+                            <path d="m7 10 5 5 5-5"></path>
+                            <rect x="4" y="17" width="16" height="4" rx="2"></rect>
+                        </svg>
+                        <span class="header-spinner" aria-hidden="true"></span>
+                        <span class="sr-only" id="bloqueiosPdfLabel">Gerar PDF</span>
+                    </button>
+                </div>
             </div>
         </header>
+
+        <main class="bloqueios-body">
             <div class="bloqueios-status-message" id="bloqueiosStatusMessage" role="status"></div>
             <div class="bloqueios-result-stack" id="bloqueiosResultStack"></div>
-        </div>
-    </main>
+        </main>
+    </div>
 
     <script>
-        const API_BASE_URL = window.location.origin;
         let authToken = localStorage.getItem('auth_token');
-        const userInfoEl = document.getElementById('userInfo');
         const statusMessageEl = document.getElementById('bloqueiosStatusMessage');
         const resultStackEl = document.getElementById('bloqueiosResultStack');
         const originTextEl = document.getElementById('bloqueiosOriginText');
         const copyButton = document.getElementById('bloqueiosCopyJsonBtn');
+        const copyButtonLabel = document.getElementById('bloqueiosCopyLabel');
         const backButton = document.getElementById('bloqueiosBackBtn');
         const storedResult = sessionStorage.getItem('bloqueios_ativos_result');
         let bloqueiosState = null;
@@ -503,76 +468,12 @@
         const pdfButton = document.getElementById('bloqueiosPdfBtn');
         let bloqueiosPdfLoading = false;
 
-        function parseUser() {
-            const raw = localStorage.getItem('user');
-            if (!raw) return null;
-            try {
-                return JSON.parse(raw);
-            } catch (error) {
-                return null;
-            }
-        }
-
-        function updateHeaderCredits({ status, count }) {
-            const user = parseUser();
-            const name = user?.username || user?.name || 'Usuário';
-            let creditsLabel = 'Créditos usados este mês: --';
-
-            if (status === 'loading') {
-                creditsLabel = 'Créditos usados este mês: carregando...';
-            } else if (status === 'error') {
-                creditsLabel = 'Créditos usados este mês: indisponível';
-            } else if (status === 'loaded') {
-                creditsLabel = `Créditos usados este mês: ${count}`;
-            }
-
-            if (userInfoEl) {
-                userInfoEl.textContent = `Usuário: ${name} • ${creditsLabel}`;
-            }
-        }
-
-        function handleUnauthorized() {
-            authToken = null;
-            localStorage.removeItem('auth_token');
-            localStorage.removeItem('user');
-            window.location.href = '/login';
-        }
-
-        async function fetchWithAuth(url, options = {}) {
-            const headers = {
-                'Accept': 'application/json',
-                ...(options.headers || {}),
-                'Authorization': `Bearer ${authToken}`,
-            };
-            const response = await fetch(url, { ...options, headers });
-            if (response.status === 401) {
-                handleUnauthorized();
-                throw new Error('Não autenticado.');
-            }
-            return response;
-        }
-
         function checkAuth() {
             if (!authToken) {
                 window.location.href = '/login';
                 return false;
             }
-            updateHeaderCredits({ status: 'loading', count: 0 });
             return true;
-        }
-
-        async function loadMonthlyCredits() {
-            try {
-                const response = await fetchWithAuth(`${API_BASE_URL}/api/pesquisas/ultimo-mes`);
-                if (!response.ok) {
-                    throw new Error('Falha ao carregar créditos.');
-                }
-                const data = await response.json();
-                const count = Array.isArray(data.data) ? data.data.length : 0;
-                updateHeaderCredits({ status: 'loaded', count });
-            } catch (error) {
-                updateHeaderCredits({ status: 'error', count: 0 });
-            }
         }
 
         function showStatus(message, isError = false) {
@@ -714,14 +615,12 @@
                     <div class="bloqueios-renajud-title">${tipoRestricao}</div>
             `;
 
-            if (motivoBloqueio !== '—') {
-                html += `
-                    <div class="bloqueios-renajud-detail">
-                        <div class="bloqueios-renajud-label">Motivo do bloqueio</div>
-                        <div class="bloqueios-renajud-value">${motivoBloqueio}</div>
-                    </div>
-                `;
-            }
+            html += `
+                <div class="bloqueios-renajud-detail">
+                    <div class="bloqueios-renajud-label">Motivo do bloqueio</div>
+                    <div class="bloqueios-renajud-value">${motivoBloqueio}</div>
+                </div>
+            `;
 
             if (dataHora) {
                 html += `<div class="bloqueios-renajud-meta">${dataHora}</div>`;
@@ -778,11 +677,7 @@
             const placa = formatDisplayValue(consulta.placa);
             const municipioPlaca = formatDisplayValue(consulta.municipio_placa);
             const chassi = formatDisplayValue(consulta.chassi);
-            const ocorrenciasEncontradas = formatDisplayValue(quantidade.ocorrencias_encontradas);
-            const ocorrenciasExibidas = formatDisplayValue(quantidade.ocorrencias_exibidas);
-            const hasOcorrencias =
-                quantidade.ocorrencias_encontradas != null ||
-                quantidade.ocorrencias_exibidas != null;
+            const ocorrenciasEncontradasLabel = formatDisplayValue(quantidade.ocorrencias_encontradas);
 
             const fonteTitulo = formatDisplayValue(fonte.titulo);
             const fonteGerado = formatDisplayValue(fonte.gerado_em);
@@ -812,12 +707,7 @@
                         ${createSummaryItem('Placa', placa)}
                         ${createSummaryItem('Município da placa', municipioPlaca)}
                         ${createSummaryItem('Chassi consultado', chassi)}
-                        ${createSummaryItem('Ocorrências encontradas', ocorrenciasEncontradas)}
-                        ${
-                            quantidade.ocorrencias_exibidas != null
-                                ? createSummaryItem('Ocorrências exibidas', ocorrenciasExibidas)
-                                : ''
-                        }
+                        ${createSummaryItem('Ocorrências encontradas', ocorrenciasEncontradasLabel)}
                     </div>
                 </div>
             `;
@@ -837,27 +727,6 @@
                         <div class="bloqueios-info-label">Chassi</div>
                         <div class="bloqueios-info-value">${chassi}</div>
                     </div>
-                    ${
-                        hasOcorrencias
-                            ? `
-                                <div class="bloqueios-section-subtitle">Ocorrências</div>
-                                <div class="bloqueios-info-row">
-                                    <div class="bloqueios-info-label">Encontradas</div>
-                                    <div class="bloqueios-info-value">${ocorrenciasEncontradas}</div>
-                                </div>
-                                ${
-                                    quantidade.ocorrencias_exibidas != null
-                                        ? `
-                                            <div class="bloqueios-info-row">
-                                                <div class="bloqueios-info-label">Exibidas</div>
-                                                <div class="bloqueios-info-value">${ocorrenciasExibidas}</div>
-                                            </div>
-                                        `
-                                        : ''
-                                }
-                            `
-                            : ''
-                    }
                 </div>
             `;
 
@@ -891,6 +760,10 @@
             resultStackEl.innerHTML = summaryHtml + consultaHtml + fonteHtml + renajudHtml;
             showStatus('');
             copyButton.disabled = false;
+            copyButton.classList.remove('is-success');
+            if (copyButtonLabel) {
+                copyButtonLabel.textContent = 'Copiar JSON';
+            }
             if (pdfButton) {
                 pdfButton.disabled = false;
                 pdfButton.classList.remove('is-loading');
@@ -929,12 +802,18 @@
             try {
                 await navigator.clipboard.writeText(payloadText);
                 copyButton.disabled = true;
-                copyButton.textContent = 'Copiado!';
+                copyButton.classList.add('is-success');
+                if (copyButtonLabel) {
+                    copyButtonLabel.textContent = 'Copiado!';
+                }
                 if (copyFeedbackTimeout) {
                     clearTimeout(copyFeedbackTimeout);
                 }
                 copyFeedbackTimeout = setTimeout(() => {
-                    copyButton.textContent = 'Copiar JSON';
+                    copyButton.classList.remove('is-success');
+                    if (copyButtonLabel) {
+                        copyButtonLabel.textContent = 'Copiar JSON';
+                    }
                     copyButton.disabled = false;
                 }, 1800);
             } catch (error) {
@@ -950,40 +829,9 @@
             window.location.href = '/home';
         });
 
-        document.getElementById('profileBtn').addEventListener('click', () => {
-            window.location.href = '/perfil';
-        });
-
-        document.getElementById('logoutBtn').addEventListener('click', async function() {
-            if (!confirm('Deseja realmente sair?')) {
-                return;
-            }
-
-            try {
-                if (authToken) {
-                    await fetch(`${API_BASE_URL}/api/auth/logout`, {
-                        method: 'POST',
-                        headers: {
-                            'Authorization': `Bearer ${authToken}`,
-                            'Content-Type': 'application/json',
-                            'Accept': 'application/json',
-                        },
-                    });
-                }
-            } catch (error) {
-                console.error('Erro ao fazer logout:', error);
-            } finally {
-                authToken = null;
-                localStorage.removeItem('auth_token');
-                localStorage.removeItem('user');
-                window.location.href = '/login';
-            }
-        });
-
         if (!checkAuth()) {
             return;
         }
-        loadMonthlyCredits();
         renderStoredResult();
     </script>
 </body>
