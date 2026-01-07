@@ -152,7 +152,7 @@
         </div>
 
         <div class="action-card" data-permission="atpv">
-            <button class="action-card__main" type="button" data-disabled="true">
+            <button class="action-card__main" type="button" data-action="atpv">
                 <div class="action-card__icon">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                         <rect x="3" y="4" width="18" height="18" rx="2"></rect>

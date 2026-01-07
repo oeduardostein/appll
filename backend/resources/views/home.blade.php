@@ -494,6 +494,87 @@
             flex-direction: column;
             gap: 16px;
         }
+        .atpv-options-dialog {
+            width: min(540px, 96vw);
+            border-radius: 28px;
+            background: #FFFFFF;
+        }
+
+        .atpv-options-grid {
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+        }
+
+        .atpv-option-card {
+            display: flex;
+            gap: 16px;
+            padding: 20px;
+            border-radius: 22px;
+            background: #F4F5F9;
+            box-shadow: 0 14px 24px rgba(15, 23, 42, 0.1);
+        }
+
+        .atpv-option-card--primary {
+            background: linear-gradient(135deg, #304CD8 0%, #1A2E9B 100%);
+            color: #fff;
+        }
+
+        .atpv-option-icon {
+            width: 54px;
+            height: 54px;
+            border-radius: 18px;
+            background: rgba(255, 255, 255, 0.3);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .atpv-option-card--primary .atpv-option-icon {
+            background: rgba(255, 255, 255, 0.2);
+        }
+
+        .atpv-option-icon svg {
+            width: 24px;
+            height: 24px;
+        }
+
+        .atpv-option-content {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+
+        .atpv-option-title {
+            font-weight: 700;
+            font-size: 18px;
+        }
+
+        .atpv-option-description {
+            font-size: 14px;
+            color: #1E293B;
+            line-height: 1.4;
+        }
+
+        .atpv-option-card--primary .atpv-option-description {
+            color: rgba(255, 255, 255, 0.85);
+        }
+
+        .atpv-dialog {
+            width: min(460px, 96vw);
+            background: #F4F5F9;
+            border-radius: 32px;
+            padding: 24px;
+            box-shadow: 0 24px 48px rgba(15, 23, 42, 0.25);
+        }
+
+        .atpv-dialog-helper {
+            font-size: 14px;
+            color: #475467;
+            line-height: 1.5;
+            text-align: center;
+        }
         .be-dialog-description {
             font-size: 14px;
             color: var(--text-soft);
@@ -1020,6 +1101,9 @@
     @include('components.home.renainf-captcha-modal')
     @include('components.home.bloqueios-modal')
     @include('components.home.bloqueios-captcha-modal')
+    @include('components.home.atpv-options')
+    @include('components.home.atpv-consultation-modal')
+    @include('components.home.atpv-captcha-modal')
     @include('components.home.crlv-modal')
     @include('components.home.crlv-captcha-modal')
     @include('components.home.ecrv-modal')
@@ -1427,6 +1511,30 @@
         const crlvCaptchaError = document.getElementById('crlvCaptchaError');
         const crlvCaptchaSubmit = document.getElementById('crlvCaptchaSubmit');
         let crlvCaptchaMeta = null;
+
+        const atpvOverlay = document.getElementById('atpvOptionsOverlay');
+        const atpvOptionsClose = document.getElementById('atpvOptionsClose');
+        const atpvConsultOptionBtn = document.getElementById('atpvConsultOptionBtn');
+        const atpvFormOptionBtn = document.getElementById('atpvFormOptionBtn');
+        const atpvConsultationOverlay = document.getElementById('atpvConsultationOverlay');
+        const atpvConsultationClose = document.getElementById('atpvConsultationClose');
+        const atpvConsultCancel = document.getElementById('atpvConsultCancel');
+        const atpvPlateInput = document.getElementById('atpvPlateInput');
+        const atpvRenavamInput = document.getElementById('atpvRenavamInput');
+        const atpvConsultError = document.getElementById('atpvConsultError');
+        const atpvConsultSubmit = document.getElementById('atpvConsultSubmit');
+        const atpvCaptchaOverlay = document.getElementById('atpvCaptchaOverlay');
+        const atpvCaptchaClose = document.getElementById('atpvCaptchaClose');
+        const atpvCaptchaCancel = document.getElementById('atpvCaptchaCancel');
+        const atpvCaptchaRefresh = document.getElementById('atpvCaptchaRefresh');
+        const atpvCaptchaPlate = document.getElementById('atpvCaptchaPlate');
+        const atpvCaptchaRenavam = document.getElementById('atpvCaptchaRenavam');
+        const atpvCaptchaImage = document.getElementById('atpvCaptchaImage');
+        const atpvCaptchaLoading = document.getElementById('atpvCaptchaLoading');
+        const atpvCaptchaError = document.getElementById('atpvCaptchaError');
+        const atpvCaptchaInput = document.getElementById('atpvCaptchaInput');
+        const atpvCaptchaSubmit = document.getElementById('atpvCaptchaSubmit');
+        let atpvCaptchaMeta = null;
 
         const errorOverlay = document.getElementById('errorOverlay');
         const errorOverlayMessage = document.getElementById('errorOverlayMessage');
@@ -1920,6 +2028,279 @@
                 loadCrlvCaptchaImage();
             } finally {
                 setCrlvCaptchaLoading(false);
+            }
+        }
+
+        function openAtpvOptions() {
+            if (!atpvOverlay) return;
+            atpvOverlay.classList.remove('hidden');
+            atpvOverlay.classList.add('show');
+            atpvOverlay.setAttribute('aria-hidden', 'false');
+        }
+
+        function closeAtpvOptions() {
+            if (!atpvOverlay) return;
+            atpvOverlay.classList.remove('show');
+            atpvOverlay.classList.add('hidden');
+            atpvOverlay.setAttribute('aria-hidden', 'true');
+        }
+
+        function openAtpvConsultationModal() {
+            closeAtpvOptions();
+            if (!atpvConsultationOverlay) return;
+            atpvConsultError.textContent = '';
+            atpvConsultationOverlay.classList.remove('hidden');
+            atpvConsultationOverlay.classList.add('show');
+            atpvConsultationOverlay.setAttribute('aria-hidden', 'false');
+            setTimeout(() => atpvPlateInput?.focus(), 0);
+        }
+
+        function closeAtpvConsultationModal() {
+            if (!atpvConsultationOverlay) return;
+            atpvConsultationOverlay.classList.remove('show');
+            atpvConsultationOverlay.classList.add('hidden');
+            atpvConsultationOverlay.setAttribute('aria-hidden', 'true');
+        }
+
+        function setAtpvConsultLoading(isLoading) {
+            if (!atpvConsultSubmit) return;
+            atpvConsultSubmit.disabled = isLoading;
+            atpvConsultSubmit.classList.toggle('loading', isLoading);
+        }
+
+        function clearAtpvCaptchaImage() {
+            if (!atpvCaptchaImage) return;
+            const currentUrl = atpvCaptchaImage.dataset.objectUrl;
+            if (currentUrl) {
+                URL.revokeObjectURL(currentUrl);
+                delete atpvCaptchaImage.dataset.objectUrl;
+            }
+            atpvCaptchaImage.src = '';
+        }
+
+        async function loadAtpvCaptchaImage() {
+            if (!atpvCaptchaOverlay) return;
+            atpvCaptchaError.textContent = '';
+            atpvCaptchaLoading.classList.remove('hidden');
+            atpvCaptchaImage.classList.add('hidden');
+            clearAtpvCaptchaImage();
+
+            let hasImage = false;
+
+            try {
+                const response = await fetch(`${API_BASE_URL}/api/captcha`, { cache: 'no-store' });
+                if (!response.ok) {
+                    throw new Error('Não foi possível carregar o captcha.');
+                }
+                const blob = await response.blob();
+                const objectUrl = URL.createObjectURL(blob);
+                atpvCaptchaImage.src = objectUrl;
+                atpvCaptchaImage.dataset.objectUrl = objectUrl;
+                hasImage = true;
+            } catch (error) {
+                atpvCaptchaError.textContent = error.message || 'Não foi possível carregar o captcha.';
+            } finally {
+                atpvCaptchaLoading.classList.add('hidden');
+                atpvCaptchaImage.classList.toggle('hidden', !hasImage);
+            }
+        }
+
+        function setAtpvCaptchaLoading(isLoading) {
+            if (!atpvCaptchaSubmit) return;
+            atpvCaptchaSubmit.disabled = isLoading;
+            atpvCaptchaSubmit.classList.toggle('loading', isLoading);
+        }
+
+        function openAtpvCaptchaModal(meta, message = '') {
+            if (!atpvCaptchaOverlay) return;
+            atpvCaptchaMeta = meta;
+            atpvCaptchaPlate.value = meta.plate || '';
+            atpvCaptchaRenavam.value = meta.renavam || '';
+            atpvCaptchaInput.value = '';
+            atpvCaptchaError.textContent = message;
+            atpvCaptchaOverlay.classList.remove('hidden');
+            atpvCaptchaOverlay.classList.add('show');
+            atpvCaptchaOverlay.setAttribute('aria-hidden', 'false');
+            loadAtpvCaptchaImage();
+            setTimeout(() => atpvCaptchaInput?.focus(), 0);
+        }
+
+        function closeAtpvCaptchaModal() {
+            if (!atpvCaptchaOverlay) return;
+            atpvCaptchaOverlay.classList.remove('show');
+            atpvCaptchaOverlay.classList.add('hidden');
+            atpvCaptchaOverlay.setAttribute('aria-hidden', 'true');
+            clearAtpvCaptchaImage();
+            atpvCaptchaMeta = null;
+        }
+
+        async function fetchIntencaoVenda(renavam, placa, captcha) {
+            const response = await fetch(`${API_BASE_URL}/api/intencao-venda`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Accept': 'application/json',
+                },
+                body: JSON.stringify({
+                    renavam,
+                    placa,
+                    captcha,
+                }),
+            });
+
+            if (!response.ok) {
+                const contentType = response.headers.get('content-type') || '';
+                let message = 'Falha ao consultar a intenção de venda.';
+                if (contentType.includes('application/json')) {
+                    const data = await response.json().catch(() => ({}));
+                    message = data.message || message;
+                } else {
+                    const text = await response.text();
+                    if (text) {
+                        message = text;
+                    }
+                }
+                throw new Error(message);
+            }
+
+            const body = await response.json();
+            return body;
+        }
+
+        async function registerAtpvPesquisa(placa, renavam) {
+            try {
+                await fetchWithAuth(`${API_BASE_URL}/api/pesquisas`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Accept': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        nome: 'Emissão da ATPV-e',
+                        placa,
+                        renavam,
+                    }),
+                });
+            } catch (error) {
+                console.error('Erro ao registrar pesquisa ATPV-e:', error);
+            }
+        }
+
+        function redirectToAtpvResult(result, plate, renavam, captcha) {
+            const payload = JSON.stringify({
+                payload: result,
+                plate,
+                renavam,
+                captcha,
+                storedAt: Date.now(),
+            });
+            sessionStorage.setItem('atpv_intencao_result', payload);
+            localStorage.setItem('atpv_intencao_result', payload);
+            window.location.href = '/resultado-atpv';
+        }
+
+        async function performAtpvConsultation({ autoSolve = true, captchaOverride = '' } = {}) {
+            const plate = normalizePlate(atpvPlateInput.value);
+            const renavam = normalizeRenavam(atpvRenavamInput.value);
+
+            if (!plate) {
+                atpvConsultError.textContent = 'Informe a placa do veículo.';
+                return;
+            }
+            if (!isValidPlate(plate)) {
+                atpvConsultError.textContent = 'Placa inválida.';
+                return;
+            }
+            if (!renavam) {
+                atpvConsultError.textContent = 'Informe o renavam.';
+                return;
+            }
+            if (!isValidRenavam(renavam)) {
+                atpvConsultError.textContent = 'Renavam inválido.';
+                return;
+            }
+
+            atpvConsultError.textContent = '';
+            setAtpvConsultLoading(true);
+
+            try {
+                let captchaValue = '';
+                if (autoSolve) {
+                    try {
+                        captchaValue = await solveBaseCaptcha();
+                    } catch (error) {
+                        const statusCode = error?.status ?? 0;
+                        if (statusCode >= 500) {
+                            closeAtpvConsultationModal();
+                            openAtpvCaptchaModal(
+                                { plate, renavam },
+                                'Captcha automático indisponível. Digite o captcha manualmente.'
+                            );
+                            return;
+                        }
+                        throw error;
+                    }
+                } else {
+                    captchaValue = captchaOverride.trim().toUpperCase();
+                    if (!captchaValue) {
+                        atpvConsultError.textContent = 'Informe o captcha.';
+                        return;
+                    }
+                }
+
+                const normalizedCaptcha = captchaValue.trim().toUpperCase();
+                const result = await fetchIntencaoVenda(renavam, plate, normalizedCaptcha);
+                closeAtpvConsultationModal();
+                await registerAtpvPesquisa(plate, renavam);
+                redirectToAtpvResult(result, plate, renavam, normalizedCaptcha);
+            } catch (error) {
+                const message = error?.message || 'Não foi possível consultar a intenção de venda.';
+                if (autoSolve && message.toLowerCase().includes('captcha')) {
+                    closeAtpvConsultationModal();
+                    openAtpvCaptchaModal(
+                        { plate, renavam },
+                        'Captcha automático falhou. Digite o captcha manualmente.'
+                    );
+                    return;
+                }
+                atpvConsultError.textContent = message;
+            } finally {
+                setAtpvConsultLoading(false);
+            }
+        }
+
+        async function performAtpvCaptchaConsultation() {
+            if (!atpvCaptchaMeta) return;
+
+            const captcha = atpvCaptchaInput.value.trim().toUpperCase();
+            if (!captcha) {
+                atpvCaptchaError.textContent = 'Informe o captcha.';
+                return;
+            }
+
+            atpvCaptchaError.textContent = '';
+            setAtpvCaptchaLoading(true);
+
+            try {
+                const result = await fetchIntencaoVenda(
+                    atpvCaptchaMeta.renavam,
+                    atpvCaptchaMeta.plate,
+                    captcha
+                );
+                closeAtpvCaptchaModal();
+                await registerAtpvPesquisa(atpvCaptchaMeta.plate, atpvCaptchaMeta.renavam);
+                redirectToAtpvResult(
+                    result,
+                    atpvCaptchaMeta.plate,
+                    atpvCaptchaMeta.renavam,
+                    captcha
+                );
+            } catch (error) {
+                atpvCaptchaError.textContent =
+                    error?.message || 'Não foi possível consultar a intenção de venda.';
+                loadAtpvCaptchaImage();
+            } finally {
+                setAtpvCaptchaLoading(false);
             }
         }
 
@@ -3675,6 +4056,11 @@
                     openBloqueiosModal();
                 });
             });
+            document.querySelectorAll('[data-action="atpv"]').forEach((item) => {
+                item.addEventListener('click', () => {
+                    openAtpvOptions();
+                });
+            });
             document.querySelectorAll('[data-action="crlv"]').forEach((item) => {
                 item.addEventListener('click', () => {
                     openCrlvModal();
@@ -3820,6 +4206,53 @@
             }
         });
         crlvCaptchaSubmit?.addEventListener('click', performCrlvCaptchaEmission);
+
+        atpvOptionsClose?.addEventListener('click', closeAtpvOptions);
+        atpvOverlay?.addEventListener('click', (event) => {
+            if (event.target === atpvOverlay) {
+                closeAtpvOptions();
+            }
+        });
+        atpvConsultOptionBtn?.addEventListener('click', openAtpvConsultationModal);
+        atpvFormOptionBtn?.addEventListener('click', () => {
+            closeAtpvOptions();
+            showErrorModal('O formulário completo da ATPV-e está disponível no aplicativo móvel. Utilize a consulta de intenção de venda por enquanto.');
+        });
+        atpvConsultationClose?.addEventListener('click', closeAtpvConsultationModal);
+        atpvConsultCancel?.addEventListener('click', closeAtpvConsultationModal);
+        atpvConsultationOverlay?.addEventListener('click', (event) => {
+            if (event.target === atpvConsultationOverlay) {
+                closeAtpvConsultationModal();
+            }
+        });
+        atpvPlateInput?.addEventListener('input', () => {
+            atpvPlateInput.value = normalizePlate(atpvPlateInput.value);
+            atpvConsultError.textContent = '';
+        });
+        atpvRenavamInput?.addEventListener('input', () => {
+            atpvRenavamInput.value = normalizeRenavam(atpvRenavamInput.value);
+            atpvConsultError.textContent = '';
+        });
+        atpvConsultSubmit?.addEventListener('click', () => performAtpvConsultation({ autoSolve: true }));
+        atpvCaptchaClose?.addEventListener('click', closeAtpvCaptchaModal);
+        atpvCaptchaCancel?.addEventListener('click', closeAtpvCaptchaModal);
+        atpvCaptchaRefresh?.addEventListener('click', loadAtpvCaptchaImage);
+        atpvCaptchaOverlay?.addEventListener('click', (event) => {
+            if (event.target === atpvCaptchaOverlay) {
+                closeAtpvCaptchaModal();
+            }
+        });
+        atpvCaptchaInput?.addEventListener('input', () => {
+            atpvCaptchaInput.value = atpvCaptchaInput.value.replace(/\s/g, '').toUpperCase();
+            atpvCaptchaError.textContent = '';
+        });
+        atpvCaptchaInput?.addEventListener('keydown', (event) => {
+            if (event.key === 'Enter') {
+                event.preventDefault();
+                performAtpvCaptchaConsultation();
+            }
+        });
+        atpvCaptchaSubmit?.addEventListener('click', performAtpvCaptchaConsultation);
 
         otherStatesClose.addEventListener('click', closeOtherStatesModal);
         otherStatesCancel.addEventListener('click', closeOtherStatesModal);
@@ -4052,6 +4485,18 @@
             }
             if (!baseCaptchaOverlay.classList.contains('hidden')) {
                 closeBaseCaptchaModal();
+                return;
+            }
+            if (!atpvCaptchaOverlay.classList.contains('hidden')) {
+                closeAtpvCaptchaModal();
+                return;
+            }
+            if (!atpvConsultationOverlay.classList.contains('hidden')) {
+                closeAtpvConsultationModal();
+                return;
+            }
+            if (!atpvOverlay.classList.contains('hidden')) {
+                closeAtpvOptions();
                 return;
             }
             if (!crlvCaptchaOverlay.classList.contains('hidden')) {
