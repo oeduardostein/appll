@@ -2,7 +2,7 @@
 
 namespace App\Http\Controllers\Api;
 
-use App\Models\User;
+use App\Http\Controllers\Api\Traits\FindsUserFromApiToken;
 use Illuminate\Http\Request;
 use Illuminate\Routing\Controller;
 use Illuminate\Support\Facades\DB;
@@ -11,6 +11,8 @@ use Symfony\Component\HttpFoundation\Response;
 
 class AtpvPdfController extends Controller
 {
+    use FindsUserFromApiToken;
+
     public function __invoke(Request $request): Response
     {
         $user = $this->findUserFromRequest($request);
@@ -118,36 +120,6 @@ class AtpvPdfController extends Controller
             'Content-Disposition' => 'inline; filename="'.$filename.'"',
             'Cache-Control' => 'no-store, no-cache, must-revalidate, max-age=0',
         ]);
-    }
-
-    private function findUserFromRequest(Request $request): ?User
-    {
-        $token = $this->extractTokenFromRequest($request);
-
-        if (!$token) {
-            return null;
-        }
-
-        return User::where('api_token', hash('sha256', $token))->first();
-    }
-
-    private function extractTokenFromRequest(Request $request): ?string
-    {
-        $authHeader = $request->header('Authorization');
-
-        if (is_string($authHeader) && str_starts_with($authHeader, 'Bearer ')) {
-            $token = trim(substr($authHeader, 7));
-            if ($token !== '') {
-                return $token;
-            }
-        }
-
-        $token = $request->input('token');
-        if (is_string($token) && $token !== '') {
-            return $token;
-        }
-
-        return null;
     }
 
     private function unauthorizedResponse(): Response

@@ -2,42 +2,14 @@
 
 namespace App\Http\Controllers\Api;
 
-use App\Models\User;
+use App\Http\Controllers\Api\Traits\FindsUserFromApiToken;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Routing\Controller;
 
 abstract class BaseAtpvController extends Controller
 {
-    protected function findUserFromRequest(Request $request): ?User
-    {
-        $token = $this->extractTokenFromRequest($request);
-
-        if (! $token) {
-            return null;
-        }
-
-        return User::where('api_token', hash('sha256', $token))->first();
-    }
-
-    private function extractTokenFromRequest(Request $request): ?string
-    {
-        $authHeader = $request->header('Authorization');
-
-        if (is_string($authHeader) && str_starts_with($authHeader, 'Bearer ')) {
-            $token = trim(substr($authHeader, 7));
-            if ($token !== '') {
-                return $token;
-            }
-        }
-
-        $token = $request->input('token');
-        if (is_string($token) && $token !== '') {
-            return $token;
-        }
-
-        return null;
-    }
+    use FindsUserFromApiToken;
 
     protected function unauthorizedResponse(): JsonResponse
     {

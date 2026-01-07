@@ -2,10 +2,12 @@
 
 namespace App\Http\Controllers\Api\Auth;
 
+use App\Http\Controllers\Api\Traits\FindsUserFromApiToken;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Auth\LoginRequest;
 use App\Http\Requests\Auth\RegisterRequest;
 use App\Http\Resources\UserResource;
+use App\Models\ApiToken;
 use App\Models\User;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -14,6 +16,8 @@ use Illuminate\Support\Str;
 
 class AuthController extends Controller
 {
+    use FindsUserFromApiToken;
+
     /**
      * Handle a registration request for the application.
      */
@@ -28,7 +32,7 @@ class AuthController extends Controller
             'privacy_policy_accepted_at' => now(),
         ]);
 
-        $token = $this->issueToken($user);
+        $token = $this->issueToken($user, $request);
 
         return response()->json([
             'status' => 'success',
@@ -70,7 +74,7 @@ class AuthController extends Controller
             ], 403);
         }
 
-        $token = $this->issueToken($user);
+        $token = $this->issueToken($user, $request);
 
         return response()->json([
             'status' => 'success',
@@ -109,7 +113,9 @@ class AuthController extends Controller
             return $this->unauthorizedResponse();
         }
 
-        $user->forceFill(['api_token' => null])->save();
+        if ($token = $this->extractTokenFromRequest($request)) {
+            ApiToken::where('token', hash('sha256', $token))->delete();
+        }
 
         return response()->json([
             'status' => 'success',
@@ -118,45 +124,19 @@ class AuthController extends Controller
         ]);
     }
 
-    private function issueToken(User $user): string
+    private function issueToken(User $user, Request $request): string
     {
         $plainTextToken = Str::random(60);
 
-        $user->forceFill([
-            'api_token' => hash('sha256', $plainTextToken),
-        ])->save();
+        ApiToken::create([
+            'user_id' => $user->id,
+            'token' => hash('sha256', $plainTextToken),
+            'ip_address' => $request->ip(),
+            'user_agent' => $request->userAgent(),
+            'last_used_at' => now(),
+        ]);
 
         return $plainTextToken;
-    }
-
-    private function findUserFromRequest(Request $request): ?User
-    {
-        $token = $this->extractTokenFromRequest($request);
-
-        if (! $token) {
-            return null;
-        }
-
-        return User::where('api_token', hash('sha256', $token))->first();
-    }
-
-    private function extractTokenFromRequest(Request $request): ?string
-    {
-        $authHeader = $request->header('Authorization');
-
-        if (is_string($authHeader) && str_starts_with($authHeader, 'Bearer ')) {
-            $token = trim(substr($authHeader, 7));
-            if ($token !== '') {
-                return $token;
-            }
-        }
-
-        $token = $request->input('token');
-        if (is_string($token) && $token !== '') {
-            return $token;
-        }
-
-        return null;
     }
 
     private function unauthorizedResponse(): JsonResponse
