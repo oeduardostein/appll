@@ -360,10 +360,6 @@
     <main class="gravame-result-body">
         <section id="gravameSummaryCard"></section>
         <section id="gravameDetailsCard"></section>
-        <section class="gravame-json-section">
-            <h3>Resposta completa</h3>
-            <pre class="gravame-json-pre" id="gravameJson"></pre>
-        </section>
     </main>
 
     <script>
@@ -371,7 +367,6 @@
         const csrfToken = document.querySelector('meta[name="csrf-token"]')?.content;
         const summaryContainer = document.getElementById('gravameSummaryCard');
         const detailsContainer = document.getElementById('gravameDetailsCard');
-        const jsonContainer = document.getElementById('gravameJson');
         const subtitleEl = document.getElementById('gravameSubtitle');
         const copyBtn = document.getElementById('gravameCopyBtn');
         const pdfBtn = document.getElementById('gravamePdfBtn');
@@ -564,11 +559,6 @@
             `;
         }
 
-        function renderJson(payload) {
-            if (!payload) return 'Nenhum resultado disponível.';
-            return JSON.stringify(payload, null, 2);
-        }
-
         function setPdfLoading(isLoading) {
             if (!pdfBtn) return;
             pdfBtn.classList.toggle('is-loading', isLoading);
@@ -642,12 +632,6 @@
             }
         }
 
-        function showEmptyState() {
-            summaryContainer.innerHTML = '<p style="text-align:center; color:#94A3B8;">Nenhum resultado disponível.</p>';
-            detailsContainer.innerHTML = '';
-            jsonContainer.textContent = 'Nenhum resultado disponível.';
-        }
-
         if (checkAuth()) {
             gravameResultData = loadResultFromStorage();
             gravameMeta = loadMetaFromStorage();
@@ -655,9 +639,9 @@
             if (gravameResultData) {
                 summaryContainer.innerHTML = renderSummaryCard(gravameResultData, gravameMeta);
                 detailsContainer.innerHTML = renderDetailsCard(gravameResultData);
-                jsonContainer.textContent = renderJson(gravameResultData);
             } else {
-                showEmptyState();
+                summaryContainer.innerHTML = '<p style="text-align:center; color:#94A3B8;">Nenhum resultado disponível.</p>';
+                detailsContainer.innerHTML = '';
             }
         }
 
