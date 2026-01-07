@@ -495,6 +495,217 @@
             gap: 16px;
         }
 
+        .bloqueios-dialog {
+            width: min(460px, 96vw);
+            background: #F4F5F9;
+            border-radius: 32px;
+            padding: 24px;
+            box-shadow: 0 24px 48px rgba(15, 23, 42, 0.25);
+        }
+
+        .bloqueios-dialog-body {
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+        }
+
+        .bloqueios-dialog-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 8px;
+        }
+
+        .bloqueios-dialog-title {
+            font-size: 20px;
+            font-weight: 700;
+            color: #1E293B;
+        }
+
+        .bloqueios-source-toggle {
+            display: flex;
+            gap: 10px;
+            background: #E7ECFF;
+            border-radius: 999px;
+            padding: 4px;
+        }
+
+        .bloqueios-source-button {
+            flex: 1;
+            border: none;
+            background: transparent;
+            border-radius: 999px;
+            font-size: 15px;
+            font-weight: 700;
+            padding: 12px 0;
+            color: #1E293B;
+            cursor: pointer;
+            transition: transform 0.2s ease, background 0.2s ease;
+        }
+
+        .bloqueios-source-button.active {
+            background: #0047AB;
+            color: #ffffff;
+            box-shadow: 0 6px 16px rgba(0, 71, 171, 0.25);
+        }
+
+        .bloqueios-chassi-input {
+            width: 100%;
+            border-radius: 18px;
+            border: 1px solid #E2E8F0;
+            padding: 14px 16px;
+            font-size: 16px;
+            background: #ffffff;
+            color: #1E293B;
+            text-transform: uppercase;
+        }
+
+        .bloqueios-chassi-input:focus {
+            outline: none;
+            border-color: var(--primary);
+            box-shadow: 0 0 0 2px rgba(0, 71, 171, 0.2);
+        }
+
+        .bloqueios-error {
+            min-height: 18px;
+            font-size: 13px;
+            color: var(--error);
+            line-height: 1.2;
+        }
+
+        .bloqueios-submit-button {
+            padding: 14px;
+            font-size: 16px;
+            font-weight: 700;
+            border-radius: 18px;
+            background: var(--primary);
+            color: #ffffff;
+            border: none;
+            cursor: pointer;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+        }
+
+        .bloqueios-submit-button.loading .be-btn-text {
+            display: none;
+        }
+
+        .bloqueios-submit-button.loading .be-btn-spinner {
+            display: inline-block;
+        }
+
+        .bloqueios-submit-button:disabled {
+            opacity: 0.7;
+            cursor: not-allowed;
+        }
+
+        .bloqueios-captcha-dialog {
+            width: min(440px, 90vw);
+            background: #FFFFFF;
+            border-radius: 24px;
+            padding: 22px;
+        }
+
+        .bloqueios-captcha-body {
+            display: flex;
+            flex-direction: column;
+            gap: 14px;
+        }
+
+        .bloqueios-captcha-image-wrapper {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 12px;
+        }
+
+        .bloqueios-captcha-refresh {
+            border: none;
+            background: none;
+            color: var(--primary);
+            font-weight: 600;
+            font-size: 14px;
+            cursor: pointer;
+        }
+
+        .bloqueios-captcha-input {
+            border-radius: 16px;
+            border: 1px solid #E2E8F0;
+            padding: 12px 14px;
+            font-size: 16px;
+            background: #fff;
+            color: #1E293B;
+            text-transform: uppercase;
+        }
+
+        .bloqueios-captcha-input:focus {
+            outline: none;
+            border-color: var(--primary);
+            box-shadow: 0 0 0 2px rgba(0, 71, 171, 0.2);
+        }
+
+        .ecrv-dialog {
+            width: min(440px, 90vw);
+            background: #F4F5F9;
+            border-radius: 32px;
+            padding: 22px;
+            box-shadow: 0 28px 48px rgba(15, 23, 42, 0.25);
+        }
+
+        .ecrv-andamento-dialog {
+            width: min(460px, 92vw);
+        }
+
+        .ecrv-description {
+            font-size: 14px;
+            color: var(--text-soft);
+            margin-bottom: 16px;
+        }
+
+        .ecrv-captcha-section {
+            margin-top: 16px;
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+
+        .ecrv-captcha-image-wrapper {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 12px;
+        }
+
+        .ecrv-captcha-refresh {
+            border: none;
+            background: none;
+            color: var(--primary);
+            font-weight: 600;
+            font-size: 14px;
+            cursor: pointer;
+        }
+
+        .be-input--disabled {
+            background: #EDF0F6;
+            color: var(--text-strong);
+            cursor: not-allowed;
+        }
+
+        .ecrv-submit.loading .be-btn-text,
+        .ecrv-captcha-refresh:disabled {
+            display: none;
+        }
+
+        .ecrv-submit.loading .be-btn-spinner {
+            display: inline-block;
+        }
+
+        .ecrv-submit:disabled {
+            opacity: 0.7;
+            cursor: not-allowed;
+        }
         .be-dialog-helper {
             font-size: 14px;
             line-height: 1.4;
@@ -716,6 +927,53 @@
             align-self: center;
         }
 
+        .error-overlay .alert {
+            display: none;
+        }
+
+        .error-overlay.show {
+            display: flex;
+        }
+
+        .error-dialog {
+            width: min(420px, 90vw);
+            background: #fff;
+            border-radius: 28px;
+            padding: 24px;
+            box-shadow: 0 24px 40px rgba(15, 23, 42, 0.35);
+            text-align: center;
+        }
+
+        .error-dialog-title {
+            font-size: 20px;
+            font-weight: 700;
+            margin-bottom: 12px;
+            color: var(--text-strong);
+        }
+
+        .error-dialog-message {
+            font-size: 15px;
+            color: var(--text-soft);
+            margin-bottom: 20px;
+            line-height: 1.4;
+        }
+
+        .error-dialog button {
+            border: none;
+            background: var(--primary);
+            color: #fff;
+            border-radius: 16px;
+            padding: 12px 18px;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: transform 0.2s ease;
+        }
+
+        .error-dialog button:hover {
+            transform: translateY(-1px);
+        }
+
         @media (min-width: 768px) {
             .header {
                 padding: 32px 40px 44px;
@@ -755,6 +1013,17 @@
     @include('components.home.gravame-captcha-modal')
     @include('components.home.renainf-modal')
     @include('components.home.renainf-captcha-modal')
+    @include('components.home.bloqueios-modal')
+    @include('components.home.bloqueios-captcha-modal')
+    @include('components.home.ecrv-modal')
+    @include('components.home.ecrv-andamento-modal')
+    <div class="be-overlay error-overlay hidden" id="errorOverlay" aria-hidden="true">
+        <div class="error-dialog" role="alert" aria-live="assertive">
+            <div class="error-dialog-title">Ops, algo deu errado</div>
+            <div class="error-dialog-message" id="errorOverlayMessage">Mensagem de erro.</div>
+            <button type="button" id="errorOverlayClose">Fechar</button>
+        </div>
+    </div>
 
     <script>
         const API_BASE_URL = window.location.origin;
@@ -1110,6 +1379,29 @@
         const gravameCaptchaError = document.getElementById('gravameCaptchaError');
         const gravameCaptchaSubmit = document.getElementById('gravameCaptchaSubmit');
 
+        const bloqueiosOverlay = document.getElementById('bloqueiosOverlay');
+        const bloqueiosClose = document.getElementById('bloqueiosClose');
+        const bloqueiosCancel = document.getElementById('bloqueiosCancelBtn');
+        const bloqueiosChassiInput = document.getElementById('bloqueiosChassiInput');
+        const bloqueiosError = document.getElementById('bloqueiosError');
+        const bloqueiosSearchBtn = document.getElementById('bloqueiosSearchBtn');
+        const bloqueiosSourceButtons = Array.from(document.querySelectorAll('.bloqueios-source-button'));
+        const bloqueiosCaptchaOverlay = document.getElementById('bloqueiosCaptchaOverlay');
+        const bloqueiosCaptchaClose = document.getElementById('bloqueiosCaptchaClose');
+        const bloqueiosCaptchaCancel = document.getElementById('bloqueiosCaptchaCancel');
+        const bloqueiosCaptchaRefresh = document.getElementById('bloqueiosCaptchaRefresh');
+        const bloqueiosCaptchaInput = document.getElementById('bloqueiosCaptchaInput');
+        const bloqueiosCaptchaImage = document.getElementById('bloqueiosCaptchaImage');
+        const bloqueiosCaptchaLoading = document.getElementById('bloqueiosCaptchaLoading');
+        const bloqueiosCaptchaError = document.getElementById('bloqueiosCaptchaError');
+        const bloqueiosCaptchaSubmit = document.getElementById('bloqueiosCaptchaSubmit');
+        let bloqueiosSelectedSource = 'DETRAN';
+        let bloqueiosCaptchaMeta = null;
+
+        const errorOverlay = document.getElementById('errorOverlay');
+        const errorOverlayMessage = document.getElementById('errorOverlayMessage');
+        const errorOverlayClose = document.getElementById('errorOverlayClose');
+
         const oldPlatePattern = /^[A-Z]{3}[0-9]{4}$/;
         const mercosurPlatePattern = /^[A-Z]{3}[0-9][A-Z0-9][0-9]{2}$/;
         const chassiPattern = /^[A-HJ-NPR-Z0-9]{17}$/;
@@ -1271,6 +1563,21 @@
             }
         }
 
+        function showErrorModal(message) {
+            if (!errorOverlay || !errorOverlayMessage) return;
+            errorOverlayMessage.textContent = message || 'Ocorreu um erro inesperado.';
+            errorOverlay.classList.remove('hidden');
+            errorOverlay.classList.add('show');
+            errorOverlay.setAttribute('aria-hidden', 'false');
+        }
+
+        function closeErrorModal() {
+            if (!errorOverlay) return;
+            errorOverlay.classList.remove('show');
+            errorOverlay.classList.add('hidden');
+            errorOverlay.setAttribute('aria-hidden', 'true');
+        }
+
         async function fetchBaseEstadual(placa, captcha) {
             const params = new URLSearchParams({
                 placa: placa,
@@ -1376,6 +1683,662 @@
             } finally {
                 setBaseCaptchaLoading(false);
             }
+        }
+
+        function setBloqueiosSource(source) {
+            const normalized = source === 'RENAJUD' ? 'RENAJUD' : 'DETRAN';
+            bloqueiosSelectedSource = normalized;
+            bloqueiosSourceButtons.forEach((button) => {
+                const isActive = button.dataset.source === normalized;
+                button.classList.toggle('active', isActive);
+                button.setAttribute('aria-pressed', String(isActive));
+            });
+        }
+
+        function openBloqueiosModal() {
+            bloqueiosChassiInput.value = '';
+            bloqueiosError.textContent = '';
+            setBloqueiosSource('DETRAN');
+            bloqueiosOverlay.classList.remove('hidden');
+            bloqueiosOverlay.classList.add('show');
+            bloqueiosOverlay.setAttribute('aria-hidden', 'false');
+            setTimeout(() => bloqueiosChassiInput.focus(), 0);
+        }
+
+        function closeBloqueiosModal() {
+            bloqueiosOverlay.classList.remove('show');
+            bloqueiosOverlay.classList.add('hidden');
+            bloqueiosOverlay.setAttribute('aria-hidden', 'true');
+        }
+
+        function setBloqueiosLoading(isLoading) {
+            bloqueiosSearchBtn.disabled = isLoading;
+            bloqueiosSearchBtn.classList.toggle('loading', isLoading);
+        }
+
+        function openBloqueiosCaptchaModal(meta, message = '') {
+            bloqueiosCaptchaMeta = meta;
+            bloqueiosCaptchaInput.value = '';
+            bloqueiosCaptchaError.textContent = message;
+            bloqueiosCaptchaOverlay.classList.remove('hidden');
+            bloqueiosCaptchaOverlay.classList.add('show');
+            bloqueiosCaptchaOverlay.setAttribute('aria-hidden', 'false');
+            loadBloqueiosCaptchaImage();
+            setTimeout(() => bloqueiosCaptchaInput.focus(), 0);
+        }
+
+        function closeBloqueiosCaptchaModal() {
+            bloqueiosCaptchaOverlay.classList.remove('show');
+            bloqueiosCaptchaOverlay.classList.add('hidden');
+            bloqueiosCaptchaOverlay.setAttribute('aria-hidden', 'true');
+            bloqueiosCaptchaError.textContent = '';
+            bloqueiosCaptchaMeta = null;
+            clearBloqueiosCaptchaImage();
+        }
+
+        function setBloqueiosCaptchaLoading(isLoading) {
+            bloqueiosCaptchaSubmit.disabled = isLoading;
+            bloqueiosCaptchaSubmit.classList.toggle('loading', isLoading);
+        }
+
+        function clearBloqueiosCaptchaImage() {
+            const currentUrl = bloqueiosCaptchaImage.dataset.objectUrl;
+            if (currentUrl) {
+                URL.revokeObjectURL(currentUrl);
+                delete bloqueiosCaptchaImage.dataset.objectUrl;
+            }
+            bloqueiosCaptchaImage.src = '';
+        }
+
+        async function loadBloqueiosCaptchaImage() {
+            bloqueiosCaptchaError.textContent = '';
+            bloqueiosCaptchaLoading.classList.remove('hidden');
+            bloqueiosCaptchaImage.classList.add('hidden');
+            clearBloqueiosCaptchaImage();
+
+            let hasImage = false;
+
+            try {
+                const response = await fetch(`${API_BASE_URL}/api/captcha`, { cache: 'no-store' });
+                if (!response.ok) {
+                    throw new Error('Não foi possível carregar o captcha.');
+                }
+                const blob = await response.blob();
+                const objectUrl = URL.createObjectURL(blob);
+                bloqueiosCaptchaImage.src = objectUrl;
+                bloqueiosCaptchaImage.dataset.objectUrl = objectUrl;
+                hasImage = true;
+            } catch (error) {
+                bloqueiosCaptchaError.textContent = error.message || 'Não foi possível carregar o captcha.';
+            } finally {
+                bloqueiosCaptchaLoading.classList.add('hidden');
+                bloqueiosCaptchaImage.classList.toggle('hidden', !hasImage);
+            }
+        }
+
+        async function fetchBloqueiosResult(chassi, opcao, captcha) {
+            const params = new URLSearchParams({
+                chassi,
+                opcaoPesquisa: opcao,
+                captcha,
+            });
+
+            const response = await fetch(`${API_BASE_URL}/api/bloqueios-ativos?${params}`, { cache: 'no-store' });
+            if (!response.ok) {
+                const errorData = await response.json().catch(() => ({}));
+                throw new Error(errorData.message || 'Erro ao consultar bloqueios ativos.');
+            }
+
+            return await response.json();
+        }
+
+        async function registerBloqueiosPesquisa(chassi, opcao) {
+            if (!authToken) return;
+
+            try {
+                await fetch(`${API_BASE_URL}/api/pesquisas`, {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': `Bearer ${authToken}`,
+                        'Content-Type': 'application/json',
+                        'Accept': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        nome: 'Bloqueios ativos',
+                        placa: null,
+                        renavam: null,
+                        chassi,
+                        opcao_pesquisa: opcao,
+                    }),
+                });
+            } catch (error) {
+                console.error('Erro ao registrar pesquisa de bloqueios ativos:', error);
+            }
+        }
+
+        function redirectToBloqueiosResult(result, origin, chassi, opcao) {
+            sessionStorage.setItem('bloqueios_ativos_result', JSON.stringify({
+                payload: result,
+                origin,
+                chassi,
+                opcao,
+            }));
+            window.location.href = '/resultado-bloqueios-ativos';
+        }
+
+        async function performBloqueiosSearch() {
+            const chassi = normalizeChassi(bloqueiosChassiInput.value);
+            if (!chassi) {
+                bloqueiosError.textContent = 'Informe o chassi.';
+                return;
+            }
+            if (!isValidChassi(chassi)) {
+                bloqueiosError.textContent = 'Chassi inválido.';
+                return;
+            }
+
+            bloqueiosError.textContent = '';
+            setBloqueiosLoading(true);
+
+            const origin = bloqueiosSelectedSource;
+            const opcao = origin === 'RENAJUD' ? '2' : '1';
+
+            try {
+                let captcha;
+                try {
+                    captcha = await solveBaseCaptcha();
+                } catch (captchaError) {
+                    closeBloqueiosModal();
+                    openBloqueiosCaptchaModal(
+                        { chassi, opcao, origin },
+                        'Captcha automático indisponível. Digite o captcha manualmente.'
+                    );
+                    return;
+                }
+
+                const result = await fetchBloqueiosResult(chassi, opcao, captcha.toUpperCase());
+                await registerBloqueiosPesquisa(chassi, opcao);
+                closeBloqueiosModal();
+                redirectToBloqueiosResult(result, origin, chassi, opcao);
+            } catch (error) {
+                const message = error.message || 'Não foi possível consultar bloqueios ativos.';
+                if (message.toLowerCase().includes('captcha')) {
+                    closeBloqueiosModal();
+                    openBloqueiosCaptchaModal(
+                        { chassi, opcao, origin },
+                        'Captcha automático falhou. Digite o captcha manualmente.'
+                    );
+                    return;
+                }
+                bloqueiosError.textContent = message;
+            } finally {
+                setBloqueiosLoading(false);
+            }
+        }
+
+        async function performBloqueiosCaptchaSearch() {
+            const captcha = bloqueiosCaptchaInput.value.trim().toUpperCase();
+            if (!captcha) {
+                bloqueiosCaptchaError.textContent = 'Informe o captcha.';
+                return;
+            }
+
+            const meta = bloqueiosCaptchaMeta;
+            if (!meta) {
+                bloqueiosCaptchaError.textContent = 'Reinicie a pesquisa e tente novamente.';
+                return;
+            }
+
+            bloqueiosCaptchaError.textContent = '';
+            setBloqueiosCaptchaLoading(true);
+
+            try {
+                const result = await fetchBloqueiosResult(meta.chassi, meta.opcao, captcha);
+                await registerBloqueiosPesquisa(meta.chassi, meta.opcao);
+                closeBloqueiosCaptchaModal();
+                redirectToBloqueiosResult(result, meta.origin, meta.chassi, meta.opcao);
+            } catch (error) {
+                bloqueiosCaptchaError.textContent = error.message || 'Não foi possível concluir a pesquisa.';
+                loadBloqueiosCaptchaImage();
+            } finally {
+                setBloqueiosCaptchaLoading(false);
+            }
+        }
+
+        bloqueiosSourceButtons.forEach((button) => {
+            button.addEventListener('click', () => {
+                const source = button.dataset.source || 'DETRAN';
+                setBloqueiosSource(source);
+            });
+        });
+
+        bloqueiosClose.addEventListener('click', closeBloqueiosModal);
+        bloqueiosCancel.addEventListener('click', closeBloqueiosModal);
+        bloqueiosSearchBtn.addEventListener('click', performBloqueiosSearch);
+        bloqueiosCaptchaRefresh.addEventListener('click', loadBloqueiosCaptchaImage);
+        bloqueiosCaptchaSubmit.addEventListener('click', performBloqueiosCaptchaSearch);
+        bloqueiosCaptchaClose.addEventListener('click', closeBloqueiosCaptchaModal);
+        bloqueiosCaptchaCancel.addEventListener('click', closeBloqueiosCaptchaModal);
+
+        setBloqueiosSource(bloqueiosSelectedSource);
+
+        const ecrvOverlay = document.getElementById('ecrvOverlay');
+        const ecrvClose = document.getElementById('ecrvClose');
+        const ecrvCancel = document.getElementById('ecrvCancelBtn');
+        const ecrvPlateInput = document.getElementById('ecrvPlateInput');
+        const ecrvPlateError = document.getElementById('ecrvPlateError');
+        const ecrvAdvanceBtn = document.getElementById('ecrvAdvanceBtn');
+        const ecrvDescription = document.getElementById('ecrvDescription');
+        const ecrvCaptchaSection = document.getElementById('ecrvCaptchaSection');
+        const ecrvCaptchaImage = document.getElementById('ecrvCaptchaImage');
+        const ecrvCaptchaLoading = document.getElementById('ecrvCaptchaLoading');
+        const ecrvCaptchaError = document.getElementById('ecrvCaptchaError');
+        const ecrvCaptchaInput = document.getElementById('ecrvCaptchaInput');
+        const ecrvCaptchaRefresh = document.getElementById('ecrvCaptchaRefresh');
+
+        const ecrvAndamentoOverlay = document.getElementById('ecrvAndamentoOverlay');
+        const ecrvAndamentoClose = document.getElementById('ecrvAndamentoClose');
+        const ecrvAndamentoCancel = document.getElementById('ecrvAndamentoCancelBtn');
+        const ecrvAndamentoFichaInput = document.getElementById('ecrvAndamentoFichaInput');
+        const ecrvAndamentoAnoInput = document.getElementById('ecrvAndamentoAnoInput');
+        const ecrvAndamentoCaptchaImage = document.getElementById('ecrvAndamentoCaptchaImage');
+        const ecrvAndamentoCaptchaLoading = document.getElementById('ecrvAndamentoCaptchaLoading');
+        const ecrvAndamentoCaptchaInput = document.getElementById('ecrvAndamentoCaptchaInput');
+        const ecrvAndamentoCaptchaError = document.getElementById('ecrvAndamentoCaptchaError');
+        const ecrvAndamentoCaptchaRefresh = document.getElementById('ecrvAndamentoCaptchaRefresh');
+        const ecrvAndamentoBtn = document.getElementById('ecrvAndamentoBtn');
+        const ecrvAndamentoDescription = document.getElementById('ecrvAndamentoDescription');
+
+        let ecrvRequireCaptcha = false;
+        let ecrvConsultaMeta = null;
+        let ecrvAndamentoMeta = null;
+
+        function setEcrvDescription(requireCaptcha) {
+            ecrvDescription.textContent = requireCaptcha
+                ? 'Digite a placa e o captcha exibido para recuperar o número da ficha.'
+                : 'Informe somente a placa. Resolveremos o captcha automaticamente.';
+        }
+
+        function openEcrvModal({ requireCaptcha = false, plate = '', captchaMessage = '' } = {}) {
+            ecrvRequireCaptcha = requireCaptcha;
+            ecrvPlateInput.value = plate;
+            ecrvPlateError.textContent = '';
+            ecrvCaptchaError.textContent = captchaMessage;
+            setEcrvDescription(requireCaptcha);
+            ecrvCaptchaSection.classList.toggle('hidden', !requireCaptcha);
+            if (requireCaptcha) {
+                loadEcrvCaptchaImage();
+            } else {
+                clearEcrvCaptchaImage();
+            }
+            ecrvOverlay.classList.remove('hidden');
+            ecrvOverlay.classList.add('show');
+            ecrvOverlay.setAttribute('aria-hidden', 'false');
+            setTimeout(() => ecrvPlateInput.focus(), 0);
+        }
+
+        function closeEcrvModal() {
+            ecrvOverlay.classList.remove('show');
+            ecrvOverlay.classList.add('hidden');
+            ecrvOverlay.setAttribute('aria-hidden', 'true');
+            ecrvCaptchaError.textContent = '';
+            ecrvCaptchaInput.value = '';
+            ecrvPlateError.textContent = '';
+            clearEcrvCaptchaImage();
+        }
+
+        function setEcrvLoading(isLoading) {
+            ecrvAdvanceBtn.disabled = isLoading;
+            ecrvAdvanceBtn.classList.toggle('loading', isLoading);
+        }
+
+        function setEcrvAndamentoLoading(isLoading) {
+            ecrvAndamentoBtn.disabled = isLoading;
+            ecrvAndamentoBtn.classList.toggle('loading', isLoading);
+        }
+
+        function clearEcrvCaptchaImage() {
+            const currentUrl = ecrvCaptchaImage.dataset.objectUrl;
+            if (currentUrl) {
+                URL.revokeObjectURL(currentUrl);
+                delete ecrvCaptchaImage.dataset.objectUrl;
+            }
+            ecrvCaptchaImage.src = '';
+        }
+
+        function clearEcrvAndamentoCaptchaImage() {
+            const currentUrl = ecrvAndamentoCaptchaImage.dataset.objectUrl;
+            if (currentUrl) {
+                URL.revokeObjectURL(currentUrl);
+                delete ecrvAndamentoCaptchaImage.dataset.objectUrl;
+            }
+            ecrvAndamentoCaptchaImage.src = '';
+        }
+
+        async function loadEcrvCaptchaImage() {
+            ecrvCaptchaError.textContent = '';
+            ecrvCaptchaLoading.classList.remove('hidden');
+            ecrvCaptchaImage.classList.add('hidden');
+            clearEcrvCaptchaImage();
+
+            let hasImage = false;
+
+            try {
+                const response = await fetch(`${API_BASE_URL}/api/captcha`, { cache: 'no-store' });
+                if (!response.ok) {
+                    throw new Error('Não foi possível carregar o captcha.');
+                }
+                const blob = await response.blob();
+                const objectUrl = URL.createObjectURL(blob);
+                ecrvCaptchaImage.src = objectUrl;
+                ecrvCaptchaImage.dataset.objectUrl = objectUrl;
+                hasImage = true;
+            } catch (error) {
+                ecrvCaptchaError.textContent = error.message || 'Não foi possível carregar o captcha.';
+            } finally {
+                ecrvCaptchaLoading.classList.add('hidden');
+                ecrvCaptchaImage.classList.toggle('hidden', !hasImage);
+            }
+        }
+
+        async function loadEcrvAndamentoCaptchaImage() {
+            ecrvAndamentoCaptchaError.textContent = '';
+            ecrvAndamentoCaptchaLoading.classList.remove('hidden');
+            ecrvAndamentoCaptchaImage.classList.add('hidden');
+            clearEcrvAndamentoCaptchaImage();
+
+            let hasImage = false;
+
+            try {
+                const response = await fetch(`${API_BASE_URL}/api/captcha`, { cache: 'no-store' });
+                if (!response.ok) {
+                    throw new Error('Não foi possível carregar o captcha.');
+                }
+                const blob = await response.blob();
+                const objectUrl = URL.createObjectURL(blob);
+                ecrvAndamentoCaptchaImage.src = objectUrl;
+                ecrvAndamentoCaptchaImage.dataset.objectUrl = objectUrl;
+                hasImage = true;
+            } catch (error) {
+                ecrvAndamentoCaptchaError.textContent = error.message || 'Não foi possível carregar o captcha.';
+            } finally {
+                ecrvAndamentoCaptchaLoading.classList.add('hidden');
+                ecrvAndamentoCaptchaImage.classList.toggle('hidden', !hasImage);
+            }
+        }
+
+        async function fetchFichaCadastral(plate, captcha) {
+            const params = new URLSearchParams({
+                placa: plate,
+                captcha,
+            });
+
+            const response = await fetch(`${API_BASE_URL}/api/ficha-cadastral/consulta?${params}`, { cache: 'no-store' });
+            if (!response.ok) {
+                const data = await response.json().catch(() => ({}));
+                throw new Error(data.message || 'Erro ao consultar a ficha cadastral.');
+            }
+
+            return await response.json();
+        }
+
+        async function fetchFichaAndamento(numeroFicha, anoFicha, placa, captcha) {
+            const params = new URLSearchParams({
+                numero_ficha: numeroFicha,
+                ano_ficha: anoFicha,
+                placa: placa,
+                captcha,
+            });
+
+            const response = await fetch(`${API_BASE_URL}/api/ficha-cadastral/andamento?${params}`, { cache: 'no-store' });
+            if (!response.ok) {
+                const data = await response.json().catch(() => ({}));
+                throw new Error(data.message || 'Erro ao consultar o andamento do processo.');
+            }
+
+            return await response.json();
+        }
+
+        function normalizeString(value) {
+            if (value === undefined || value === null) {
+                return '';
+            }
+            return String(value).trim();
+        }
+
+        function openEcrvAndamentoModal(meta, message = '') {
+            ecrvAndamentoMeta = meta;
+            ecrvAndamentoFichaInput.value = meta.numeroFicha || '';
+            ecrvAndamentoAnoInput.value = meta.anoFicha || '';
+            ecrvAndamentoCaptchaInput.value = '';
+            ecrvAndamentoCaptchaError.textContent = message;
+            ecrvAndamentoCaptchaRefresh.disabled = false;
+            ecrvAndamentoOverlay.classList.remove('hidden');
+            ecrvAndamentoOverlay.classList.add('show');
+            ecrvAndamentoOverlay.setAttribute('aria-hidden', 'false');
+            loadEcrvAndamentoCaptchaImage();
+            setTimeout(() => ecrvAndamentoCaptchaInput.focus(), 0);
+        }
+
+        function closeEcrvAndamentoModal() {
+            ecrvAndamentoOverlay.classList.remove('show');
+            ecrvAndamentoOverlay.classList.add('hidden');
+            ecrvAndamentoOverlay.setAttribute('aria-hidden', 'true');
+            ecrvAndamentoCaptchaError.textContent = '';
+            ecrvAndamentoCaptchaInput.value = '';
+            clearEcrvAndamentoCaptchaImage();
+        }
+
+        function redirectToEcrvResult(payload, plate, numeroFicha, anoFicha) {
+            sessionStorage.setItem('ecrv_result', JSON.stringify({
+                placa: plate,
+                numeroFicha,
+                anoFicha,
+                fichaPayload: payload.fichaPayload,
+                andamentoPayload: payload.andamentoPayload,
+            }));
+            window.location.href = '/resultado-ecrv';
+        }
+
+        async function registerEcrvPesquisa(plate, renavam, chassi) {
+            if (!authToken) return;
+
+            try {
+                await fetch(`${API_BASE_URL}/api/pesquisas`, {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': `Bearer ${authToken}`,
+                        'Content-Type': 'application/json',
+                        'Accept': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        nome: 'Processo e-CRVsp',
+                        placa: plate,
+                        renavam: renavam || null,
+                        chassi: chassi || null,
+                    }),
+                });
+            } catch (error) {
+                console.error('Erro ao registrar pesquisa e-CRVsp:', error);
+            }
+        }
+
+        function completeEcrvFlow(andamentoPayload) {
+            if (!ecrvConsultaMeta) return;
+            const { plate, numeroFicha, anoFicha, renavam, chassi, fichaPayload } = ecrvConsultaMeta;
+            registerEcrvPesquisa(plate, renavam, chassi);
+            redirectToEcrvResult(
+                {
+                    fichaPayload,
+                    andamentoPayload,
+                },
+                plate,
+                numeroFicha,
+                anoFicha,
+            );
+        }
+
+        async function attemptEcrvAndamento(autoSolve, captchaOverride = '') {
+            if (!ecrvConsultaMeta) {
+                throw new Error('Dados da ficha não encontrados.');
+            }
+            const captcha = autoSolve ? await solveBaseCaptcha() : captchaOverride;
+            if (!captcha) {
+                throw new Error('Informe o captcha.');
+            }
+            return await fetchFichaAndamento(
+                ecrvConsultaMeta.numeroFicha,
+                ecrvConsultaMeta.anoFicha,
+                ecrvConsultaMeta.plate,
+                captcha,
+            );
+        }
+
+        async function handleEcrvAndamento(autoSolve = true, captchaOverride = '') {
+            try {
+                const result = await attemptEcrvAndamento(autoSolve, captchaOverride);
+                closeEcrvAndamentoModal();
+                completeEcrvFlow(result);
+            } catch (error) {
+                const message = (error && error.message) ? error.message : 'Não foi possível consultar o andamento.';
+                if (autoSolve && message.toLowerCase().includes('captcha')) {
+                    openEcrvAndamentoModal(
+                        {
+                            plate: ecrvConsultaMeta.plate,
+                            numeroFicha: ecrvConsultaMeta.numeroFicha,
+                            anoFicha: ecrvConsultaMeta.anoFicha,
+                        },
+                        'Captcha automático falhou. Digite o captcha manualmente.',
+                    );
+                    return;
+                }
+                showErrorModal(message);
+            }
+        }
+
+        async function finalizeFichaConsulta(result, plate) {
+            const normalized = result?.payload?.normalized?.dados_da_ficha_cadastral || {};
+            const numeroFicha = normalizeString(normalized?.n_da_ficha);
+            const anoFicha = normalizeString(normalized?.ano_ficha);
+            if (!numeroFicha || !anoFicha) {
+                ecrvPlateError.textContent = 'Consulta retornou sem número/ano da ficha. Verifique os dados informados.';
+                return;
+            }
+
+            ecrvConsultaMeta = {
+                plate,
+                numeroFicha,
+                anoFicha,
+                renavam: normalizeString(normalized?.renavam) || null,
+                chassi: normalizeString(normalized?.chassi) || null,
+                fichaPayload: result,
+            };
+
+            closeEcrvModal();
+            await handleEcrvAndamento(true);
+        }
+
+        async function performEcrvConsulta() {
+            const plate = normalizePlate(ecrvPlateInput.value);
+            if (!plate) {
+                ecrvPlateError.textContent = 'Informe a placa.';
+                return;
+            }
+            if (!isValidPlate(plate)) {
+                ecrvPlateError.textContent = 'Placa inválida.';
+                return;
+            }
+
+            ecrvPlateError.textContent = '';
+            ecrvCaptchaError.textContent = '';
+            setEcrvLoading(true);
+
+            try {
+                let captchaValue;
+                if (ecrvRequireCaptcha) {
+                    captchaValue = ecrvCaptchaInput.value.trim().toUpperCase();
+                    if (!captchaValue) {
+                        ecrvCaptchaError.textContent = 'Informe o captcha.';
+                        return;
+                    }
+                } else {
+                    try {
+                        captchaValue = await solveBaseCaptcha();
+                    } catch (captchaError) {
+                        closeEcrvModal();
+                        openEcrvModal({
+                            requireCaptcha: true,
+                            plate,
+                            captchaMessage: 'Captcha automático indisponível. Digite o captcha manualmente.',
+                        });
+                        return;
+                    }
+                }
+
+                const result = await fetchFichaCadastral(plate, captchaValue);
+                await finalizeFichaConsulta(result, plate);
+            } catch (error) {
+                const message = (error && error.message) ? error.message : 'Não foi possível consultar a ficha cadastral.';
+                if (!ecrvRequireCaptcha && message.toLowerCase().includes('captcha')) {
+                    closeEcrvModal();
+                    openEcrvModal({
+                        requireCaptcha: true,
+                        plate,
+                        captchaMessage: 'Captcha automático falhou. Digite o captcha manualmente.',
+                    });
+                    return;
+                }
+                if (ecrvRequireCaptcha) {
+                    ecrvCaptchaError.textContent = message;
+                } else {
+                    ecrvPlateError.textContent = message;
+                }
+            } finally {
+                setEcrvLoading(false);
+            }
+        }
+
+        async function performEcrvAndamentoCaptchaSearch() {
+            const meta = ecrvAndamentoMeta;
+            if (!meta) {
+                ecrvAndamentoCaptchaError.textContent = 'Reinicie a pesquisa e tente novamente.';
+                return;
+            }
+            const captchaValue = ecrvAndamentoCaptchaInput.value.trim().toUpperCase();
+            if (!captchaValue) {
+                ecrvAndamentoCaptchaError.textContent = 'Informe o captcha.';
+                return;
+            }
+
+            ecrvAndamentoCaptchaError.textContent = '';
+            setEcrvAndamentoLoading(true);
+
+            try {
+                await handleEcrvAndamento(false, captchaValue);
+            } finally {
+                setEcrvAndamentoLoading(false);
+            }
+        }
+
+        ecrvClose.addEventListener('click', closeEcrvModal);
+        ecrvCancel.addEventListener('click', closeEcrvModal);
+        ecrvAdvanceBtn.addEventListener('click', performEcrvConsulta);
+        ecrvCaptchaRefresh.addEventListener('click', loadEcrvCaptchaImage);
+
+        ecrvAndamentoClose.addEventListener('click', closeEcrvAndamentoModal);
+        ecrvAndamentoCancel.addEventListener('click', closeEcrvAndamentoModal);
+        ecrvAndamentoBtn.addEventListener('click', performEcrvAndamentoCaptchaSearch);
+        ecrvAndamentoCaptchaRefresh.addEventListener('click', loadEcrvAndamentoCaptchaImage);
+
+        if (errorOverlayClose) {
+            errorOverlayClose.addEventListener('click', closeErrorModal);
+        }
+        if (errorOverlay) {
+            errorOverlay.addEventListener('click', (event) => {
+                if (event.target === errorOverlay) {
+                    closeErrorModal();
+                }
+            });
         }
 
         function openOtherStatesModal() {
@@ -2344,6 +3307,16 @@
                     openGravameModal();
                 });
             });
+            document.querySelectorAll('[data-action="bloqueios-ativos"]').forEach((item) => {
+                item.addEventListener('click', () => {
+                    openBloqueiosModal();
+                });
+            });
+            document.querySelectorAll('[data-action="andamento-ecrv"]').forEach((item) => {
+                item.addEventListener('click', () => {
+                    openEcrvModal();
+                });
+            });
 
             document.querySelectorAll('[data-href]').forEach((item) => {
                 item.addEventListener('click', () => {
@@ -2356,7 +3329,7 @@
 
             document.querySelectorAll('[data-disabled="true"]').forEach((item) => {
                 item.addEventListener('click', () => {
-                    alert('Funcionalidade em desenvolvimento.');
+                    showErrorModal('Funcionalidade em desenvolvimento.');
                 });
             });
         }

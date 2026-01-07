@@ -441,9 +441,8 @@
 
         // Verificar se já está autenticado
         if (localStorage.getItem('auth_token')) {
-            window.location.href = '/base-estadual';
+            window.location.href = '/home';
         }
     </script>
 </body>
 </html>
-

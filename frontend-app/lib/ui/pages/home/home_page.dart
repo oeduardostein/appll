@@ -437,10 +437,15 @@ class _HomePageState extends State<HomePage> {
 
       _showErrorMessage(e.message);
       return true;
-    } catch (_) {
+    } catch (error) {
       if (!mounted) return true;
       Navigator.of(context, rootNavigator: true).pop();
-      _showErrorMessage('Não foi possível consultar a base estadual.');
+      _showErrorMessage(
+        _resolveErrorMessage(
+          error,
+          fallback: 'Não foi possível consultar a base estadual.',
+        ),
+      );
       return true;
     }
   }
@@ -509,10 +514,15 @@ class _HomePageState extends State<HomePage> {
 
       _showErrorMessage(e.message);
       return true;
-    } catch (_) {
+    } catch (error) {
       if (!mounted) return true;
       Navigator.of(context, rootNavigator: true).pop();
-      _showErrorMessage('Não foi possível consultar a base de outros estados.');
+      _showErrorMessage(
+        _resolveErrorMessage(
+          error,
+          fallback: 'Não foi possível consultar a base de outros estados.',
+        ),
+      );
       return true;
     }
   }
@@ -591,10 +601,15 @@ class _HomePageState extends State<HomePage> {
       Navigator.of(context, rootNavigator: true).pop();
       _showErrorMessage(e.message);
       return true;
-    } catch (_) {
+    } catch (error) {
       if (!mounted) return true;
       Navigator.of(context, rootNavigator: true).pop();
-      _showErrorMessage('Não foi possível concluir a pesquisa BIN.');
+      _showErrorMessage(
+        _resolveErrorMessage(
+          error,
+          fallback: 'Não foi possível concluir a pesquisa BIN.',
+        ),
+      );
       return true;
     }
   }
@@ -659,10 +674,15 @@ class _HomePageState extends State<HomePage> {
       Navigator.of(context, rootNavigator: true).pop();
       _showErrorMessage(e.message);
       return true;
-    } catch (_) {
+    } catch (error) {
       if (!mounted) return true;
       Navigator.of(context, rootNavigator: true).pop();
-      _showErrorMessage('Não foi possível consultar o gravame.');
+      _showErrorMessage(
+        _resolveErrorMessage(
+          error,
+          fallback: 'Não foi possível consultar o gravame.',
+        ),
+      );
       return true;
     }
   }
@@ -729,10 +749,15 @@ class _HomePageState extends State<HomePage> {
       Navigator.of(context, rootNavigator: true).pop();
       _showErrorMessage(e.message);
       return true;
-    } catch (_) {
+    } catch (error) {
       if (!mounted) return true;
       Navigator.of(context, rootNavigator: true).pop();
-      _showErrorMessage('Não foi possível consultar o RENAINF.');
+      _showErrorMessage(
+        _resolveErrorMessage(
+          error,
+          fallback: 'Não foi possível consultar o RENAINF.',
+        ),
+      );
       return true;
     }
   }
@@ -794,10 +819,15 @@ class _HomePageState extends State<HomePage> {
 
       _showErrorMessage(e.message);
       return true;
-    } catch (_) {
+    } catch (error) {
       if (!mounted) return true;
       Navigator.of(context, rootNavigator: true).pop();
-      _showErrorMessage('Não foi possível consultar os bloqueios ativos.');
+      _showErrorMessage(
+        _resolveErrorMessage(
+          error,
+          fallback: 'Não foi possível consultar os bloqueios ativos.',
+        ),
+      );
       return true;
     }
   }
@@ -875,10 +905,15 @@ class _HomePageState extends State<HomePage> {
 
       _showErrorMessage(e.message);
       return true;
-    } catch (_) {
+    } catch (error) {
       if (!mounted) return true;
       Navigator.of(context, rootNavigator: true).pop();
-      _showErrorMessage('Não foi possível emitir o CRLV-e.');
+      _showErrorMessage(
+        _resolveErrorMessage(
+          error,
+          fallback: 'Não foi possível emitir o CRLV-e.',
+        ),
+      );
       return true;
     }
   }
@@ -928,10 +963,15 @@ class _HomePageState extends State<HomePage> {
       Navigator.of(context, rootNavigator: true).pop();
       _showErrorMessage(e.message);
       return const _CaptchaOperationResult<Map<String, dynamic>>.failure();
-    } catch (_) {
+    } catch (error) {
       if (!mounted) return const _CaptchaOperationResult.failure();
       Navigator.of(context, rootNavigator: true).pop();
-      _showErrorMessage('Não foi possível consultar a ficha cadastral.');
+      _showErrorMessage(
+        _resolveErrorMessage(
+          error,
+          fallback: 'Não foi possível consultar a ficha cadastral.',
+        ),
+      );
       return const _CaptchaOperationResult<Map<String, dynamic>>.failure();
     }
   }
@@ -985,10 +1025,15 @@ class _HomePageState extends State<HomePage> {
       Navigator.of(context, rootNavigator: true).pop();
       _showErrorMessage(e.message);
       return const _CaptchaOperationResult<Map<String, dynamic>>.failure();
-    } catch (_) {
+    } catch (error) {
       if (!mounted) return const _CaptchaOperationResult.failure();
       Navigator.of(context, rootNavigator: true).pop();
-      _showErrorMessage('Não foi possível consultar o andamento do processo.');
+      _showErrorMessage(
+        _resolveErrorMessage(
+          error,
+          fallback: 'Não foi possível consultar o andamento do processo.',
+        ),
+      );
       return const _CaptchaOperationResult<Map<String, dynamic>>.failure();
     }
   }
@@ -2962,6 +3007,30 @@ class _HomePageState extends State<HomePage> {
     );
   }
 
+  String _resolveErrorMessage(
+    Object? error, {
+    required String fallback,
+  }) {
+    if (error == null) return fallback;
+    if (error is BaseEstadualException) return error.message;
+    if (error is BinException) return error.message;
+    if (error is GravameException) return error.message;
+    if (error is RenainfException) return error.message;
+    if (error is PesquisaException) return error.message;
+    if (error is FichaCadastralException) return error.message;
+    if (error is AuthException) return error.message;
+    if (error is Exception) {
+      final message = error.toString();
+      if (message.isNotEmpty) {
+        return message;
+      }
+    }
+    if (error is String && error.isNotEmpty) {
+      return error;
+    }
+    return fallback;
+  }
+
   void _showSuccessMessage(String message) {
     if (!mounted) return;
     final theme = Theme.of(context);
@@ -3244,12 +3313,17 @@ class _HomePageState extends State<HomePage> {
       } else {
         _showErrorMessage(e.message);
       }
-    } catch (_) {
+    } catch (error) {
       if (!mounted) return;
       setState(() {
         _isFetchingUser = false;
       });
-      _showErrorMessage('Não foi possível carregar os dados do usuário.');
+      _showErrorMessage(
+        _resolveErrorMessage(
+          error,
+          fallback: 'Não foi possível carregar os dados do usuário.',
+        ),
+      );
     }
   }
 
@@ -3273,11 +3347,16 @@ class _HomePageState extends State<HomePage> {
       Navigator.of(context, rootNavigator: true).pop();
       if (!mounted) return;
       _showErrorMessage(e.message);
-    } catch (_) {
+    } catch (error) {
       if (!mounted) return;
       Navigator.of(context, rootNavigator: true).pop();
       if (!mounted) return;
-      _showErrorMessage('Não foi possível sair. Tente novamente.');
+      _showErrorMessage(
+        _resolveErrorMessage(
+          error,
+          fallback: 'Não foi possível sair. Tente novamente.',
+        ),
+      );
     }
   }
 

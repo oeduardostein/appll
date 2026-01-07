@@ -19,12 +19,13 @@ Route::view('/suporte', 'support')->name('support');
 Route::view('/login', 'login')->name('login');
 Route::view('/home', 'home')->name('home');
 Route::view('/perfil', 'profile')->name('profile');
-Route::view('/base-estadual', 'base-estadual')->name('base-estadual');
 Route::view('/resultado-base-estadual', 'base-estadual-result')->name('base-estadual-result');
 Route::view('/resultado-base-outros-estados', 'base-outros-estados-result')->name('base-outros-estados-result');
 Route::view('/resultado-gravame', 'gravame-result')->name('gravame-result');
 Route::view('/resultado-renainf', 'renainf-result')->name('renainf-result');
 Route::view('/resultado-bin', 'bin-result')->name('bin-result');
+Route::view('/resultado-bloqueios-ativos', 'bloqueios-result')->name('bloqueios-result');
+Route::view('/resultado-ecrv', 'ecrv-result')->name('ecrv-result');
 Route::get('/excluir-conta', [AccountDeletionController::class, 'show'])->name('account-deletion.form');
 Route::post('/excluir-conta', [AccountDeletionController::class, 'destroy'])->name('account-deletion.submit');
 

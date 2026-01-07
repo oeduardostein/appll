@@ -104,7 +104,7 @@
                         </svg>
                     </div>
                 </button>
-                <button class="action-subitem" type="button" data-permission="pesquisa_bloqueios_ativos" data-disabled="true">
+                <button class="action-subitem" type="button" data-permission="pesquisa_bloqueios_ativos" data-action="bloqueios-ativos">
                     <div class="action-subitem__icon">
                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                             <rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect>
@@ -118,7 +118,7 @@
                         </svg>
                     </div>
                 </button>
-                <button class="action-subitem" type="button" data-permission="pesquisa_andamento_processo" data-disabled="true">
+                <button class="action-subitem" type="button" data-permission="pesquisa_andamento_processo" data-action="andamento-ecrv">
                     <div class="action-subitem__icon">
                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                             <path d="M3 3v18h18"></path>
