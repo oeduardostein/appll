@@ -494,6 +494,11 @@
             flex-direction: column;
             gap: 16px;
         }
+        .be-dialog-description {
+            font-size: 14px;
+            color: var(--text-soft);
+            line-height: 1.5;
+        }
 
         .bloqueios-dialog {
             width: min(460px, 96vw);
@@ -1015,6 +1020,8 @@
     @include('components.home.renainf-captcha-modal')
     @include('components.home.bloqueios-modal')
     @include('components.home.bloqueios-captcha-modal')
+    @include('components.home.crlv-modal')
+    @include('components.home.crlv-captcha-modal')
     @include('components.home.ecrv-modal')
     @include('components.home.ecrv-andamento-modal')
     <div class="be-overlay error-overlay hidden" id="errorOverlay" aria-hidden="true">
@@ -1398,6 +1405,29 @@
         let bloqueiosSelectedSource = 'DETRAN';
         let bloqueiosCaptchaMeta = null;
 
+        const crlvOverlay = document.getElementById('crlvOverlay');
+        const crlvClose = document.getElementById('crlvClose');
+        const crlvCancel = document.getElementById('crlvCancelBtn');
+        const crlvPlateInput = document.getElementById('crlvPlateInput');
+        const crlvRenavamInput = document.getElementById('crlvRenavamInput');
+        const crlvDocumentInput = document.getElementById('crlvDocumentInput');
+        const crlvError = document.getElementById('crlvError');
+        const crlvSubmitBtn = document.getElementById('crlvSubmitBtn');
+
+        const crlvCaptchaOverlay = document.getElementById('crlvCaptchaOverlay');
+        const crlvCaptchaClose = document.getElementById('crlvCaptchaClose');
+        const crlvCaptchaCancel = document.getElementById('crlvCaptchaCancel');
+        const crlvCaptchaRefresh = document.getElementById('crlvCaptchaRefresh');
+        const crlvCaptchaPlate = document.getElementById('crlvCaptchaPlate');
+        const crlvCaptchaRenavam = document.getElementById('crlvCaptchaRenavam');
+        const crlvCaptchaDocument = document.getElementById('crlvCaptchaDocument');
+        const crlvCaptchaInput = document.getElementById('crlvCaptchaInput');
+        const crlvCaptchaImage = document.getElementById('crlvCaptchaImage');
+        const crlvCaptchaLoading = document.getElementById('crlvCaptchaLoading');
+        const crlvCaptchaError = document.getElementById('crlvCaptchaError');
+        const crlvCaptchaSubmit = document.getElementById('crlvCaptchaSubmit');
+        let crlvCaptchaMeta = null;
+
         const errorOverlay = document.getElementById('errorOverlay');
         const errorOverlayMessage = document.getElementById('errorOverlayMessage');
         const errorOverlayClose = document.getElementById('errorOverlayClose');
@@ -1438,6 +1468,31 @@
         function isValidRenavam(value) {
             const normalized = normalizeRenavam(value);
             return renavamPattern.test(normalized);
+        }
+
+        function normalizeDocument(value) {
+            return value.replace(/\D/g, '');
+        }
+
+        function isValidDocument(value) {
+            const normalized = normalizeDocument(value);
+            return normalized.length === 11 || normalized.length === 14;
+        }
+
+        function formatCpf(value) {
+            const digits = value.replace(/\D/g, '');
+            if (digits.length !== 11) {
+                return null;
+            }
+            return `${digits.slice(0, 3)}.${digits.slice(3, 6)}.${digits.slice(6, 9)}-${digits.slice(9)}`;
+        }
+
+        function formatCnpj(value) {
+            const digits = value.replace(/\D/g, '');
+            if (digits.length !== 14) {
+                return null;
+            }
+            return `${digits.slice(0, 2)}.${digits.slice(2, 5)}.${digits.slice(5, 8)}/${digits.slice(8, 12)}-${digits.slice(12)}`;
         }
 
         const renainfStatusLabels = {
@@ -1518,7 +1573,9 @@
             const response = await fetch(`${API_BASE_URL}/api/captcha/solve`);
             if (!response.ok) {
                 const errorData = await response.json().catch(() => ({}));
-                throw new Error(errorData.message || 'Não foi possível resolver o captcha automaticamente.');
+                const error = new Error(errorData.message || 'Não foi possível resolver o captcha automaticamente.');
+                error.status = response.status;
+                throw error;
             }
             const data = await response.json();
             const solution = data.solution ? String(data.solution).trim() : '';
@@ -1560,6 +1617,309 @@
             } finally {
                 baseCaptchaLoading.classList.add('hidden');
                 baseCaptchaImage.classList.toggle('hidden', !hasImage);
+            }
+        }
+
+        function setCrlvLoading(isLoading) {
+            if (!crlvSubmitBtn) return;
+            crlvSubmitBtn.disabled = isLoading;
+            crlvSubmitBtn.classList.toggle('loading', isLoading);
+        }
+
+        function openCrlvModal() {
+            if (!crlvOverlay) return;
+            crlvPlateInput.value = '';
+            crlvRenavamInput.value = '';
+            crlvDocumentInput.value = '';
+            crlvError.textContent = '';
+            crlvOverlay.classList.remove('hidden');
+            crlvOverlay.classList.add('show');
+            crlvOverlay.setAttribute('aria-hidden', 'false');
+            setTimeout(() => crlvPlateInput?.focus(), 0);
+        }
+
+        function closeCrlvModal() {
+            if (!crlvOverlay) return;
+            crlvOverlay.classList.remove('show');
+            crlvOverlay.classList.add('hidden');
+            crlvOverlay.setAttribute('aria-hidden', 'true');
+        }
+
+        function setCrlvCaptchaLoading(isLoading) {
+            if (!crlvCaptchaSubmit) return;
+            crlvCaptchaSubmit.disabled = isLoading;
+            crlvCaptchaSubmit.classList.toggle('loading', isLoading);
+        }
+
+        function clearCrlvCaptchaImage() {
+            if (!crlvCaptchaImage) return;
+            const currentUrl = crlvCaptchaImage.dataset.objectUrl;
+            if (currentUrl) {
+                URL.revokeObjectURL(currentUrl);
+                delete crlvCaptchaImage.dataset.objectUrl;
+            }
+            crlvCaptchaImage.src = '';
+        }
+
+        async function loadCrlvCaptchaImage() {
+            if (!crlvCaptchaOverlay) return;
+            crlvCaptchaError.textContent = '';
+            crlvCaptchaLoading.classList.remove('hidden');
+            crlvCaptchaImage.classList.add('hidden');
+            clearCrlvCaptchaImage();
+
+            let hasImage = false;
+
+            try {
+                const response = await fetch(`${API_BASE_URL}/api/captcha`, { cache: 'no-store' });
+                if (!response.ok) {
+                    throw new Error('Não foi possível carregar o captcha.');
+                }
+                const blob = await response.blob();
+                const objectUrl = URL.createObjectURL(blob);
+                crlvCaptchaImage.src = objectUrl;
+                crlvCaptchaImage.dataset.objectUrl = objectUrl;
+                hasImage = true;
+            } catch (error) {
+                crlvCaptchaError.textContent = error.message || 'Não foi possível carregar o captcha.';
+            } finally {
+                crlvCaptchaLoading.classList.add('hidden');
+                crlvCaptchaImage.classList.toggle('hidden', !hasImage);
+            }
+        }
+
+        function openCrlvCaptchaModal(meta, message = '') {
+            if (!crlvCaptchaOverlay) return;
+            crlvCaptchaMeta = meta;
+            crlvCaptchaPlate.value = meta.plate || '';
+            crlvCaptchaRenavam.value = meta.renavam || '';
+            crlvCaptchaDocument.value = meta.document || '';
+            crlvCaptchaInput.value = '';
+            crlvCaptchaError.textContent = message;
+            crlvCaptchaOverlay.classList.remove('hidden');
+            crlvCaptchaOverlay.classList.add('show');
+            crlvCaptchaOverlay.setAttribute('aria-hidden', 'false');
+            loadCrlvCaptchaImage();
+            setTimeout(() => crlvCaptchaInput?.focus(), 0);
+        }
+
+        function closeCrlvCaptchaModal() {
+            if (!crlvCaptchaOverlay) return;
+            crlvCaptchaOverlay.classList.remove('show');
+            crlvCaptchaOverlay.classList.add('hidden');
+            crlvCaptchaOverlay.setAttribute('aria-hidden', 'true');
+            clearCrlvCaptchaImage();
+            crlvCaptchaMeta = null;
+        }
+
+        function buildCrlvPayload({ plate, renavam, document, captcha }) {
+            const digits = normalizeDocument(document || '');
+            const isCpf = digits.length <= 11;
+            const formattedCpf = formatCpf(digits);
+            const formattedCnpj = formatCnpj(digits);
+            const cpf = isCpf ? (formattedCpf || document || '') : '';
+            const cnpj = isCpf ? '' : (formattedCnpj || document || '');
+            const opcaoPesquisa = isCpf ? '1' : '2';
+            const params = new URLSearchParams({
+                placa: plate || '',
+                renavam: renavam || '',
+                cpf,
+                cnpj,
+                captchaResponse: captcha,
+                opcaoPesquisa,
+            });
+            return { params, opcaoPesquisa };
+        }
+
+        function downloadBlob(blob, plate) {
+            if (!blob) return;
+            const sanitizedPlate = (plate || '')
+                .replace(/[^A-Za-z0-9]/g, '')
+                .toUpperCase();
+            const timestamp = Date.now();
+            const filename = `CRLV-${sanitizedPlate || 'veiculo'}-${timestamp}.pdf`;
+            const url = URL.createObjectURL(blob);
+            const link = document.createElement('a');
+            link.href = url;
+            link.download = filename;
+            document.body.appendChild(link);
+            link.click();
+            link.remove();
+            URL.revokeObjectURL(url);
+        }
+
+        async function fetchCrlvPdf({ plate, renavam, document, captcha }) {
+            const { params, opcaoPesquisa } = buildCrlvPayload({
+                plate,
+                renavam,
+                document,
+                captcha,
+            });
+            const response = await fetch(`${API_BASE_URL}/api/emissao-crlv?${params}`, {
+                headers: {
+                    'Accept': 'application/pdf',
+                },
+            });
+            const contentType = response.headers.get('content-type') || '';
+            if (!response.ok) {
+                let message = 'Falha ao emitir o CRLV-e.';
+                if (contentType.includes('application/json')) {
+                    const data = await response.json().catch(() => ({}));
+                    message = data.message || message;
+                } else {
+                    const text = await response.text();
+                    if (text) {
+                        message = text;
+                    }
+                }
+                throw new Error(message);
+            }
+            if (!contentType.includes('application/pdf') && !contentType.includes('application/octet-stream')) {
+                const text = await response.text();
+                const message = text || 'Resposta inesperada ao tentar gerar o PDF do CRLV.';
+                throw new Error(message);
+            }
+            const blob = await response.blob();
+            if (!blob || blob.size === 0) {
+                throw new Error('O PDF retornou vazio.');
+            }
+            return { blob, opcaoPesquisa };
+        }
+
+        async function registerCrlvPesquisa({ plate, renavam, opcaoPesquisa }) {
+            try {
+                await fetch(`${API_BASE_URL}/api/pesquisas`, {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': `Bearer ${authToken}`,
+                        'Content-Type': 'application/json',
+                        'Accept': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        nome: 'Emissão do CRLV-e',
+                        placa: plate,
+                        renavam: renavam,
+                        opcao_pesquisa: opcaoPesquisa,
+                    }),
+                });
+            } catch (error) {
+                console.error('Erro ao registrar pesquisa CRLV-e:', error);
+            }
+        }
+
+        async function performCrlvEmission() {
+            const plate = normalizePlate(crlvPlateInput.value);
+            const renavam = normalizeRenavam(crlvRenavamInput.value);
+            const documentValue = crlvDocumentInput.value.trim();
+            if (!plate) {
+                crlvError.textContent = 'Informe a placa do veículo.';
+                return;
+            }
+            if (!isValidPlate(plate)) {
+                crlvError.textContent = 'Placa inválida.';
+                return;
+            }
+            if (!renavam) {
+                crlvError.textContent = 'Informe o renavam.';
+                return;
+            }
+            if (!isValidRenavam(renavam)) {
+                crlvError.textContent = 'Renavam inválido.';
+                return;
+            }
+            if (!documentValue) {
+                crlvError.textContent = 'Informe o CPF ou CNPJ.';
+                return;
+            }
+            if (!isValidDocument(documentValue)) {
+                crlvError.textContent = 'Documento inválido.';
+                return;
+            }
+
+            const meta = {
+                plate,
+                renavam,
+                document: documentValue,
+            };
+
+            crlvError.textContent = '';
+            setCrlvLoading(true);
+
+            let captcha;
+            try {
+                captcha = await solveBaseCaptcha();
+            } catch (solveError) {
+                const message = solveError?.message || 'Não foi possível resolver o captcha automaticamente.';
+                setCrlvLoading(false);
+                closeCrlvModal();
+                openCrlvCaptchaModal(
+                    meta,
+                    'Captcha automático indisponível. Digite o captcha manualmente.',
+                );
+                return;
+            }
+
+            try {
+                const normalizedCaptcha = captcha.trim().toUpperCase();
+                const { blob, opcaoPesquisa } = await fetchCrlvPdf({
+                    plate,
+                    renavam,
+                    document: documentValue,
+                    captcha: normalizedCaptcha,
+                });
+                closeCrlvModal();
+                downloadBlob(blob, plate);
+                await registerCrlvPesquisa({ plate, renavam, opcaoPesquisa });
+                alert('CRLV-e emitido. Verifique o PDF baixado.');
+            } catch (error) {
+                const message = error?.message || 'Não foi possível emitir o CRLV-e.';
+                if (message.toLowerCase().includes('captcha')) {
+                    closeCrlvModal();
+                    openCrlvCaptchaModal(
+                        meta,
+                        'Captcha automático falhou. Digite o captcha manualmente.',
+                    );
+                    return;
+                }
+                crlvError.textContent = message;
+            } finally {
+                setCrlvLoading(false);
+            }
+        }
+
+        async function performCrlvCaptchaEmission() {
+            if (!crlvCaptchaMeta) {
+                return;
+            }
+            const captcha = crlvCaptchaInput.value.trim().toUpperCase();
+            if (!captcha) {
+                crlvCaptchaError.textContent = 'Informe o captcha.';
+                return;
+            }
+
+            crlvCaptchaError.textContent = '';
+            setCrlvCaptchaLoading(true);
+
+            try {
+                const { blob, opcaoPesquisa } = await fetchCrlvPdf({
+                    plate: crlvCaptchaMeta.plate,
+                    renavam: crlvCaptchaMeta.renavam,
+                    document: crlvCaptchaMeta.document,
+                    captcha,
+                });
+                closeCrlvCaptchaModal();
+                downloadBlob(blob, crlvCaptchaMeta.plate);
+                await registerCrlvPesquisa({
+                    plate: crlvCaptchaMeta.plate,
+                    renavam: crlvCaptchaMeta.renavam,
+                    opcaoPesquisa,
+                });
+                alert('CRLV-e emitido. Verifique o PDF baixado.');
+            } catch (error) {
+                crlvCaptchaError.textContent = error?.message || 'Não foi possível emitir o CRLV-e.';
+                loadCrlvCaptchaImage();
+            } finally {
+                setCrlvCaptchaLoading(false);
             }
         }
 
@@ -3315,6 +3675,11 @@
                     openBloqueiosModal();
                 });
             });
+            document.querySelectorAll('[data-action="crlv"]').forEach((item) => {
+                item.addEventListener('click', () => {
+                    openCrlvModal();
+                });
+            });
             document.querySelectorAll('[data-action="andamento-ecrv"]').forEach((item) => {
                 item.addEventListener('click', () => {
                     openEcrvModal();
@@ -3408,6 +3773,53 @@
             }
         });
         baseCaptchaSubmit.addEventListener('click', performBaseCaptchaSearch);
+
+        crlvClose?.addEventListener('click', closeCrlvModal);
+        crlvCancel?.addEventListener('click', closeCrlvModal);
+        crlvOverlay?.addEventListener('click', (event) => {
+            if (event.target === crlvOverlay) {
+                closeCrlvModal();
+            }
+        });
+        crlvPlateInput?.addEventListener('input', () => {
+            crlvPlateInput.value = normalizePlate(crlvPlateInput.value);
+            crlvError.textContent = '';
+        });
+        crlvRenavamInput?.addEventListener('input', () => {
+            crlvRenavamInput.value = normalizeRenavam(crlvRenavamInput.value);
+            crlvError.textContent = '';
+        });
+        crlvDocumentInput?.addEventListener('input', () => {
+            crlvDocumentInput.value = crlvDocumentInput.value.replace(/\D/g, '');
+            crlvError.textContent = '';
+        });
+        crlvDocumentInput?.addEventListener('keydown', (event) => {
+            if (event.key === 'Enter') {
+                event.preventDefault();
+                performCrlvEmission();
+            }
+        });
+        crlvSubmitBtn?.addEventListener('click', performCrlvEmission);
+
+        crlvCaptchaClose?.addEventListener('click', closeCrlvCaptchaModal);
+        crlvCaptchaCancel?.addEventListener('click', closeCrlvCaptchaModal);
+        crlvCaptchaRefresh?.addEventListener('click', loadCrlvCaptchaImage);
+        crlvCaptchaOverlay?.addEventListener('click', (event) => {
+            if (event.target === crlvCaptchaOverlay) {
+                closeCrlvCaptchaModal();
+            }
+        });
+        crlvCaptchaInput?.addEventListener('input', () => {
+            crlvCaptchaInput.value = crlvCaptchaInput.value.replace(/\s/g, '').toUpperCase();
+            crlvCaptchaError.textContent = '';
+        });
+        crlvCaptchaInput?.addEventListener('keydown', (event) => {
+            if (event.key === 'Enter') {
+                event.preventDefault();
+                performCrlvCaptchaEmission();
+            }
+        });
+        crlvCaptchaSubmit?.addEventListener('click', performCrlvCaptchaEmission);
 
         otherStatesClose.addEventListener('click', closeOtherStatesModal);
         otherStatesCancel.addEventListener('click', closeOtherStatesModal);
@@ -3640,6 +4052,14 @@
             }
             if (!baseCaptchaOverlay.classList.contains('hidden')) {
                 closeBaseCaptchaModal();
+                return;
+            }
+            if (!crlvCaptchaOverlay.classList.contains('hidden')) {
+                closeCrlvCaptchaModal();
+                return;
+            }
+            if (!crlvOverlay.classList.contains('hidden')) {
+                closeCrlvModal();
                 return;
             }
             if (!baseQueryOverlay.classList.contains('hidden')) {

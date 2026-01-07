@@ -136,7 +136,7 @@
         </div>
 
         <div class="action-card" data-permission="crlv">
-            <button class="action-card__main" type="button" data-disabled="true">
+            <button class="action-card__main" type="button" data-action="crlv">
                 <div class="action-card__icon">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                         <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
