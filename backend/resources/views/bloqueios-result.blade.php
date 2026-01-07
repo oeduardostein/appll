@@ -896,9 +896,10 @@
         }
 
         if (!checkAuth()) {
-            return;
+            // checkAuth already redirected
+        } else {
+            renderStoredResult();
         }
-        renderStoredResult();
     </script>
 </body>
 </html>
