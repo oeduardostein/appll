@@ -475,9 +475,30 @@
             return true;
         }
 
-        function getStoredResult() {
+        function safeGetStorage(storage, key) {
             try {
-                return sessionStorage.getItem('bloqueios_ativos_result');
+                return storage.getItem(key);
+            } catch (error) {
+                return null;
+            }
+        }
+
+        function getStoredResult() {
+            const sessionValue = safeGetStorage(sessionStorage, 'bloqueios_ativos_result');
+            if (sessionValue) {
+                return sessionValue;
+            }
+            const localValue = safeGetStorage(localStorage, 'bloqueios_ativos_result');
+            if (localValue) {
+                try {
+                    sessionStorage.setItem('bloqueios_ativos_result', localValue);
+                } catch (error) {
+                    // ignore sessionStorage failures, localStorage already has backup
+                }
+                return localValue;
+            }
+            try {
+                showStatus('Não foi possível acessar o resultado desta pesquisa. Faça uma nova consulta.', true);
             } catch (error) {
                 showStatus('Não foi possível acessar o resultado desta pesquisa. Faça uma nova consulta.', true);
                 return null;
@@ -697,7 +718,7 @@
             const fonteTitulo = formatDisplayValue(fonte.titulo);
             const fonteGerado = formatDisplayValue(fonte.gerado_em);
 
-            const originLabel = state.origin || 'DETRAN';
+            const originLabel = state?.origin || (state?.opcao === '2' ? 'RENAJUD' : 'DETRAN');
             if (originTextEl) {
                 originTextEl.textContent = `Origem: ${originLabel}`;
             }
@@ -810,11 +831,26 @@
                 return;
             }
 
+            if (state && typeof state === 'object' && !state.payload && (state.consulta || state.fonte || state.renajud)) {
+                state = { payload: state };
+            }
+
+            if (state && typeof state === 'object' && state.storedAt) {
+                const minutes = Math.floor((Date.now() - state.storedAt) / 60000);
+                if (minutes >= 30) {
+                    showStatus('Este resultado expirou. Faça uma nova consulta.', true);
+                    resultStackEl.innerHTML = '';
+                    if (copyButton) copyButton.disabled = true;
+                    if (pdfButton) pdfButton.disabled = true;
+                    return;
+                }
+            }
+
             try {
                 renderBloqueios(state);
             } catch (error) {
                 console.error('Erro ao renderizar bloqueios ativos:', error);
-                showStatus('Não foi possível exibir o resultado. Refaca a pesquisa.', true);
+                showStatus('Não foi possível exibir o resultado. Refaça a pesquisa.', true);
                 resultStackEl.innerHTML = '';
             }
         }

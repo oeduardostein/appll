@@ -1817,12 +1817,15 @@
         }
 
         function redirectToBloqueiosResult(result, origin, chassi, opcao) {
-            sessionStorage.setItem('bloqueios_ativos_result', JSON.stringify({
+            const payload = JSON.stringify({
                 payload: result,
                 origin,
                 chassi,
                 opcao,
-            }));
+                storedAt: Date.now(),
+            });
+            sessionStorage.setItem('bloqueios_ativos_result', payload);
+            localStorage.setItem('bloqueios_ativos_result', payload);
             window.location.href = '/resultado-bloqueios-ativos';
         }
 
