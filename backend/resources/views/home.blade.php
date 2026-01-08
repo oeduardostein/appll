@@ -4216,7 +4216,7 @@
         atpvConsultOptionBtn?.addEventListener('click', openAtpvConsultationModal);
         atpvFormOptionBtn?.addEventListener('click', () => {
             closeAtpvOptions();
-            showErrorModal('O formulário completo da ATPV-e está disponível no aplicativo móvel. Utilize a consulta de intenção de venda por enquanto.');
+            window.location.href = '/emissao-atpv/formulario';
         });
         atpvConsultationClose?.addEventListener('click', closeAtpvConsultationModal);
         atpvConsultCancel?.addEventListener('click', closeAtpvConsultationModal);

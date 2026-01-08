@@ -27,6 +27,7 @@ Route::view('/resultado-bin', 'bin-result')->name('bin-result');
 Route::view('/resultado-bloqueios-ativos', 'bloqueios-result')->name('bloqueios-result');
 Route::view('/resultado-ecrv', 'ecrv-result')->name('ecrv-result');
 Route::view('/resultado-atpv', 'atpv-result')->name('atpv-result');
+Route::view('/emissao-atpv/formulario', 'atpv-form')->name('atpv.form');
 Route::get('/excluir-conta', [AccountDeletionController::class, 'show'])->name('account-deletion.form');
 Route::post('/excluir-conta', [AccountDeletionController::class, 'destroy'])->name('account-deletion.submit');
 
