@@ -74,6 +74,15 @@ abstract class BaseAtpvController extends Controller
             return false;
         }
 
+        $successPatterns = [
+            'transação realizada com sucesso',
+            'transacao realizada com sucesso',
+            'atpv-e emitida com sucesso',
+            'atpv emitida com sucesso',
+            'número atpv',
+            'numero atpv',
+        ];
+
         $failurePatterns = [
             'erro',
             'falha',
@@ -88,7 +97,12 @@ abstract class BaseAtpvController extends Controller
             'inconsist',
             'inválido',
             'nao autorizado',
+            'não corresponde',
+            'nao corresponde',
+            'incorreto',
         ];
+
+        $hasSuccess = false;
 
         foreach ($messages as $message) {
             $normalized = mb_strtolower(trim((string) $message));
@@ -101,8 +115,15 @@ abstract class BaseAtpvController extends Controller
                     return true;
                 }
             }
+
+            foreach ($successPatterns as $pattern) {
+                if (str_contains($normalized, $pattern)) {
+                    $hasSuccess = true;
+                    break;
+                }
+            }
         }
 
-        return false;
+        return ! $hasSuccess;
     }
 }
