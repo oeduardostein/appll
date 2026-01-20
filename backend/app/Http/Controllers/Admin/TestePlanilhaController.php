@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
+use App\Http\Controllers\Api\BaseEstadualController;
 use App\Support\DetranHtmlParser;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -13,6 +14,7 @@ use Illuminate\View\View;
 use PhpOffice\PhpSpreadsheet\IOFactory;
 use PhpOffice\PhpSpreadsheet\Spreadsheet;
 use PhpOffice\PhpSpreadsheet\Writer\Xlsx;
+use Symfony\Component\HttpFoundation\Response as SymfonyResponse;
 use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class TestePlanilhaController extends Controller
@@ -188,86 +190,52 @@ class TestePlanilhaController extends Controller
         string $captchaResponse,
         bool $captureDebug = false
     ): array {
-        $headers = [
-            'Accept' => 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7',
-            'Accept-Language' => 'pt-BR,pt;q=0.9,en-US;q=0.8,en;q=0.7',
-            'Cache-Control' => 'max-age=0',
-            'Connection' => 'keep-alive',
-            'Content-Type' => 'application/x-www-form-urlencoded',
-            'Origin' => 'https://www.e-crvsp.sp.gov.br',
-            'Referer' => 'https://www.e-crvsp.sp.gov.br/gever/GVR/pesquisa/baseEstadual.do',
-            'Sec-Fetch-Dest' => 'frame',
-            'Sec-Fetch-Mode' => 'navigate',
-            'Sec-Fetch-Site' => 'same-origin',
-            'Sec-Fetch-User' => '?1',
-            'Upgrade-Insecure-Requests' => '1',
-            'User-Agent' => 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/134.0.0.0 Safari/537.36',
-        ];
-
-        $cookieDomain = 'www.e-crvsp.sp.gov.br';
-
         $payload = [
-            'method' => 'pesquisar',
             'placa' => $placa,
-            'renavam' => $renavam,
-            'municipio' => '0',
-            'chassi' => '',
-            'captchaResponse' => strtoupper($captchaResponse),
+            'captcha' => strtoupper($captchaResponse),
         ];
+
+        if ($renavam !== '') {
+            $payload['renavam'] = $renavam;
+        }
+
+        $targetUrl = '/api/base-estadual';
+        $apiRequest = Request::create($targetUrl, 'GET', $payload);
 
         $debugInfo = null;
         if ($captureDebug) {
             $debugInfo = [
                 'token' => $this->maskToken($token),
-                'captcha' => strtoupper($captchaResponse),
+                'captcha' => $payload['captcha'],
                 'payload' => $payload,
+                'url' => url($targetUrl),
                 'response' => null,
             ];
         }
 
-        $response = Http::timeout(30)
-            ->withHeaders($headers)
-            ->withOptions(['verify' => false])
-            ->withCookies([
-                'dataUsuarPublic' => 'Mon Mar 24 2025 08:14:44 GMT-0300 (Horário Padrão de Brasília)',
-                'JSESSIONID' => $token,
-            ], $cookieDomain)
-            ->asForm()
-            ->post('https://www.e-crvsp.sp.gov.br/gever/GVR/pesquisa/baseEstadual.do', $payload);
-
-        if (!$response->successful()) {
-            if ($captureDebug && $debugInfo !== null) {
-                $debugInfo['response'] = [
-                    'status' => $response->status(),
-                    'body' => $this->truncateResponse($response->body()),
-                ];
-            }
-
-            return [
-                'error' => 'Falha na comunicação com o Detran (HTTP ' . $response->status() . ')',
-                'debug' => $debugInfo,
-            ];
-        }
-
-        $body = $response->body();
+        /** @var \Symfony\Component\HttpFoundation\Response $response */
+        $response = app()->call([BaseEstadualController::class, '__invoke'], ['request' => $apiRequest]);
+        $status = $response->getStatusCode();
+        $body = $response->getContent();
+        $decoded = json_decode($body, true);
 
         if ($captureDebug && $debugInfo !== null) {
             $debugInfo['response'] = [
-                'status' => $response->status(),
+                'status' => $status,
                 'body' => $this->truncateResponse($body),
             ];
         }
 
-        $errors = $this->extractErrors($body);
-        if (!empty($errors)) {
+        if ($status !== SymfonyResponse::HTTP_OK) {
+            $errorMessage = $decoded['message'] ?? 'Erro ao consultar a base estadual.';
             return [
-                'error' => $errors[0],
+                'error' => $errorMessage,
                 'debug' => $debugInfo,
             ];
         }
 
         return [
-            'data' => DetranHtmlParser::parse($body),
+            'data' => is_array($decoded) ? $decoded : [],
             'debug' => $debugInfo,
         ];
     }
