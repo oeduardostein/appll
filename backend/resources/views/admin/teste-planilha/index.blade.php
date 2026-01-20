@@ -153,6 +153,17 @@
             background: #e8ecf3;
         }
 
+        .teste-planilha__btn--warning {
+            background: #f97316;
+            color: #fff;
+            box-shadow: 0 12px 24px rgba(249, 115, 22, 0.2);
+        }
+
+        .teste-planilha__btn--warning:hover:not(:disabled) {
+            background: #ea580c;
+            transform: translateY(-1px);
+        }
+
         .teste-planilha__btn--success {
             background: #16a34a;
             color: #fff;
@@ -382,6 +393,13 @@
                 </svg>
                 Limpar
             </button>
+
+            <button type="button" class="teste-planilha__btn teste-planilha__btn--warning" id="btnPause" disabled>
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
+                    <path d="M8 5h3v14H8zM13 5h3v14h-3z" fill="currentColor"/>
+                </svg>
+                Pausar
+            </button>
         </div>
 
         <div class="teste-planilha__progress" id="progressBar">
@@ -447,6 +465,8 @@
 
             let planilhaData = [];
             let isProcessing = false;
+            let isPaused = false;
+            let pauseResolvers = [];
 
             // Elements
             const fileInput = document.getElementById('fileInput');
@@ -455,6 +475,7 @@
             const nomeVerificacao = document.getElementById('nomeVerificacao');
             const btnIniciar = document.getElementById('btnIniciar');
             const btnLimpar = document.getElementById('btnLimpar');
+            const btnPause = document.getElementById('btnPause');
             const btnDownload = document.getElementById('btnDownload');
             const progressBar = document.getElementById('progressBar');
             const progressFill = document.getElementById('progressFill');
@@ -589,6 +610,16 @@
                 return div.innerHTML;
             }
 
+            function waitForResume() {
+                if (!isPaused) {
+                    return Promise.resolve();
+                }
+
+                return new Promise((resolve) => {
+                    pauseResolvers.push(resolve);
+                });
+            }
+
             async function fetchCaptchaSolution() {
                 const response = await fetch(CAPTCHA_SOLVE_URL, {
                     headers: {
@@ -618,6 +649,18 @@
                 return solution;
             }
 
+            btnPause.addEventListener('click', () => {
+                if (!isProcessing) return;
+
+                isPaused = !isPaused;
+                btnPause.textContent = isPaused ? 'Retomar' : 'Pausar';
+
+                if (!isPaused && pauseResolvers.length > 0) {
+                    pauseResolvers.forEach(resolve => resolve());
+                    pauseResolvers = [];
+                }
+            });
+
             // Nome verificacao input
             nomeVerificacao.addEventListener('input', () => {
                 btnIniciar.disabled = !nomeVerificacao.value.trim() || planilhaData.length === 0;
@@ -637,11 +680,16 @@
                 btnIniciar.disabled = true;
                 btnDownload.disabled = true;
                 progressBar.classList.add('is-visible');
+                btnPause.disabled = false;
+                isPaused = false;
+                btnPause.textContent = 'Pausar';
+                pauseResolvers = [];
 
                 const total = planilhaData.length;
                 let completed = 0;
 
                 for (let i = 0; i < planilhaData.length; i++) {
+                    await waitForResume();
                     const row = planilhaData[i];
 
                     if (!row.placa) {
@@ -685,7 +733,8 @@
                                 placa: row.placa,
                                 renavam: row.renavam,
                                 nome_verificacao: nome,
-                                captcha_response: captchaSolution
+                                captcha_response: captchaSolution,
+                                debug: true
                             })
                         });
 
@@ -723,6 +772,10 @@
                 isProcessing = false;
                 btnIniciar.disabled = false;
                 btnDownload.disabled = false;
+                btnPause.disabled = true;
+                isPaused = false;
+                pauseResolvers = [];
+                btnPause.textContent = 'Pausar';
             });
 
             function updateProgress(completed, total) {
@@ -759,6 +812,10 @@
                 emptyState.style.display = 'block';
                 btnIniciar.disabled = true;
                 btnDownload.disabled = true;
+                btnPause.disabled = true;
+                isPaused = false;
+                pauseResolvers = [];
+                btnPause.textContent = 'Pausar';
             });
 
             // Download
