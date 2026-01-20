@@ -20,10 +20,6 @@ use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class TransferVerificationController extends Controller
 {
-    public function __construct(private readonly DetranCaptchaClient $captchaClient)
-    {
-    }
-
     /**
      * Display the transfer verification page.
      */
@@ -265,7 +261,8 @@ class TransferVerificationController extends Controller
         }
 
         try {
-            $captcha = $this->captchaClient->fetch();
+            $captchaClient = app(DetranCaptchaClient::class);
+            $captcha = $captchaClient->fetch();
         } catch (CaptchaException $e) {
             Log::warning('TransferVerification: Failed to fetch captcha', ['error' => $e->getMessage()]);
             return null;
