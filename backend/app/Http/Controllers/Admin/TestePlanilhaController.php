@@ -104,7 +104,7 @@ class TestePlanilhaController extends Controller
     private function resolveCaptcha(): string
     {
         /** @var JsonResponse $response */
-        $response = app()->call([CaptchaSolveController::class, '__invoke']);
+        $response = app(CaptchaSolveController::class)->__invoke();
 
         if (!$response instanceof JsonResponse) {
             throw new \RuntimeException('Resposta inesperada ao resolver o captcha.');
