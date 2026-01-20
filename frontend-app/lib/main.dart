@@ -21,6 +21,15 @@ class FrontendApp extends StatelessWidget {
       title: 'frontend-app',
       debugShowCheckedModeBanner: false,
       theme: AppTheme.theme,
+      builder: (context, child) {
+        return GestureDetector(
+          behavior: HitTestBehavior.translucent,
+          onTap: () {
+            FocusManager.instance.primaryFocus?.unfocus();
+          },
+          child: child ?? const SizedBox.shrink(),
+        );
+      },
       home: const AuthGate(),
       routes: {
         LoginPage.routeName: (_) => const LoginPage(),
