@@ -212,7 +212,7 @@ class TestePlanilhaController extends Controller
         }
 
         /** @var \Symfony\Component\HttpFoundation\Response $response */
-        $response = app()->call([BaseEstadualController::class, '__invoke'], ['request' => $apiRequest]);
+        $response = app(BaseEstadualController::class)->__invoke($apiRequest);
         $status = $response->getStatusCode();
         $body = $response->getContent();
         $decoded = json_decode($body, true);
