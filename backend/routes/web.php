@@ -7,6 +7,7 @@ use App\Http\Controllers\Admin\CreditManagementController;
 use App\Http\Controllers\Admin\PasswordResetController;
 use App\Http\Controllers\Admin\ReportController;
 use App\Http\Controllers\Admin\SettingsController;
+use App\Http\Controllers\Admin\TransferVerificationController;
 use App\Http\Controllers\Admin\UserController;
 use Illuminate\Support\Facades\Route;
 
@@ -59,5 +60,10 @@ Route::prefix('admin')->name('admin.')->group(function () {
         Route::get('/gestao-creditos', [CreditManagementController::class, 'index'])->name('payments.index');
         Route::post('/gestao-creditos/{user}/marcar-pago', [CreditManagementController::class, 'markPaid'])->name('payments.mark-paid');
         Route::post('/gestao-creditos/{user}/inativar', [CreditManagementController::class, 'deactivate'])->name('payments.deactivate');
+
+        Route::get('/verificacao-transferencias', [TransferVerificationController::class, 'index'])->name('transfer-verification.index');
+        Route::post('/verificacao-transferencias/upload', [TransferVerificationController::class, 'upload'])->name('transfer-verification.upload');
+        Route::post('/verificacao-transferencias/verify', [TransferVerificationController::class, 'verify'])->name('transfer-verification.verify');
+        Route::get('/verificacao-transferencias/download', [TransferVerificationController::class, 'download'])->name('transfer-verification.download');
     });
 });
