@@ -120,8 +120,19 @@
 
         .be-result-title {
             flex: 1;
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+        }
+
+        .be-result-title-text {
             font-size: 20px;
             font-weight: 700;
+        }
+
+        .be-result-subtitle {
+            font-size: 14px;
+            color: rgba(255, 255, 255, 0.85);
         }
 
         .be-result-body {
@@ -195,17 +206,29 @@
             color: #64748B;
         }
 
-        .vehicle-tiles {
-            display: grid;
-            grid-template-columns: 1fr;
-            gap: 12px;
-            margin-bottom: 16px;
+        .vehicle-info-row {
+            margin-bottom: 12px;
         }
 
-        @media (min-width: 640px) {
-            .vehicle-tiles {
-                grid-template-columns: 1fr 1fr;
-            }
+        .vehicle-info-label {
+            font-size: 12px;
+            font-weight: 600;
+            color: var(--text-soft);
+            text-transform: uppercase;
+            margin-bottom: 4px;
+        }
+
+        .vehicle-info-value {
+            font-size: 16px;
+            font-weight: 700;
+            color: var(--text-strong);
+        }
+
+        .vehicle-tiles {
+            display: grid;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 12px;
+            margin-bottom: 16px;
         }
 
         .vehicle-tile {
@@ -226,6 +249,11 @@
             font-size: 16px;
             font-weight: 700;
             color: #1E293B;
+        }
+
+        .vehicle-summary-footer {
+            display: flex;
+            justify-content: flex-end;
         }
 
         .vehicle-tile-badge {
@@ -434,7 +462,10 @@
                         <polyline points="15 18 9 12 15 6"></polyline>
                     </svg>
                 </button>
-                <div class="be-result-title">Consulta base outros estados</div>
+                <div class="be-result-title">
+                    <div class="be-result-title-text">Base outros estados</div>
+                    <div class="be-result-subtitle" id="baseOutrosSubtitle">Chassi: —</div>
+                </div>
                 <div class="header-actions">
                     <button class="icon-button" type="button" id="baseOutrosPdfBtn" title="Emitir PDF" onclick="emitBaseOutrosEstadosPdf()">
                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -465,6 +496,7 @@
     <script>
         const baseResultContent = document.getElementById('baseResultContent');
         const baseResultBack = document.getElementById('baseResultBack');
+        const baseOutrosSubtitle = document.getElementById('baseOutrosSubtitle');
         const authToken = localStorage.getItem('auth_token');
         const csrfToken = document.querySelector('meta[name="csrf-token"]')?.content;
         let metaData = null;
@@ -527,50 +559,26 @@
             return html;
         }
 
-        function renderQueryCard(meta) {
-            if (!meta || (!meta.chassi && !meta.uf)) {
-                return '';
-            }
-
-            const rows = buildInfoRows(
-                { chassi: meta.chassi, uf: meta.uf },
-                { chassi: 'Chassi', uf: 'UF' }
-            );
-
-            if (!rows) {
-                return '';
-            }
-
-            return `
-                <div class="section-card">
-                    <div class="section-title">Consulta realizada</div>
-                    ${rows}
-                </div>
-            `;
-        }
-
         function displayBaseOutrosEstadosResult(data) {
             const content = baseResultContent;
-            const metaHtml = renderQueryCard(metaData);
 
             if (data.veiculo || data.fonte) {
                 const veiculo = data.veiculo || {};
                 const proprietario = data.proprietario || {};
-                const crvCrlv = data.crv_crlv_atualizacao || {};
 
                 const placaValue = formatDisplayValue(veiculo.placa);
                 const marca = parseMarca(veiculo.marca);
                 const anoModelo = formatDisplayValue(veiculo.ano_modelo);
                 const anoFab = formatDisplayValue(veiculo.ano_fabricacao);
                 const anoDisplay = buildAnoModelo(anoModelo, anoFab);
+                const chassiValue = formatDisplayValue(metaData?.chassi || veiculo.chassi);
                 const municipio = formatDisplayValue(veiculo.municipio);
                 const proprietarioNome = formatDisplayValue(proprietario.nome);
-                const licenciamentoEx = formatDisplayValue(crvCrlv.exercicio_licenciamento);
-                const licenciamentoData = formatDisplayValue(crvCrlv.data_licenciamento);
-                const licStatus = licenciamentoData !== '—' ? 'em dia' : 'Não informado';
+                if (baseOutrosSubtitle) {
+                    baseOutrosSubtitle.textContent = `Chassi: ${chassiValue}`;
+                }
 
                 let html = `
-                    ${metaHtml}
                     <div class="vehicle-summary-card">
                         <div class="vehicle-header">
                             <div class="vehicle-icon">
@@ -584,22 +592,21 @@
                                 <div class="vehicle-ano">${anoDisplay}</div>
                             </div>
                         </div>
+                        <div class="vehicle-info-row">
+                            <div class="vehicle-info-label">Chassi consultado</div>
+                            <div class="vehicle-info-value">${chassiValue}</div>
+                        </div>
                         <div class="vehicle-tiles">
-                            <div class="vehicle-tile">
-                                <div class="vehicle-tile-label">Licenciamento</div>
-                                <div class="vehicle-tile-value">${licenciamentoEx}</div>
-                                <span class="vehicle-tile-badge" style="background: rgba(76, 175, 80, 0.15); color: #4CAF50;">${licStatus}</span>
-                            </div>
                             <div class="vehicle-tile">
                                 <div class="vehicle-tile-label">Município</div>
                                 <div class="vehicle-tile-value">${municipio}</div>
                             </div>
-                        </div>
-                        <div class="vehicle-proprietario">
-                            <div>
-                                <div class="vehicle-proprietario-label">Proprietário</div>
-                                <div class="vehicle-proprietario-value">${proprietarioNome}</div>
+                            <div class="vehicle-tile">
+                                <div class="vehicle-tile-label">Proprietário</div>
+                                <div class="vehicle-tile-value">${proprietarioNome}</div>
                             </div>
+                        </div>
+                        <div class="vehicle-summary-footer">
                             <button class="btn-text-link" type="button" onclick="showVehicleDetails()">Ver completo</button>
                         </div>
                     </div>
@@ -676,7 +683,6 @@
                 window.baseResultData = data;
             } else if (data.message) {
                 content.innerHTML = `
-                    ${metaHtml}
                     <div class="result-card">
                         <div style="padding: 16px; text-align: center;">
                             <p style="font-size: 16px; color: #1E293B;">${data.message}</p>
@@ -685,7 +691,6 @@
                 `;
             } else {
                 content.innerHTML = `
-                    ${metaHtml}
                     <div class="result-card">
                         <pre style="background: #F8FAFC; padding: 16px; border-radius: 12px; border: 1px solid #E2E8F0; font-size: 13px; overflow-x: auto;">${JSON.stringify(data, null, 2)}</pre>
                     </div>
@@ -817,6 +822,21 @@
                 }
             }
 
+            const chassiValue = formatDisplayValue(
+                metaData?.chassi || window.baseResultData.veiculo?.chassi
+            );
+            if (chassiValue !== '—') {
+                html += `
+                    <div class="section-card">
+                        <div class="section-title">Consulta</div>
+                        <div class="info-row">
+                            <div class="info-label">Chassi consultado</div>
+                            <div class="info-value">${chassiValue}</div>
+                        </div>
+                    </div>
+                `;
+            }
+
             modalBody.innerHTML = html || '<p style="text-align: center; color: #64748B;">Nenhuma informação disponível.</p>';
             modal.classList.add('show');
         }
@@ -833,7 +853,8 @@
             let html = '';
 
             if (window.baseResultData.gravames) {
-                const gravamesRows = buildInfoRows(window.baseResultData.gravames, {
+                const { datas, ...gravamesBase } = window.baseResultData.gravames;
+                const gravamesRows = buildInfoRows(gravamesBase, {
                     'restricao_financeira': 'Restrição financeira',
                     'nome_agente': 'Nome do agente',
                     'arrendatario': 'Arrendatário',
@@ -841,6 +862,13 @@
                 });
                 if (gravamesRows) {
                     html += `<div class="section-card"><div class="section-title">Gravame atual</div>${gravamesRows}</div>`;
+                }
+
+                const gravameDatasRows = buildInfoRows(datas, {
+                    'inclusao_financiamento': 'Inclusão financiamento',
+                });
+                if (gravameDatasRows) {
+                    html += `<div class="section-card"><div class="section-title">Gravame - Datas</div>${gravameDatasRows}</div>`;
                 }
             }
 
@@ -1052,6 +1080,9 @@
         if (checkAuth()) {
             const resultData = loadResultFromStorage();
             metaData = loadMetaFromStorage();
+            if (baseOutrosSubtitle && metaData?.chassi) {
+                baseOutrosSubtitle.textContent = `Chassi: ${formatDisplayValue(metaData.chassi)}`;
+            }
             if (resultData) {
                 displayBaseOutrosEstadosResult(resultData);
             } else {

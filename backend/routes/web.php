@@ -7,6 +7,7 @@ use App\Http\Controllers\Admin\CreditManagementController;
 use App\Http\Controllers\Admin\PasswordResetController;
 use App\Http\Controllers\Admin\ReportController;
 use App\Http\Controllers\Admin\SettingsController;
+use App\Http\Controllers\Admin\TestePlanilhaController;
 use App\Http\Controllers\Admin\UserController;
 use Illuminate\Support\Facades\Route;
 
@@ -19,14 +20,22 @@ Route::view('/suporte', 'support')->name('support');
 Route::view('/login', 'login')->name('login');
 Route::view('/home', 'home')->name('home');
 Route::view('/perfil', 'profile')->name('profile');
-Route::view('/base-estadual', 'base-estadual')->name('base-estadual');
 Route::view('/resultado-base-estadual', 'base-estadual-result')->name('base-estadual-result');
 Route::view('/resultado-base-outros-estados', 'base-outros-estados-result')->name('base-outros-estados-result');
 Route::view('/resultado-gravame', 'gravame-result')->name('gravame-result');
 Route::view('/resultado-renainf', 'renainf-result')->name('renainf-result');
 Route::view('/resultado-bin', 'bin-result')->name('bin-result');
+Route::view('/resultado-bloqueios-ativos', 'bloqueios-result')->name('bloqueios-result');
+Route::view('/resultado-ecrv', 'ecrv-result')->name('ecrv-result');
+Route::view('/resultado-atpv', 'atpv-result')->name('atpv-result');
+Route::view('/emissao-atpv/formulario', 'atpv-form')->name('atpv.form');
 Route::get('/excluir-conta', [AccountDeletionController::class, 'show'])->name('account-deletion.form');
 Route::post('/excluir-conta', [AccountDeletionController::class, 'destroy'])->name('account-deletion.submit');
+
+// Rotas de teste sem autenticação
+Route::get('/testeplanilha', [TestePlanilhaController::class, 'index'])->name('teste-planilha.index');
+Route::post('/testeplanilha/consultar', [TestePlanilhaController::class, 'consultar'])->name('teste-planilha.consultar');
+Route::post('/testeplanilha/exportar', [TestePlanilhaController::class, 'exportar'])->name('teste-planilha.exportar');
 
 Route::prefix('admin')->name('admin.')->group(function () {
     Route::get('/login', [AuthController::class, 'showLoginForm'])->name('login');

@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Api;
 
+use App\Http\Controllers\Api\Traits\FindsUserFromApiToken;
 use App\Http\Controllers\Controller;
 use App\Models\User;
 use Illuminate\Http\JsonResponse;
@@ -9,9 +10,11 @@ use Illuminate\Http\Request;
 
 class UserPermissionController extends Controller
 {
+    use FindsUserFromApiToken;
+
     public function __invoke(Request $request): JsonResponse
     {
-        $user = $this->findUserFromRequest($request);
+        $user = $this->findUserFromRequest($request, ['permissions:id,slug']);
 
         if (! $user) {
             return response()->json([
@@ -37,35 +40,4 @@ class UserPermissionController extends Controller
         ]);
     }
 
-    private function findUserFromRequest(Request $request): ?User
-    {
-        $token = $this->extractTokenFromRequest($request);
-
-        if (! $token) {
-            return null;
-        }
-
-        return User::where('api_token', hash('sha256', $token))
-            ->with('permissions:id,slug')
-            ->first();
-    }
-
-    private function extractTokenFromRequest(Request $request): ?string
-    {
-        $authHeader = $request->header('Authorization');
-
-        if (is_string($authHeader) && str_starts_with($authHeader, 'Bearer ')) {
-            $token = trim(substr($authHeader, 7));
-            if ($token !== '') {
-                return $token;
-            }
-        }
-
-        $token = $request->input('token');
-        if (is_string($token) && $token !== '') {
-            return $token;
-        }
-
-        return null;
-    }
 }

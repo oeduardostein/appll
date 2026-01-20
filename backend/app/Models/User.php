@@ -8,6 +8,8 @@ use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Builder;
+use App\Models\ApiToken;
 
 class User extends Authenticatable
 {
@@ -87,5 +89,26 @@ class User extends Authenticatable
             ->belongsToMany(Permission::class, 'user_permissions')
             ->withTimestamps()
             ->withPivot(['credit_value']);
+    }
+
+    public function apiTokens(): HasMany
+    {
+        return $this->hasMany(ApiToken::class);
+    }
+
+    public static function findByApiToken(string $token, array $with = []): ?self
+    {
+        $hash = hash('sha256', $token);
+
+        $query = static::query()
+            ->whereHas('apiTokens', function ($query) use ($hash) {
+                $query->where('token', $hash);
+            });
+
+        if (!empty($with)) {
+            $query->with($with);
+        }
+
+        return $query->first();
     }
 }

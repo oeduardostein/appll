@@ -2,6 +2,7 @@
 
 namespace Tests\Feature\Api\Auth;
 
+use App\Models\ApiToken;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
@@ -32,7 +33,14 @@ class AuthControllerTest extends TestCase
         $this->assertDatabaseHas('users', [
             'email' => 'john@example.com',
             'name' => 'john-doe',
-            'api_token' => $hashedToken,
+        ]);
+
+        $user = User::where('email', 'john@example.com')->first();
+        $this->assertNotNull($user);
+
+        $this->assertDatabaseHas('api_tokens', [
+            'user_id' => $user->id,
+            'token' => $hashedToken,
         ]);
     }
 
@@ -52,7 +60,11 @@ class AuthControllerTest extends TestCase
         $byEmail->assertOk()->assertJsonPath('status', 'success');
         $emailToken = $byEmail->json('token');
         $this->assertIsString($emailToken);
-        $this->assertSame(hash('sha256', $emailToken), $user->fresh()->api_token);
+        $this->assertDatabaseHas('api_tokens', [
+            'user_id' => $user->id,
+            'token' => hash('sha256', $emailToken),
+        ]);
+        $this->assertSame(1, ApiToken::where('user_id', $user->id)->count());
 
         $byUsername = $this->postJson('/api/auth/login', [
             'identifier' => $user->name,
@@ -62,14 +74,20 @@ class AuthControllerTest extends TestCase
         $byUsername->assertOk()->assertJsonPath('status', 'success');
         $usernameToken = $byUsername->json('token');
         $this->assertIsString($usernameToken);
-        $this->assertSame(hash('sha256', $usernameToken), $user->fresh()->api_token);
+        $this->assertDatabaseHas('api_tokens', [
+            'user_id' => $user->id,
+            'token' => hash('sha256', $usernameToken),
+        ]);
+        $this->assertSame(2, ApiToken::where('user_id', $user->id)->count());
     }
 
     public function test_logout_returns_success_payload(): void
     {
         $token = 'logout-token';
-        $user = User::factory()->create([
-            'api_token' => hash('sha256', $token),
+        $user = User::factory()->create();
+        ApiToken::create([
+            'user_id' => $user->id,
+            'token' => hash('sha256', $token),
         ]);
 
         $response = $this->postJson('/api/auth/logout', [], [
@@ -82,7 +100,10 @@ class AuthControllerTest extends TestCase
             'message' => 'Logout realizado com sucesso.',
             'redirect_to' => 'login',
         ]);
-        $this->assertNull($user->fresh()->api_token);
+        $this->assertDatabaseMissing('api_tokens', [
+            'user_id' => $user->id,
+            'token' => hash('sha256', $token),
+        ]);
     }
 
     public function test_logout_requires_valid_token(): void
@@ -96,8 +117,10 @@ class AuthControllerTest extends TestCase
     public function test_current_returns_authenticated_user(): void
     {
         $token = 'current-token';
-        $user = User::factory()->create([
-            'api_token' => hash('sha256', $token),
+        $user = User::factory()->create();
+        ApiToken::create([
+            'user_id' => $user->id,
+            'token' => hash('sha256', $token),
         ]);
 
         $response = $this->getJson('/api/auth/user', [

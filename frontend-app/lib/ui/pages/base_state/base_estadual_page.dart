@@ -1326,7 +1326,43 @@ class _DebitosSummaryCard extends StatelessWidget {
     if (raw is num) return raw.toDouble();
     final text = raw.toString().trim();
     if (text.isEmpty) return 0;
-    final normalized = text.replaceAll('.', '').replaceAll(',', '.');
+
+    final sanitized = text.replaceAll(RegExp(r'[^\d.,-]'), '');
+    if (sanitized.isEmpty) return 0;
+
+    final lastDot = sanitized.lastIndexOf('.');
+    final lastComma = sanitized.lastIndexOf(',');
+    var decimalIndex = -1;
+
+    if (lastDot >= 0 || lastComma >= 0) {
+      final candidateIndex = lastDot > lastComma ? lastDot : lastComma;
+      final digitsAfterSeparator = sanitized.length - candidateIndex - 1;
+      if (digitsAfterSeparator <= 2) {
+        decimalIndex = candidateIndex;
+      }
+    }
+
+    final buffer = StringBuffer();
+    for (var i = 0; i < sanitized.length; i++) {
+      final char = sanitized[i];
+      if (char == '.' || char == ',') {
+        if (i == decimalIndex) {
+          buffer.write('.');
+        }
+        continue;
+      }
+      if (char == '-' && buffer.isEmpty) {
+        buffer.write(char);
+        continue;
+      }
+      buffer.write(char);
+    }
+
+    final normalized = buffer.toString();
+    if (normalized.isEmpty || normalized == '-' || normalized == '+') {
+      return 0;
+    }
+
     return double.tryParse(normalized) ?? 0;
   }
 
