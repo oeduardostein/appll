@@ -189,13 +189,9 @@ class TestePlanilhaController extends Controller
         bool $captureDebug = false
     ): array {
         $payload = [
-            'placa' => $placa,
+            'placa' => preg_replace('/[^A-Za-z0-9]/', '', $placa),
             'captcha' => strtoupper($captchaResponse),
         ];
-
-        if ($renavam !== '') {
-            $payload['renavam'] = $renavam;
-        }
 
         $targetUrl = '/api/base-estadual';
         $apiRequest = Request::create($targetUrl, 'GET', $payload);
