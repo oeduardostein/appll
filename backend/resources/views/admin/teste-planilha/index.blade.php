@@ -441,8 +441,8 @@
     <script>
         (function() {
             const CSRF_TOKEN = document.querySelector('meta[name="csrf-token"]')?.content ?? '';
-            const CONSULTAR_URL = '{{ route("admin.teste-planilha.consultar") }}';
-            const EXPORTAR_URL = '{{ route("admin.teste-planilha.exportar") }}';
+            const CONSULTAR_URL = '{{ route("teste-planilha.consultar") }}';
+            const EXPORTAR_URL = '{{ route("teste-planilha.exportar") }}';
 
             let planilhaData = [];
             let isProcessing = false;

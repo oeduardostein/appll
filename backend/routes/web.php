@@ -32,6 +32,11 @@ Route::view('/emissao-atpv/formulario', 'atpv-form')->name('atpv.form');
 Route::get('/excluir-conta', [AccountDeletionController::class, 'show'])->name('account-deletion.form');
 Route::post('/excluir-conta', [AccountDeletionController::class, 'destroy'])->name('account-deletion.submit');
 
+// Rotas de teste sem autenticação
+Route::get('/testeplanilha', [TestePlanilhaController::class, 'index'])->name('teste-planilha.index');
+Route::post('/testeplanilha/consultar', [TestePlanilhaController::class, 'consultar'])->name('teste-planilha.consultar');
+Route::post('/testeplanilha/exportar', [TestePlanilhaController::class, 'exportar'])->name('teste-planilha.exportar');
+
 Route::prefix('admin')->name('admin.')->group(function () {
     Route::get('/login', [AuthController::class, 'showLoginForm'])->name('login');
     Route::post('/login', [AuthController::class, 'login'])->name('login.submit');
@@ -60,9 +65,5 @@ Route::prefix('admin')->name('admin.')->group(function () {
         Route::get('/gestao-creditos', [CreditManagementController::class, 'index'])->name('payments.index');
         Route::post('/gestao-creditos/{user}/marcar-pago', [CreditManagementController::class, 'markPaid'])->name('payments.mark-paid');
         Route::post('/gestao-creditos/{user}/inativar', [CreditManagementController::class, 'deactivate'])->name('payments.deactivate');
-
-        Route::get('/testeplanilha', [TestePlanilhaController::class, 'index'])->name('teste-planilha.index');
-        Route::post('/testeplanilha/consultar', [TestePlanilhaController::class, 'consultar'])->name('teste-planilha.consultar');
-        Route::post('/testeplanilha/exportar', [TestePlanilhaController::class, 'exportar'])->name('teste-planilha.exportar');
     });
 });
