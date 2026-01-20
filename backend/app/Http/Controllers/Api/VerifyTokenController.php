@@ -2,7 +2,6 @@
 
 namespace App\Http\Controllers\Api;
 
-use App\Services\DetranCaptchaClient;
 use Illuminate\Http\Request;
 use Illuminate\Routing\Controller;
 use Illuminate\Support\Facades\DB;
@@ -12,9 +11,6 @@ use Symfony\Component\HttpFoundation\Response;
 
 class VerifyTokenController extends Controller
 {
-    public function __construct(private readonly DetranCaptchaClient $captchaClient)
-    {
-    }
 
     /**
      * Verifica se o token JSESSIONID armazenado no banco está funcionando.
