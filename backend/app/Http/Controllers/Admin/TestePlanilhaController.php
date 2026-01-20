@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
+use App\Http\Controllers\Api\CaptchaSolveController;
 use App\Support\DetranHtmlParser;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -13,6 +14,7 @@ use Illuminate\View\View;
 use PhpOffice\PhpSpreadsheet\IOFactory;
 use PhpOffice\PhpSpreadsheet\Spreadsheet;
 use PhpOffice\PhpSpreadsheet\Writer\Xlsx;
+use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class TestePlanilhaController extends Controller
@@ -23,7 +25,7 @@ class TestePlanilhaController extends Controller
     }
 
     /**
-     * Consulta a base estadual para uma placa/renavam específico (sem captcha para admin).
+     * Consulta a base estadual para uma placa/renavam específico usando captcha automático.
      */
     public function consultar(Request $request): JsonResponse
     {
@@ -48,7 +50,8 @@ class TestePlanilhaController extends Controller
         }
 
         try {
-            $result = $this->queryBaseEstadual($placa, $renavam, $token);
+            $captchaResponse = $this->resolveCaptcha();
+            $result = $this->queryBaseEstadual($placa, $renavam, $token, $captchaResponse);
 
             if (isset($result['error'])) {
                 return response()->json([
@@ -91,6 +94,36 @@ class TestePlanilhaController extends Controller
                 'obs' => 'ERRO NA CONSULTA',
             ]);
         }
+    }
+
+    /**
+     * Resolve o captcha automático antes de consultar a base estadual.
+     *
+     * @throws \RuntimeException
+     */
+    private function resolveCaptcha(): string
+    {
+        /** @var JsonResponse $response */
+        $response = app()->call([CaptchaSolveController::class, '__invoke']);
+
+        if (!$response instanceof JsonResponse) {
+            throw new \RuntimeException('Resposta inesperada ao resolver o captcha.');
+        }
+
+        $payload = $response->getData(true);
+
+        if ($response->getStatusCode() !== Response::HTTP_OK) {
+            $message = $payload['message'] ?? 'Captcha automático indisponível no momento.';
+            throw new \RuntimeException($message, $response->getStatusCode());
+        }
+
+        $solution = strtoupper(trim((string) ($payload['solution'] ?? '')));
+
+        if ($solution === '') {
+            throw new \RuntimeException('Captcha retornado inválido.');
+        }
+
+        return $solution;
     }
 
     /**
@@ -152,9 +185,9 @@ class TestePlanilhaController extends Controller
     }
 
     /**
-     * Consulta a base estadual do Detran SP.
+     * Consulta a base estadual do Detran SP usando um captcha resolvido.
      */
-    private function queryBaseEstadual(string $placa, string $renavam, string $token): array
+    private function queryBaseEstadual(string $placa, string $renavam, string $token, string $captchaResponse): array
     {
         $headers = [
             'Accept' => 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7',
@@ -188,7 +221,7 @@ class TestePlanilhaController extends Controller
                 'renavam' => $renavam,
                 'municipio' => '0',
                 'chassi' => '',
-                'captchaResponse' => '',
+                'captchaResponse' => strtoupper($captchaResponse),
             ]);
 
         if (!$response->successful()) {
