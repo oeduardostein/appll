@@ -19,11 +19,6 @@
             'active_pattern' => 'admin.payments.*',
         ],
         [
-            'label' => 'Verificação',
-            'route_name' => 'admin.transfer-verification.index',
-            'active_pattern' => 'admin.transfer-verification.*',
-        ],
-        [
             'label' => 'Relatórios',
             'route_name' => 'admin.reports.index',
             'active_pattern' => 'admin.reports.*',
