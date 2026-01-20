@@ -59,21 +59,28 @@ class TestePlanilhaController extends Controller
             ], 422);
         }
 
+        $debugMode = filter_var($request->input('debug', false), FILTER_VALIDATE_BOOLEAN);
+
         try {
-            $result = $this->queryBaseEstadual($placa, $renavam, $token, $captchaResponse);
+            $result = $this->queryBaseEstadual($placa, $renavam, $token, $captchaResponse, $debugMode);
 
             if (isset($result['error'])) {
-                return response()->json([
+                $responsePayload = [
                     'success' => false,
                     'error' => $result['error'],
                     'nome_proprietario' => null,
                     'data_crlv' => null,
                     'obs' => 'ERRO NA CONSULTA',
-                ]);
+                ];
+                if ($debugMode && isset($result['debug'])) {
+                    $responsePayload['meta'] = $result['debug'];
+                }
+                return response()->json($responsePayload);
             }
 
-            $nomeProprietario = $result['proprietario']['nome'] ?? null;
-            $dataCrlv = $result['crv_crlv_atualizacao']['data_licenciamento'] ?? null;
+            $parsed = $result['data'] ?? $result;
+            $nomeProprietario = $parsed['proprietario']['nome'] ?? null;
+            $dataCrlv = $parsed['crv_crlv_atualizacao']['data_licenciamento'] ?? null;
 
             $obs = '';
             if ($nomeProprietario && $nomeVerificacao !== '') {
@@ -83,12 +90,18 @@ class TestePlanilhaController extends Controller
                 }
             }
 
-            return response()->json([
+            $responsePayload = [
                 'success' => true,
                 'nome_proprietario' => $nomeProprietario,
                 'data_crlv' => $dataCrlv,
                 'obs' => $obs,
-            ]);
+            ];
+
+            if ($debugMode && isset($result['debug'])) {
+                $responsePayload['meta'] = $result['debug'];
+            }
+
+            return response()->json($responsePayload);
         } catch (\Exception $e) {
             Log::error('TestePlanilha: Erro na consulta', [
                 'placa' => $placa,
@@ -165,9 +178,16 @@ class TestePlanilhaController extends Controller
 
     /**
      * Consulta a base estadual do Detran SP usando um captcha resolvido.
+     *
+     * @param bool $captureDebug Quando verdadeiro, inclui detalhes do payload/resposta para diagnóstico.
      */
-    private function queryBaseEstadual(string $placa, string $renavam, string $token, string $captchaResponse): array
-    {
+    private function queryBaseEstadual(
+        string $placa,
+        string $renavam,
+        string $token,
+        string $captchaResponse,
+        bool $captureDebug = false
+    ): array {
         $headers = [
             'Accept' => 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7',
             'Accept-Language' => 'pt-BR,pt;q=0.9,en-US;q=0.8,en;q=0.7',
@@ -186,6 +206,25 @@ class TestePlanilhaController extends Controller
 
         $cookieDomain = 'www.e-crvsp.sp.gov.br';
 
+        $payload = [
+            'method' => 'pesquisar',
+            'placa' => $placa,
+            'renavam' => $renavam,
+            'municipio' => '0',
+            'chassi' => '',
+            'captchaResponse' => strtoupper($captchaResponse),
+        ];
+
+        $debugInfo = null;
+        if ($captureDebug) {
+            $debugInfo = [
+                'token' => $this->maskToken($token),
+                'captcha' => strtoupper($captchaResponse),
+                'payload' => $payload,
+                'response' => null,
+            ];
+        }
+
         $response = Http::timeout(30)
             ->withHeaders($headers)
             ->withOptions(['verify' => false])
@@ -194,27 +233,43 @@ class TestePlanilhaController extends Controller
                 'JSESSIONID' => $token,
             ], $cookieDomain)
             ->asForm()
-            ->post('https://www.e-crvsp.sp.gov.br/gever/GVR/pesquisa/baseEstadual.do', [
-                'method' => 'pesquisar',
-                'placa' => $placa,
-                'renavam' => $renavam,
-                'municipio' => '0',
-                'chassi' => '',
-                'captchaResponse' => strtoupper($captchaResponse),
-            ]);
+            ->post('https://www.e-crvsp.sp.gov.br/gever/GVR/pesquisa/baseEstadual.do', $payload);
 
         if (!$response->successful()) {
-            return ['error' => 'Falha na comunicação com o Detran (HTTP ' . $response->status() . ')'];
+            if ($captureDebug && $debugInfo !== null) {
+                $debugInfo['response'] = [
+                    'status' => $response->status(),
+                    'body' => $this->truncateResponse($response->body()),
+                ];
+            }
+
+            return [
+                'error' => 'Falha na comunicação com o Detran (HTTP ' . $response->status() . ')',
+                'debug' => $debugInfo,
+            ];
         }
 
         $body = $response->body();
 
-        $errors = $this->extractErrors($body);
-        if (!empty($errors)) {
-            return ['error' => $errors[0]];
+        if ($captureDebug && $debugInfo !== null) {
+            $debugInfo['response'] = [
+                'status' => $response->status(),
+                'body' => $this->truncateResponse($body),
+            ];
         }
 
-        return DetranHtmlParser::parse($body);
+        $errors = $this->extractErrors($body);
+        if (!empty($errors)) {
+            return [
+                'error' => $errors[0],
+                'debug' => $debugInfo,
+            ];
+        }
+
+        return [
+            'data' => DetranHtmlParser::parse($body),
+            'debug' => $debugInfo,
+        ];
     }
 
     /**
@@ -265,5 +320,32 @@ class TestePlanilhaController extends Controller
         $name = strtr($name, $map);
 
         return mb_strtolower($name);
+    }
+
+    private function maskToken(string $token): string
+    {
+        $token = trim($token);
+        if ($token === '') {
+            return '';
+        }
+
+        $length = strlen($token);
+        if ($length <= 6) {
+            return str_repeat('*', max(0, $length - 2)) . substr($token, -2);
+        }
+
+        return substr($token, 0, 3) . str_repeat('*', max(0, $length - 6)) . substr($token, -3);
+    }
+
+    private function truncateResponse(string $text, int $max = 1000): string
+    {
+        $trimmed = trim($text);
+        if ($trimmed === '') {
+            return '';
+        }
+        if (strlen($trimmed) <= $max) {
+            return $trimmed;
+        }
+        return substr($trimmed, 0, $max) . '...';
     }
 }
