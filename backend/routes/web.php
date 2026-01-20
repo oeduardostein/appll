@@ -47,6 +47,9 @@ Route::prefix('admin')->name('admin.')->group(function () {
     Route::post('/password/reset', [PasswordResetController::class, 'resetPassword'])->name('password.reset');
 
     Route::middleware('admin.auth')->group(function () {
+        Route::get('/testeplanilha', [TestePlanilhaController::class, 'index'])->name('teste-planilha.index');
+        Route::post('/testeplanilha/consultar', [TestePlanilhaController::class, 'consultar'])->name('teste-planilha.consultar');
+        Route::post('/testeplanilha/exportar', [TestePlanilhaController::class, 'exportar'])->name('teste-planilha.exportar');
         Route::get('/clientes', [ClientController::class, 'index'])->name('clients.index');
         Route::get('/clientes/{user}', [ClientController::class, 'show'])->name('clients.show');
         Route::get('/clientes/{user}/editar', [ClientController::class, 'edit'])->name('clients.edit');
