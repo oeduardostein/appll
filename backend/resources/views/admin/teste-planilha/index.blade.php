@@ -430,7 +430,7 @@
                         <th>#</th>
                         <th>Placa</th>
                         <th>Renavam</th>
-                        <th>Nome (Planilha)</th>
+                        <th>Nome da Planilha</th>
                         <th>Nome Proprietário</th>
                         <th>Data CRLV</th>
                         <th>OBS</th>
@@ -538,6 +538,7 @@
                         }
 
                         // Normalize column names (case-insensitive)
+                        const currentFileName = file.name;
                         planilhaData = jsonData.map((row, index) => {
                             const normalizedRow = {};
                             Object.keys(row).forEach(key => {
@@ -548,6 +549,7 @@
                                 placa: normalizedRow['PLACA'] || '',
                                 renavam: normalizedRow['RENAVAM'] || '',
                                 nome: normalizedRow['NOME'] || '',
+                                file_name: currentFileName,
                                 nome_proprietario: '',
                                 data_crlv: '',
                                 obs: '',
@@ -579,7 +581,7 @@
                         <td>${row.index}</td>
                         <td><strong>${escapeHtml(row.placa)}</strong></td>
                         <td>${escapeHtml(row.renavam)}</td>
-                        <td>${escapeHtml(row.nome)}</td>
+                <td>${escapeHtml(row.file_name)}</td>
                         <td>${escapeHtml(row.nome_proprietario) || '—'}</td>
                         <td>${escapeHtml(row.data_crlv) || '—'}</td>
                         <td class="${row.obs ? 'teste-planilha__obs-warning' : ''}">${escapeHtml(row.obs) || '—'}</td>
@@ -608,6 +610,17 @@
                 const div = document.createElement('div');
                 div.textContent = text;
                 return div.innerHTML;
+            }
+
+            function normalizeComparisonName(value) {
+                if (!value) return '';
+                const cleaned = value
+                    .normalize('NFD')
+                    .replace(/[\u0300-\u036f]/g, '')
+                    .replace(/\s+/g, ' ')
+                    .trim()
+                    .toUpperCase();
+                return cleaned;
             }
 
             function waitForResume() {
@@ -722,7 +735,7 @@
                     renderTable();
 
                     try {
-                        const response = await fetch(CONSULTAR_URL, {
+                            const response = await fetch(CONSULTAR_URL, {
                             method: 'POST',
                             headers: {
                                 'Content-Type': 'application/json',
@@ -740,16 +753,25 @@
 
                         const result = await response.json();
 
+                        const ownerName = result.nome_proprietario || '';
+                        row.nome_proprietario = ownerName;
+                        row.data_crlv = result.data_crlv || '';
+
                         if (result.success) {
                             row.status = 'success';
-                            row.nome_proprietario = result.nome_proprietario || '';
-                            row.data_crlv = result.data_crlv || '';
-                            row.obs = result.obs || '';
+                            const normalizedVendor = normalizeComparisonName(nome);
+                            const normalizedOwner = normalizeComparisonName(ownerName);
+                            if (normalizedOwner) {
+                                row.obs =
+                                    normalizedVendor === normalizedOwner
+                                        ? 'Não transferida'
+                                        : 'Transferida';
+                            } else {
+                                row.obs = result.obs || '';
+                            }
                         } else {
                             row.status = 'error';
                             row.error = result.error || 'Erro desconhecido';
-                            row.nome_proprietario = result.nome_proprietario || '';
-                            row.data_crlv = result.data_crlv || '';
                             row.obs = result.obs || 'ERRO NA CONSULTA';
                         }
                     } catch (error) {
