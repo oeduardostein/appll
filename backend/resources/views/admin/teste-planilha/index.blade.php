@@ -443,6 +443,7 @@
             const CSRF_TOKEN = document.querySelector('meta[name="csrf-token"]')?.content ?? '';
             const CONSULTAR_URL = '{{ route("admin.teste-planilha.consultar") }}';
             const EXPORTAR_URL = '{{ route("admin.teste-planilha.exportar") }}';
+            const CAPTCHA_SOLVE_URL = "{{ url('api/captcha/solve') }}";
 
             let planilhaData = [];
             let isProcessing = false;
@@ -588,6 +589,35 @@
                 return div.innerHTML;
             }
 
+            async function fetchCaptchaSolution() {
+                const response = await fetch(CAPTCHA_SOLVE_URL, {
+                    headers: {
+                        'Accept': 'application/json',
+                    },
+                    credentials: 'same-origin',
+                });
+
+                if (!response.ok) {
+                    let message;
+                    try {
+                        const data = await response.json();
+                        message = data.message ?? `Erro ao resolver captcha (HTTP ${response.status})`;
+                    } catch {
+                        message = `Erro ao resolver captcha (HTTP ${response.status})`;
+                    }
+                    throw new Error(message);
+                }
+
+                const payload = await response.json().catch(() => ({}));
+                const solution = String(payload.solution || payload.Solution || '').trim().toUpperCase();
+
+                if (!solution) {
+                    throw new Error('Captcha automático retornou valor inválido.');
+                }
+
+                return solution;
+            }
+
             // Nome verificacao input
             nomeVerificacao.addEventListener('input', () => {
                 btnIniciar.disabled = !nomeVerificacao.value.trim() || planilhaData.length === 0;
@@ -624,6 +654,21 @@
                         continue;
                     }
 
+                    // Resolve captcha before sending a consulta request
+                    let captchaSolution = '';
+                    try {
+                        captchaSolution = await fetchCaptchaSolution();
+                    } catch (error) {
+                        console.error('Erro ao resolver captcha:', error);
+                        row.status = 'error';
+                        row.error = error.message || 'Erro ao resolver captcha';
+                        row.obs = 'ERRO NA CONSULTA';
+                        completed++;
+                        updateProgress(completed, total);
+                        renderTable();
+                        continue;
+                    }
+
                     // Update status to loading
                     row.status = 'loading';
                     renderTable();
@@ -639,7 +684,8 @@
                             body: JSON.stringify({
                                 placa: row.placa,
                                 renavam: row.renavam,
-                                nome_verificacao: nome
+                                nome_verificacao: nome,
+                                captcha_response: captchaSolution
                             })
                         });
 

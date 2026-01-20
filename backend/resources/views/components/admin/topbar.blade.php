@@ -9,7 +9,7 @@
 @php
     $navConfig = [
         [
-            'label' => 'Clientex',
+            'label' => 'Clientes',
             'route_name' => 'admin.clients.index',
             'active_pattern' => 'admin.clients.*',
         ],

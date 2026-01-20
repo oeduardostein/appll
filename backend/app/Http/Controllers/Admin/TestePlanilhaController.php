@@ -3,7 +3,6 @@
 namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
-use App\Http\Controllers\Api\CaptchaSolveController;
 use App\Support\DetranHtmlParser;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -14,7 +13,6 @@ use Illuminate\View\View;
 use PhpOffice\PhpSpreadsheet\IOFactory;
 use PhpOffice\PhpSpreadsheet\Spreadsheet;
 use PhpOffice\PhpSpreadsheet\Writer\Xlsx;
-use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class TestePlanilhaController extends Controller
@@ -49,8 +47,19 @@ class TestePlanilhaController extends Controller
             ], 500);
         }
 
+        $captchaResponse = trim((string) $request->input('captcha_response', ''));
+
+        if ($captchaResponse === '') {
+            return response()->json([
+                'success' => false,
+                'error' => 'Captcha não informado.',
+                'nome_proprietario' => null,
+                'data_crlv' => null,
+                'obs' => 'ERRO NA CONSULTA',
+            ], 422);
+        }
+
         try {
-            $captchaResponse = $this->resolveCaptcha();
             $result = $this->queryBaseEstadual($placa, $renavam, $token, $captchaResponse);
 
             if (isset($result['error'])) {
@@ -94,36 +103,6 @@ class TestePlanilhaController extends Controller
                 'obs' => 'ERRO NA CONSULTA',
             ]);
         }
-    }
-
-    /**
-     * Resolve o captcha automático antes de consultar a base estadual.
-     *
-     * @throws \RuntimeException
-     */
-    private function resolveCaptcha(): string
-    {
-        /** @var JsonResponse $response */
-        $response = app(CaptchaSolveController::class)->__invoke();
-
-        if (!$response instanceof JsonResponse) {
-            throw new \RuntimeException('Resposta inesperada ao resolver o captcha.');
-        }
-
-        $payload = $response->getData(true);
-
-        if ($response->getStatusCode() !== Response::HTTP_OK) {
-            $message = $payload['message'] ?? 'Captcha automático indisponível no momento.';
-            throw new \RuntimeException($message, $response->getStatusCode());
-        }
-
-        $solution = strtoupper(trim((string) ($payload['solution'] ?? '')));
-
-        if ($solution === '') {
-            throw new \RuntimeException('Captcha retornado inválido.');
-        }
-
-        return $solution;
     }
 
     /**
