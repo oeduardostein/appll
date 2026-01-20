@@ -7,6 +7,7 @@ use App\Http\Controllers\Admin\CreditManagementController;
 use App\Http\Controllers\Admin\PasswordResetController;
 use App\Http\Controllers\Admin\ReportController;
 use App\Http\Controllers\Admin\SettingsController;
+use App\Http\Controllers\Admin\TestePlanilhaController;
 use App\Http\Controllers\Admin\UserController;
 use Illuminate\Support\Facades\Route;
 
@@ -59,5 +60,9 @@ Route::prefix('admin')->name('admin.')->group(function () {
         Route::get('/gestao-creditos', [CreditManagementController::class, 'index'])->name('payments.index');
         Route::post('/gestao-creditos/{user}/marcar-pago', [CreditManagementController::class, 'markPaid'])->name('payments.mark-paid');
         Route::post('/gestao-creditos/{user}/inativar', [CreditManagementController::class, 'deactivate'])->name('payments.deactivate');
+
+        Route::get('/testeplanilha', [TestePlanilhaController::class, 'index'])->name('teste-planilha.index');
+        Route::post('/testeplanilha/consultar', [TestePlanilhaController::class, 'consultar'])->name('teste-planilha.consultar');
+        Route::post('/testeplanilha/exportar', [TestePlanilhaController::class, 'exportar'])->name('teste-planilha.exportar');
     });
 });

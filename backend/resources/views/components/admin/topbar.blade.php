@@ -24,6 +24,11 @@
             'active_pattern' => 'admin.reports.*',
         ],
         [
+            'label' => 'Teste Planilha',
+            'route_name' => 'admin.teste-planilha.index',
+            'active_pattern' => 'admin.teste-planilha.*',
+        ],
+        [
             'label' => 'Configurações',
             'route_name' => 'admin.settings.index',
             'active_pattern' => 'admin.settings.*',
