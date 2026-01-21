@@ -18,30 +18,32 @@ class DetranHtmlParser
     public static function parse(string $html): array
     {
         $encoding = @mb_detect_encoding($html, ['UTF-8', 'ISO-8859-1', 'Windows-1252'], true) ?: 'UTF-8';
+        $hasIsoCharset = stripos($html, 'charset=iso-8859-1') !== false || stripos($html, 'charset=iso8859-1') !== false;
 
-        $html = @mb_convert_encoding($html, 'HTML-ENTITIES', $encoding);
+        if ($hasIsoCharset) {
+            $encoding = 'ISO-8859-1';
+        }
 
-        if (stripos($html, 'charset=iso-8859-1') !== false || stripos($html, 'charset=iso8859-1') !== false) {
+        if (strcasecmp($encoding, 'UTF-8') !== 0) {
+            $html = @mb_convert_encoding($html, 'UTF-8', $encoding);
+        }
+
+        if ($hasIsoCharset) {
             $html = str_ireplace(['charset=iso-8859-1', 'charset=iso8859-1'], 'charset=utf-8', $html);
         }
 
         $dom = new DOMDocument();
         libxml_use_internal_errors(true);
-        @$dom->loadHTML($html);
+        @$dom->loadHTML('<?xml encoding="UTF-8">' . $html);
         libxml_clear_errors();
         $xp = new DOMXPath($dom);
 
-        $norm = static fn ($s) => preg_replace(
-            '/\s+/u',
-            ' ',
-            trim(html_entity_decode((string) $s, ENT_QUOTES | ENT_HTML5, 'UTF-8'))
-        );
-        $getText = static function (?DOMNode $n) use ($norm) {
+        $getText = static function (?DOMNode $n) {
             if (!$n) {
                 return null;
             }
 
-            return $norm($n->textContent ?? '');
+            return self::cleanText($n->textContent ?? '');
         };
 
         $findValueByLabel = static function (string $label) use ($xp, $getText) {
@@ -80,33 +82,6 @@ class DetranHtmlParser
 
             return $node ? $getText($node) : null;
         };
-        $normalizeString = static function (?string $value): string {
-            if ($value === null) {
-                return '';
-            }
-
-            $value = preg_replace('/\s+/u', ' ', trim($value)) ?? '';
-
-            $map = [
-                'Á' => 'A', 'À' => 'A', 'Â' => 'A', 'Ã' => 'A', 'Ä' => 'A',
-                'É' => 'E', 'Ê' => 'E', 'È' => 'E', 'Ë' => 'E',
-                'Í' => 'I', 'Ì' => 'I', 'Î' => 'I', 'Ï' => 'I',
-                'Ó' => 'O', 'Ò' => 'O', 'Ô' => 'O', 'Õ' => 'O', 'Ö' => 'O',
-                'Ú' => 'U', 'Ù' => 'U', 'Û' => 'U', 'Ü' => 'U',
-                'Ç' => 'C',
-                'á' => 'a', 'à' => 'a', 'â' => 'a', 'ã' => 'a', 'ä' => 'a',
-                'é' => 'e', 'ê' => 'e', 'è' => 'e', 'ë' => 'e',
-                'í' => 'i', 'ì' => 'i', 'î' => 'i', 'ï' => 'i',
-                'ó' => 'o', 'ò' => 'o', 'ô' => 'o', 'õ' => 'o', 'ö' => 'o',
-                'ú' => 'u', 'ù' => 'u', 'û' => 'u', 'ü' => 'u',
-                'ç' => 'c',
-            ];
-
-            $value = strtr($value, $map);
-
-            return mb_strtolower($value);
-        };
-
         $extractFieldsetData = static function (?DOMNode $context) use ($xp, $getText): array {
             if (! $context) {
                 return [];
@@ -138,7 +113,7 @@ class DetranHtmlParser
             $legendNode = $xp->query('./legend', $fieldset)->item(0);
             $legendText = $legendNode ? $getText($legendNode) : null;
 
-            if ($normalizeString($legendText) !== 'comunicacao venda') {
+            if (self::normalizeString($legendText) !== 'comunicacao venda') {
                 continue;
             }
 
@@ -150,7 +125,7 @@ class DetranHtmlParser
                 $childLegendNode = $xp->query('./legend', $childFieldset)->item(0);
                 $childLegendText = $childLegendNode ? $getText($childLegendNode) : null;
 
-                $normalizedChildLegend = $normalizeString($childLegendText);
+                $normalizedChildLegend = self::normalizeString($childLegendText);
 
                 if ($normalizedChildLegend === 'dados do comprador') {
                     $buyerData = $extractFieldsetData($childFieldset);
@@ -268,6 +243,10 @@ class DetranHtmlParser
             return null;
         };
 
+        $comunicacaoVendas = !empty($communications)
+            ? array_values($communications)
+            : self::parseComunicacaoVendas($xp);
+
         $output = [
             'fonte' => [
                 'titulo'    => $pick(['eCRVsp - DETRAN - São Paulo']) ?? 'eCRVsp - DETRAN - São Paulo',
@@ -329,7 +308,7 @@ class DetranHtmlParser
                 'exercicio_licenciamento' => $pick($labels['CRV_Exercicio']),
                 'data_licenciamento'      => $pick($labels['CRV_DataLic']),
             ],
-            'comunicacao_vendas' => array_values($communications),
+            'comunicacao_vendas' => $comunicacaoVendas,
         ];
 
         $sanitize = static function (&$value) use (&$sanitize) {
@@ -353,5 +332,181 @@ class DetranHtmlParser
         $sanitize($output);
 
         return $output;
+    }
+
+    private static function parseComunicacaoVendas(DOMXPath $xpath): ?array
+    {
+        $fieldset = self::findFieldsetByLegend($xpath, 'Comunicação de Vendas');
+        if (!$fieldset) {
+            return null;
+        }
+
+        $pairs = self::extractLabelValuePairsFromNode($xpath, $fieldset);
+
+        $status = $pairs['Comunicação de Vendas'] ?? null;
+        $inclusao = $pairs['Inclusão'] ?? $pairs['Inclusão '] ?? $pairs['Inclusao'] ?? null;
+        $tipoDoc = $pairs['Tipo Docto Comprador'] ?? null;
+        $doc = $pairs['CNPJ / CPF do Comprador'] ?? $pairs['CNPJ/CPF do Comprador'] ?? null;
+        $origem = $pairs['Origem'] ?? null;
+
+        $datasNode = self::findDescendantFieldsetByLegend($xpath, $fieldset, 'Datas');
+        $datasPairs = $datasNode ? self::extractLabelValuePairsFromNode($xpath, $datasNode) : [];
+
+        $dataVenda = $datasPairs['Venda'] ?? null;
+        $notaFiscal = $datasPairs['Nota Fiscal'] ?? null;
+        $protocolo = $datasPairs['Protocolo Detran'] ?? $datasPairs['Protocolo DETRAN'] ?? null;
+
+        $status = self::cleanText($status);
+        $inclusao = self::cleanText($inclusao);
+        $tipoDoc = self::cleanText($tipoDoc);
+        $doc = self::cleanText($doc);
+        $origem = self::cleanText($origem);
+        $dataVenda = self::cleanText($dataVenda);
+        $notaFiscal = self::cleanText($notaFiscal);
+        $protocolo = self::cleanText($protocolo);
+
+        if (!self::hasAnyValue([$status, $inclusao, $tipoDoc, $doc, $origem, $dataVenda, $notaFiscal, $protocolo])) {
+            return null;
+        }
+
+        return [
+            'status' => $status,
+            'inclusao' => $inclusao,
+            'tipo_documento_comprador' => $tipoDoc,
+            'documento_comprador' => $doc,
+            'origem' => $origem,
+            'datas' => [
+                'venda' => $dataVenda,
+                'nota_fiscal' => $notaFiscal,
+                'protocolo_detran' => $protocolo,
+            ],
+        ];
+    }
+
+    private static function findFieldsetByLegend(DOMXPath $xpath, string $legendText): ?\DOMElement
+    {
+        $query = "//fieldset[.//legend[contains(normalize-space(translate(., 'ABCDEFGHIJKLMNOPQRSTUVWXYZÁÀÃÂÄÉÈÊËÍÌÎÏÓÒÕÔÖÚÙÛÜÇ', 'abcdefghijklmnopqrstuvwxyzáàãâäéèêëíìîïóòõôöúùûüç')), "
+            . "normalize-space(translate('$legendText', 'ABCDEFGHIJKLMNOPQRSTUVWXYZÁÀÃÂÄÉÈÊËÍÌÎÏÓÒÕÔÖÚÙÛÜÇ', 'abcdefghijklmnopqrstuvwxyzáàãâäéèêëíìîïóòõôöúùûüç'))"
+            . ")]]";
+
+        $nodes = $xpath->query($query);
+        if (!$nodes || $nodes->length === 0) {
+            return null;
+        }
+
+        $node = $nodes->item(0);
+        return $node instanceof \DOMElement ? $node : null;
+    }
+
+    private static function findDescendantFieldsetByLegend(
+        DOMXPath $xpath,
+        \DOMElement $root,
+        string $legendText
+    ): ?\DOMElement {
+        $query = ".//fieldset[.//legend[contains(normalize-space(translate(., 'ABCDEFGHIJKLMNOPQRSTUVWXYZÁÀÃÂÄÉÈÊËÍÌÎÏÓÒÕÔÖÚÙÛÜÇ', 'abcdefghijklmnopqrstuvwxyzáàãâäéèêëíìîïóòõôöúùûüç')), "
+            . "normalize-space(translate('$legendText', 'ABCDEFGHIJKLMNOPQRSTUVWXYZÁÀÃÂÄÉÈÊËÍÌÎÏÓÒÕÔÖÚÙÛÜÇ', 'abcdefghijklmnopqrstuvwxyzáàãâäéèêëíìîïóòõôöúùûüç'))"
+            . ")]]";
+
+        $nodes = $xpath->query($query, $root);
+        if (!$nodes || $nodes->length === 0) {
+            return null;
+        }
+
+        $node = $nodes->item(0);
+        return $node instanceof \DOMElement ? $node : null;
+    }
+
+    private static function extractLabelValuePairsFromNode(DOMXPath $xpath, \DOMElement $root): array
+    {
+        $spans = $xpath->query('.//span', $root);
+
+        $out = [];
+        $lastLabel = null;
+
+        if (!$spans) {
+            return $out;
+        }
+
+        foreach ($spans as $span) {
+            if (!$span instanceof \DOMElement) {
+                continue;
+            }
+
+            $class = ' ' . ($span->getAttribute('class') ?? '') . ' ';
+            $text = self::cleanText($span->textContent);
+
+            if ($text === null) {
+                continue;
+            }
+
+            if (str_contains($class, ' texto_black2 ')) {
+                $lastLabel = $text;
+                continue;
+            }
+
+            if (str_contains($class, ' texto_menor ') || str_contains($class, ' fonte_legend ')) {
+                if ($lastLabel) {
+                    $out[$lastLabel] = $text;
+                    $lastLabel = null;
+                }
+            }
+        }
+
+        return $out;
+    }
+
+    private static function cleanText(?string $value): ?string
+    {
+        if ($value === null) {
+            return null;
+        }
+
+        $v = html_entity_decode($value, ENT_QUOTES | ENT_HTML5, 'UTF-8');
+        $v = preg_replace('/\s+/u', ' ', $v);
+        $v = trim($v);
+
+        return $v === '' ? null : $v;
+    }
+
+    private static function hasAnyValue(array $values): bool
+    {
+        foreach ($values as $value) {
+            if (is_string($value) && trim($value) !== '') {
+                return true;
+            }
+            if ($value !== null && $value !== '') {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private static function normalizeString(?string $value): string
+    {
+        if ($value === null) {
+            return '';
+        }
+
+        $value = preg_replace('/\s+/u', ' ', trim($value)) ?? '';
+
+        $map = [
+            'Á' => 'A', 'À' => 'A', 'Â' => 'A', 'Ã' => 'A', 'Ä' => 'A',
+            'É' => 'E', 'Ê' => 'E', 'È' => 'E', 'Ë' => 'E',
+            'Í' => 'I', 'Ì' => 'I', 'Î' => 'I', 'Ï' => 'I',
+            'Ó' => 'O', 'Ò' => 'O', 'Ô' => 'O', 'Õ' => 'O', 'Ö' => 'O',
+            'Ú' => 'U', 'Ù' => 'U', 'Û' => 'U', 'Ü' => 'U',
+            'Ç' => 'C',
+            'á' => 'a', 'à' => 'a', 'â' => 'a', 'ã' => 'a', 'ä' => 'a',
+            'é' => 'e', 'ê' => 'e', 'è' => 'e', 'ë' => 'e',
+            'í' => 'i', 'ì' => 'i', 'î' => 'i', 'ï' => 'i',
+            'ó' => 'o', 'ò' => 'o', 'ô' => 'o', 'õ' => 'o', 'ö' => 'o',
+            'ú' => 'u', 'ù' => 'u', 'û' => 'u', 'ü' => 'u',
+            'ç' => 'c',
+        ];
+
+        $value = strtr($value, $map);
+
+        return mb_strtolower($value);
     }
 }

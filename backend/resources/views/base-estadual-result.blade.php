@@ -937,12 +937,21 @@
 
             let html = '';
 
-            if (window.baseResultData.comunicacao_vendas) {
-                const comunicacaoRows = buildInfoRows(window.baseResultData.comunicacao_vendas, {
+            const comunicacao = window.baseResultData.comunicacao_vendas;
+            const comunicacaoNormalized = comunicacao
+                ? {
+                    ...comunicacao,
+                    tipo_documento_comprador: comunicacao.tipo_documento_comprador ?? comunicacao.tipo_doc_comprador,
+                    documento_comprador: comunicacao.documento_comprador ?? comunicacao.cnpj_cpf_comprador,
+                }
+                : null;
+
+            if (comunicacaoNormalized) {
+                const comunicacaoRows = buildInfoRows(comunicacaoNormalized, {
                     'status': 'Status',
                     'inclusao': 'Inclusão',
-                    'tipo_doc_comprador': 'Tipo documento comprador',
-                    'cnpj_cpf_comprador': 'CNPJ/CPF comprador',
+                    'tipo_documento_comprador': 'Tipo documento comprador',
+                    'documento_comprador': 'CNPJ/CPF comprador',
                     'origem': 'Origem',
                 });
                 if (comunicacaoRows) {
@@ -950,8 +959,8 @@
                 }
             }
 
-            if (window.baseResultData.comunicacao_vendas && window.baseResultData.comunicacao_vendas.datas) {
-                const datasRows = buildInfoRows(window.baseResultData.comunicacao_vendas.datas, {
+            if (comunicacaoNormalized && comunicacaoNormalized.datas) {
+                const datasRows = buildInfoRows(comunicacaoNormalized.datas, {
                     'venda': 'Venda',
                     'nota_fiscal': 'Nota fiscal',
                     'protocolo_detran': 'Protocolo DETRAN',

@@ -686,6 +686,7 @@
         document.addEventListener('DOMContentLoaded', () => {
             if (!checkAuth()) return;
             bindEvents();
+            prefillFromConsulta();
         });
 
         function bindEvents() {
@@ -738,20 +739,24 @@
             return true;
         }
 
-        function selectOwnerDocOption(option) {
+        function selectOwnerDocOption(option, preserveInput = false) {
             ownerDocOption = option;
             ownerDocButtons.forEach((button) => {
                 button.classList.toggle('is-active', Number(button.dataset.ownerDocOption) === option);
             });
-            ownerDocInput.value = '';
+            if (!preserveInput) {
+                ownerDocInput.value = '';
+            }
         }
 
-        function selectBuyerDocOption(option) {
+        function selectBuyerDocOption(option, preserveInput = false) {
             buyerDocOption = option;
             buyerDocButtons.forEach((button) => {
                 button.classList.toggle('is-active', Number(button.dataset.buyerDocOption) === option);
             });
-            buyerDocInput.value = '';
+            if (!preserveInput) {
+                buyerDocInput.value = '';
+            }
         }
 
         function handleSaleValueInput() {
@@ -899,7 +904,8 @@
                 return;
             }
 
-            if (!buyerNameInput.value.trim()) {
+            const buyerName = normalizeName(buyerNameInput.value);
+            if (!buyerName) {
                 setFormError('Informe o nome completo do comprador.');
                 return;
             }
@@ -946,7 +952,7 @@
                 captcha,
                 uf: stateValue,
                 cpf_cnpj_comprador: buyerDigits,
-                nome_comprador: buyerNameInput.value.trim(),
+                nome_comprador: buyerName,
                 opcao_pesquisa_comprador: buyerDocOption.toString(),
             };
 
@@ -1226,6 +1232,10 @@
             return value.replace(/\D/g, '');
         }
 
+        function normalizeName(value) {
+            return (value || '').replace(/\s+/g, ' ').trim();
+        }
+
         function onlyDigits(value) {
             return (value || '').replace(/\D/g, '');
         }
@@ -1241,6 +1251,117 @@
             const maxLen = option === 1 ? 11 : 14;
             const limited = digits.slice(0, maxLen);
             input.value = option === 1 ? formatCpf(limited) ?? limited : formatCnpj(limited) ?? limited;
+        }
+
+        function setDocumentDigits(input, digits, isOwner) {
+            const clean = onlyDigits(digits);
+            if (!clean) return;
+            const option = clean.length > 11 ? 2 : 1;
+            if (isOwner) {
+                selectOwnerDocOption(option, true);
+            } else {
+                selectBuyerDocOption(option, true);
+            }
+            const limited = clean.slice(0, option === 1 ? 11 : 14);
+            input.value = option === 1 ? formatCpf(limited) ?? limited : formatCnpj(limited) ?? limited;
+        }
+
+        function setIfEmpty(input, value) {
+            if (!input || value == null) return;
+            const trimmed = String(value).trim();
+            if (!trimmed) return;
+            if (!input.value.trim()) {
+                input.value = trimmed;
+            }
+        }
+
+        function setCepDigits(input, digits) {
+            const clean = onlyDigits(digits);
+            if (!clean) return;
+            input.value = formatCep(clean.slice(0, 8));
+        }
+
+        function setSaleValueFromDigits(digits) {
+            const clean = onlyDigits(digits);
+            if (!clean) return;
+            saleValueInput.value = formatCurrencyFromDigits(clean);
+        }
+
+        function getStoredAtpvConsulta() {
+            const key = 'atpv_intencao_result';
+            let stored = null;
+            try {
+                stored = sessionStorage.getItem(key) || localStorage.getItem(key);
+            } catch (error) {
+                stored = null;
+            }
+            if (!stored) return null;
+            try {
+                return JSON.parse(stored);
+            } catch (error) {
+                return null;
+            }
+        }
+
+        function prefillFromConsulta() {
+            const stored = getStoredAtpvConsulta();
+            if (!stored || !stored.payload) return;
+            let payload = stored.payload;
+            if (typeof payload === 'string') {
+                try {
+                    payload = JSON.parse(payload);
+                } catch (error) {
+                    return;
+                }
+            }
+            if (!payload || typeof payload !== 'object') {
+                return;
+            }
+
+            const veiculo = payload.veiculo || {};
+            if (!plateInput.value.trim() && veiculo.placa) {
+                plateInput.value = normalizePlate(String(veiculo.placa));
+            }
+            if (!renavamInput.value.trim() && veiculo.renavam) {
+                renavamInput.value = normalizeRenavam(String(veiculo.renavam));
+            }
+            if (!chassiInput.value.trim() && veiculo.chassi) {
+                chassiInput.value = String(veiculo.chassi).trim();
+            }
+
+            const proprietario = payload.proprietario || {};
+            if (!buyerNameInput.value.trim() && proprietario.nome) {
+                buyerNameInput.value = String(proprietario.nome).trim();
+            }
+
+            const comunicacoes = Array.isArray(payload.comunicacao_vendas)
+                ? payload.comunicacao_vendas
+                : [];
+            if (comunicacoes.length === 0) return;
+
+            const primeira = comunicacoes[0] || {};
+            const comprador = primeira.comprador || {};
+            const intencao = primeira.intencao || {};
+
+            if (!buyerDocInput.value.trim() && comprador.documento) {
+                setDocumentDigits(buyerDocInput, comprador.documento, false);
+            }
+            setIfEmpty(buyerNameInput, comprador.nome);
+            setIfEmpty(buyerEmailInput, comprador.email);
+            if (!buyerCepInput.value.trim() && comprador.cep) {
+                setCepDigits(buyerCepInput, comprador.cep);
+            }
+            setIfEmpty(buyerCityInput, comprador.municipio);
+            setIfEmpty(buyerNeighborhoodInput, comprador.bairro);
+            setIfEmpty(buyerStreetInput, comprador.logradouro);
+            setIfEmpty(buyerNumberInput, comprador.numero);
+            setIfEmpty(buyerComplementInput, comprador.complemento);
+            if (!buyerStateInput.value.trim() && comprador.uf) {
+                buyerStateInput.value = String(comprador.uf).trim().toUpperCase();
+            }
+            if (!saleValueInput.value.trim() && intencao.valor_venda) {
+                setSaleValueFromDigits(intencao.valor_venda);
+            }
         }
 
         function formatCpf(digits) {

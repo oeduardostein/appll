@@ -797,7 +797,7 @@ class _ActionMenuCard extends StatelessWidget {
           Divider(height: 1, thickness: 1, color: dividerColor),
           _ActionMenuItem(
             icon: Icons.forum_outlined,
-            label: 'Comunicações de venda',
+            label: 'Comunicação de vendas',
             onTap: onComunicacaoTap,
           ),
         ],
@@ -1501,8 +1501,8 @@ class _ComunicacaoVendasPage extends StatelessWidget {
       const {
         'status': 'Status',
         'inclusao': 'Inclusão',
-        'tipo_doc_comprador': 'Tipo documento comprador',
-        'cnpj_cpf_comprador': 'CNPJ/CPF comprador',
+        'tipo_documento_comprador': 'Tipo documento comprador',
+        'documento_comprador': 'CNPJ/CPF comprador',
         'origem': 'Origem',
       },
     );
@@ -1520,7 +1520,7 @@ class _ComunicacaoVendasPage extends StatelessWidget {
     if (comunicacaoRows.isNotEmpty || datasRows.isNotEmpty) {
       content.add(
         _SectionCard(
-          title: 'Comunicações de venda',
+          title: 'Comunicação de vendas',
           children: [
             ...comunicacaoRows,
             if (datasRows.isNotEmpty) ...[
@@ -1534,7 +1534,7 @@ class _ComunicacaoVendasPage extends StatelessWidget {
     }
 
     return _BaseEstadualDetailScaffold(
-      title: 'Comunicações de venda',
+      title: 'Comunicação de vendas',
       children: content,
       onShare: () => _shareBaseEstadualPdf(context, data),
       emptyMessage: 'Nenhuma comunicação de venda registrada.',
@@ -2018,9 +2018,9 @@ class _BaseEstadualPdfGenerator {
           _field('Status', data.comunicacaoVendas?['status']),
           _field('Inclusão', data.comunicacaoVendas?['inclusao']),
           _field('Tipo doc. comprador',
-              data.comunicacaoVendas?['tipo_doc_comprador']),
+              data.comunicacaoVendas?['tipo_documento_comprador']),
           _field('CPF/CNPJ comprador',
-              data.comunicacaoVendas?['cnpj_cpf_comprador']),
+              data.comunicacaoVendas?['documento_comprador']),
           _field('Origem', data.comunicacaoVendas?['origem']),
           _field('Data venda', data.comunicacaoVendasDatas?['venda']),
           _field('Nota fiscal', data.comunicacaoVendasDatas?['nota_fiscal']),
@@ -2216,7 +2216,9 @@ class _BaseEstadualStructuredPayload {
     }
 
     final gravames = _asMap(payload['gravames']);
-    final comunicacao = _asMap(payload['comunicacao_vendas']);
+    final comunicacao = _normalizeComunicacaoVendas(
+      _asMap(payload['comunicacao_vendas']),
+    );
 
     return _BaseEstadualStructuredPayload(
       fonte: fonte,
@@ -2243,6 +2245,19 @@ class _BaseEstadualStructuredPayload {
       );
     }
     return null;
+  }
+
+  static Map<String, dynamic>? _normalizeComunicacaoVendas(
+    Map<String, dynamic>? comunicacao,
+  ) {
+    if (comunicacao == null) {
+      return null;
+    }
+
+    final normalized = Map<String, dynamic>.from(comunicacao);
+    normalized['tipo_documento_comprador'] ??= normalized['tipo_doc_comprador'];
+    normalized['documento_comprador'] ??= normalized['cnpj_cpf_comprador'];
+    return normalized;
   }
 }
 

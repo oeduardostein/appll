@@ -125,6 +125,12 @@
     $crvCrlvAtualizacao = is_array($payload['crv_crlv_atualizacao'] ?? null) ? $payload['crv_crlv_atualizacao'] : [];
     $comunicacaoVendas = is_array($payload['comunicacao_vendas'] ?? null) ? $payload['comunicacao_vendas'] : [];
     $comunicacaoVendasDatas = is_array($comunicacaoVendas['datas'] ?? null) ? $comunicacaoVendas['datas'] : [];
+    $comunicacaoTipoDocumento = $comunicacaoVendas['tipo_documento_comprador']
+        ?? $comunicacaoVendas['tipo_doc_comprador']
+        ?? null;
+    $comunicacaoDocumento = $comunicacaoVendas['documento_comprador']
+        ?? $comunicacaoVendas['cnpj_cpf_comprador']
+        ?? null;
     $logoPath = public_path('images/logoll.png');
 
     $formatValue = function ($value, $fallback = '—') {
@@ -235,8 +241,8 @@
             'fields' => array_filter([
                 $field('Status', $comunicacaoVendas['status'] ?? null),
                 $field('Inclusão', $comunicacaoVendas['inclusao'] ?? null),
-                $field('Tipo doc. comprador', $comunicacaoVendas['tipo_doc_comprador'] ?? null),
-                $field('CPF/CNPJ comprador', $comunicacaoVendas['cnpj_cpf_comprador'] ?? null),
+                $field('Tipo doc. comprador', $comunicacaoTipoDocumento),
+                $field('CPF/CNPJ comprador', $comunicacaoDocumento),
                 $field('Origem', $comunicacaoVendas['origem'] ?? null),
                 $field('Data venda', $comunicacaoVendasDatas['venda'] ?? null),
                 $field('Nota fiscal', $comunicacaoVendasDatas['nota_fiscal'] ?? null),
