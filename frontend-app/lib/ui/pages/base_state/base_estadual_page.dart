@@ -797,7 +797,7 @@ class _ActionMenuCard extends StatelessWidget {
           Divider(height: 1, thickness: 1, color: dividerColor),
           _ActionMenuItem(
             icon: Icons.forum_outlined,
-            label: 'Comunicação de vendas',
+            label: 'Intenção de venda / Comunicação de vendas',
             onTap: onComunicacaoTap,
           ),
         ],
@@ -1520,7 +1520,7 @@ class _ComunicacaoVendasPage extends StatelessWidget {
     if (comunicacaoRows.isNotEmpty || datasRows.isNotEmpty) {
       content.add(
         _SectionCard(
-          title: 'Comunicação de vendas',
+          title: 'Intenção de venda / Comunicação de vendas',
           children: [
             ...comunicacaoRows,
             if (datasRows.isNotEmpty) ...[
@@ -1534,10 +1534,10 @@ class _ComunicacaoVendasPage extends StatelessWidget {
     }
 
     return _BaseEstadualDetailScaffold(
-      title: 'Comunicação de vendas',
+      title: 'Intenção de venda / Comunicação de vendas',
       children: content,
       onShare: () => _shareBaseEstadualPdf(context, data),
-      emptyMessage: 'Nenhuma comunicação de venda registrada.',
+      emptyMessage: 'Nada consta.',
     );
   }
 }
@@ -2013,7 +2013,7 @@ class _BaseEstadualPdfGenerator {
 
     sections.add(
       _PdfSection(
-        title: 'Comunicação de venda',
+        title: 'Intenção de venda / Comunicação de venda',
         fields: _filterFields([
           _field('Status', data.comunicacaoVendas?['status']),
           _field('Inclusão', data.comunicacaoVendas?['inclusao']),

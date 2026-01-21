@@ -744,7 +744,7 @@ class _OutrosEstadosActionMenu extends StatelessWidget {
           Divider(height: 1, thickness: 1, color: dividerColor),
           _ActionMenuItem(
             icon: Icons.forum_outlined,
-            label: 'Comunicações de venda',
+            label: 'Intenção de venda / Comunicação de vendas',
             onTap: onComunicacaoTap,
           ),
         ],
@@ -1193,8 +1193,8 @@ class _OutrosEstadosComunicacaoPage extends StatelessWidget {
       const {
         'status': 'Status',
         'inclusao': 'Inclusão',
-        'tipo_doc_comprador': 'Tipo documento comprador',
-        'cnpj_cpf_comprador': 'CNPJ/CPF comprador',
+        'tipo_documento_comprador': 'Tipo documento comprador',
+        'documento_comprador': 'CNPJ/CPF comprador',
         'origem': 'Origem',
       },
       excludeKeys: const {'datas'},
@@ -1213,7 +1213,7 @@ class _OutrosEstadosComunicacaoPage extends StatelessWidget {
     if (comunicacaoRows.isNotEmpty || datasRows.isNotEmpty) {
       sections.add(
         _OutrosSectionCard(
-          title: 'Comunicações de venda',
+          title: 'Intenção de venda / Comunicação de vendas',
           children: [
             ...comunicacaoRows,
             if (datasRows.isNotEmpty) ...[
@@ -1227,26 +1227,26 @@ class _OutrosEstadosComunicacaoPage extends StatelessWidget {
     }
 
     return _OutrosEstadosDetailScaffold(
-      title: 'Comunicações de venda',
+      title: 'Intenção de venda / Comunicação de vendas',
       children: sections,
-      emptyMessage: 'Nenhuma comunicação de venda registrada.',
+      emptyMessage: 'Nada consta.',
       shareSubtitle: 'Chassi: $chassi',
       shareBuilder: (generator) {
         final section = _pdfSectionFromMap(
-          'Comunicação de venda',
+          'Intenção de venda / Comunicação de venda',
           data.comunicacaoVendas,
           const {
             'status': 'Status',
             'inclusao': 'Inclusão',
-            'tipo_doc_comprador': 'Tipo documento comprador',
-            'cnpj_cpf_comprador': 'CNPJ/CPF comprador',
+            'tipo_documento_comprador': 'Tipo documento comprador',
+            'documento_comprador': 'CNPJ/CPF comprador',
             'origem': 'Origem',
           },
           excludeKeys: const {'datas'},
         );
 
         final datasSection = _pdfSectionFromMap(
-          'Comunicação de venda - Datas',
+          'Intenção de venda / Comunicação de venda - Datas',
           data.comunicacaoVendasDatas,
           const {
             'venda': 'Venda',
@@ -1262,13 +1262,13 @@ class _OutrosEstadosComunicacaoPage extends StatelessWidget {
         return generator.generateCustomReport(
           data: data,
           chassi: chassi,
-          reportTitle: 'COMUNICAÇÃO DE VENDA - BASE OUTROS ESTADOS',
+          reportTitle: 'INTENÇÃO/COMUNICAÇÃO DE VENDA - BASE OUTROS ESTADOS',
           sections: sectionsList,
           subtitle: 'Chassi: $chassi',
         );
       },
       shareFilePrefix: 'relatorio_comunicacao_outros_estados',
-      shareSubject: 'Comunicações de venda - Base outros estados',
+      shareSubject: 'Intenção/Comunicação de venda - Base outros estados',
       onCopy: () => _copyJsonToClipboard(
         context,
         payload: {
@@ -2015,7 +2015,9 @@ class _BaseOutrosEstadosStructuredPayload {
     }
 
     final gravames = _asMap(payload['gravames']);
-    final comunicacao = _asMap(payload['comunicacao_vendas']);
+    final comunicacao = _normalizeComunicacaoVendas(
+      _asMap(payload['comunicacao_vendas']),
+    );
 
     return _BaseOutrosEstadosStructuredPayload(
       fonte: fonte,
@@ -2042,6 +2044,19 @@ class _BaseOutrosEstadosStructuredPayload {
       );
     }
     return null;
+  }
+
+  static Map<String, dynamic>? _normalizeComunicacaoVendas(
+    Map<String, dynamic>? comunicacao,
+  ) {
+    if (comunicacao == null) {
+      return null;
+    }
+
+    final normalized = Map<String, dynamic>.from(comunicacao);
+    normalized['tipo_documento_comprador'] ??= normalized['tipo_doc_comprador'];
+    normalized['documento_comprador'] ??= normalized['cnpj_cpf_comprador'];
+    return normalized;
   }
 }
 
@@ -2405,19 +2420,19 @@ class _BaseOutrosEstadosPdfGenerator {
         },
       ),
       _pdfSectionFromMap(
-        'Comunicação de venda',
+        'Intenção de venda / Comunicação de venda',
         data.comunicacaoVendas,
         const {
           'status': 'Status',
           'inclusao': 'Inclusão',
-          'tipo_doc_comprador': 'Tipo documento comprador',
-          'cnpj_cpf_comprador': 'CNPJ/CPF comprador',
+          'tipo_documento_comprador': 'Tipo documento comprador',
+          'documento_comprador': 'CNPJ/CPF comprador',
           'origem': 'Origem',
         },
         excludeKeys: const {'datas'},
       ),
       _pdfSectionFromMap(
-        'Comunicação de venda - Datas',
+        'Intenção de venda / Comunicação de venda - Datas',
         data.comunicacaoVendasDatas,
         const {
           'venda': 'Venda',

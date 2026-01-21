@@ -8,6 +8,7 @@ use App\Support\DetranHtmlParser;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Schema;
 use Symfony\Component\HttpFoundation\Response;
 
@@ -162,6 +163,8 @@ class EmitirAtpvController extends BaseAtpvController
             $municipioCode = $this->stripNonDigits($data['municipio2'] ?? '') ?: '0';
         }
 
+        $nomeComprador = $this->sanitizeNomeComprador($record->nome_comprador ?? '');
+
         $form = [
             'method' => $data['method'] ?? 'pesquisar',
             'municipio2' => $municipioCode,
@@ -176,7 +179,7 @@ class EmitirAtpvController extends BaseAtpvController
             'opcaoPesquisaComprador' => $buyerOption,
             'cpfComprador' => $buyerOption === '1' ? $buyerCpf : '',
             'cnpjComprador' => $buyerOption === '2' ? $buyerCnpj : '',
-            'nomeComprador' => $record->nome_comprador ?? '',
+            'nomeComprador' => $nomeComprador,
             'emailComprador' => $record->email_comprador ?? '',
             'valorVendaSTR' => $this->formatValorVenda($record->valor_venda),
             'cepComprador' => $record->cep_comprador ?? '',
@@ -189,17 +192,27 @@ class EmitirAtpvController extends BaseAtpvController
             'captchaResponse' => strtoupper($data['captcha']),
         ];
 
-        $response = Http::withHeaders($headers)
-            ->withOptions(['verify' => false])
-            ->withCookies([
-                'dataUsuarPublic' => 'Mon Mar 24 2025 08:14:44 GMT-0300 (Horário Padrão de Brasília)',
-                'JSESSIONID' => $token,
-            ], 'www.e-crvsp.sp.gov.br')
-            ->asForm()
-            ->post('https://www.e-crvsp.sp.gov.br/gever/GVR/emissao/incluirIntencaoVenda.do', $form);
+        $response = $this->postDetranForm($headers, $token, $form);
 
         $body = $response->body();
         $errors = $this->extractErrors($body);
+        $messages = $this->extractMessages($body);
+
+        if ($this->shouldRetryNomeComprador($errors, $messages)) {
+            $nomeSemAcento = $this->stripAccents($nomeComprador);
+            if ($nomeSemAcento !== '' && $nomeSemAcento !== $nomeComprador) {
+                Log::warning('ATPV: retry sem acento no nome do comprador', [
+                    'atpv_request_id' => $record->id,
+                    'nome_original' => $nomeComprador,
+                    'nome_sem_acento' => $nomeSemAcento,
+                ]);
+                $form['nomeComprador'] = $nomeSemAcento;
+                $response = $this->postDetranForm($headers, $token, $form);
+                $body = $response->body();
+                $errors = $this->extractErrors($body);
+                $messages = $this->extractMessages($body);
+            }
+        }
 
         if (! empty($errors)) {
             $record->update([
@@ -217,7 +230,6 @@ class EmitirAtpvController extends BaseAtpvController
             );
         }
 
-        $messages = $this->extractMessages($body);
         if ($this->messagesIndicateFailure($messages)) {
             $record->update([
                 'status' => 'failed',
@@ -233,6 +245,7 @@ class EmitirAtpvController extends BaseAtpvController
                 Response::HTTP_UNPROCESSABLE_ENTITY
             );
         }
+
         $numeroAtpv = $this->extractNumeroAtpv($messages);
 
         $parsed = DetranHtmlParser::parse($body);
@@ -397,6 +410,78 @@ class EmitirAtpvController extends BaseAtpvController
     private function toUpper(?string $value): string
     {
         return $value ? mb_strtoupper($value) : '';
+    }
+
+    private function sanitizeNomeComprador(string $nome): string
+    {
+        $nome = trim(preg_replace('/\s+/u', ' ', $nome) ?? $nome);
+        $cleaned = preg_replace('/[^A-Za-zÀ-ÖØ-öø-ÿ\s]/u', '', $nome) ?? $nome;
+        $cleaned = trim(preg_replace('/\s+/u', ' ', $cleaned) ?? $cleaned);
+        if ($cleaned === '') {
+            $cleaned = $nome;
+        }
+        if (mb_strlen($cleaned) > 80) {
+            $cleaned = rtrim(mb_substr($cleaned, 0, 80));
+        }
+        return $cleaned;
+    }
+
+    private function toIso88591(string $value): string
+    {
+        $converted = @mb_convert_encoding($value, 'ISO-8859-1', 'UTF-8');
+        return $converted !== false ? $converted : $value;
+    }
+
+    private function stripAccents(string $value): string
+    {
+        $value = trim($value);
+        if ($value === '') {
+            return '';
+        }
+
+        $converted = @iconv('UTF-8', 'ASCII//TRANSLIT//IGNORE', $value);
+        if ($converted === false) {
+            return $value;
+        }
+
+        $converted = preg_replace('/[^\x20-\x7E]/', '', $converted) ?? $converted;
+        return trim(preg_replace('/\s+/u', ' ', $converted) ?? $converted);
+    }
+
+    private function shouldRetryNomeComprador(array $errors, array $messages): bool
+    {
+        $candidates = array_merge($errors, $messages);
+        foreach ($candidates as $message) {
+            $normalized = mb_strtolower(trim((string) $message));
+            if ($normalized === '') {
+                continue;
+            }
+            if (str_contains($normalized, '1101') && str_contains($normalized, 'comprador.nome')) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private function postDetranForm(array $headers, string $token, array $form): \Illuminate\Http\Client\Response
+    {
+        $formIso = [];
+        foreach ($form as $key => $value) {
+            $formIso[$key] = $this->toIso88591((string) ($value ?? ''));
+        }
+
+        $bodyEncoded = http_build_query($formIso, '', '&', PHP_QUERY_RFC1738);
+        $headers['Content-Type'] = 'application/x-www-form-urlencoded; charset=ISO-8859-1';
+
+        return Http::withHeaders($headers)
+            ->withOptions(['verify' => false])
+            ->withCookies([
+                'dataUsuarPublic' => 'Mon Mar 24 2025 08:14:44 GMT-0300 (Horário Padrão de Brasília)',
+                'JSESSIONID' => $token,
+            ], 'www.e-crvsp.sp.gov.br')
+            ->withBody($bodyEncoded, 'application/x-www-form-urlencoded; charset=ISO-8859-1')
+            ->post('https://www.e-crvsp.sp.gov.br/gever/GVR/emissao/incluirIntencaoVenda.do');
     }
 
     private function stripNonDigits(?string $value): string

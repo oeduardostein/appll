@@ -237,7 +237,7 @@
             ]),
         ],
         [
-            'title' => 'Comunicação de venda',
+            'title' => 'Intenção/Comunicação de venda',
             'fields' => array_filter([
                 $field('Status', $comunicacaoVendas['status'] ?? null),
                 $field('Inclusão', $comunicacaoVendas['inclusao'] ?? null),
