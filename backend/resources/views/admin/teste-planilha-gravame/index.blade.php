@@ -392,7 +392,7 @@
         </div>
 
         <p style="margin-top: 12px; font-size: 13px; color: var(--text-muted);">
-            A planilha deve conter as colunas: <strong>PLACA</strong>, <strong>RENAVAM</strong> e <strong>NOME</strong>
+            A planilha deve conter a coluna <strong>PLACA</strong>. As demais colunas serão mantidas no resultado.
         </p>
     </div>
 
@@ -497,6 +497,7 @@
             const CAPTCHA_SOLVE_URL = "{{ url('api/captcha/solve') }}";
 
             let planilhaData = [];
+            let planilhaColumns = [];
             let isProcessing = false;
             let isPaused = false;
             let pauseResolvers = [];
@@ -563,31 +564,83 @@
                         const data = new Uint8Array(e.target.result);
                         const workbook = XLSX.read(data, { type: 'array' });
                         const firstSheet = workbook.Sheets[workbook.SheetNames[0]];
-                        const jsonData = XLSX.utils.sheet_to_json(firstSheet, { defval: '' });
+                        const rows = XLSX.utils.sheet_to_json(firstSheet, { header: 1, defval: '' });
 
-                        if (jsonData.length === 0) {
+                        if (rows.length === 0) {
                             alert('A planilha está vazia.');
                             return;
                         }
 
-                        // Normalize column names (case-insensitive)
-                        planilhaData = jsonData.map((row, index) => {
-                            const normalizedRow = {};
-                            Object.keys(row).forEach(key => {
-                                normalizedRow[key.toUpperCase().trim()] = String(row[key]).trim();
+                        const headerRowIndex = findHeaderRowIndex(rows);
+                        if (headerRowIndex === -1) {
+                            alert('Não foi possível localizar a coluna PLACA na planilha.');
+                            return;
+                        }
+
+                        const headerRow = rows[headerRowIndex].map(cell => String(cell || '').trim());
+                        const normalizedHeaders = headerRow.map(value => normalizeHeaderLabel(value));
+
+                        planilhaColumns = [];
+                        const columnIndexes = [];
+                        headerRow.forEach((label, idx) => {
+                            const trimmed = String(label || '').trim();
+                            if (!trimmed) {
+                                return;
+                            }
+
+                            let uniqueLabel = trimmed;
+                            let suffix = 2;
+                            while (planilhaColumns.includes(uniqueLabel)) {
+                                uniqueLabel = `${trimmed} (${suffix})`;
+                                suffix += 1;
+                            }
+
+                            planilhaColumns.push(uniqueLabel);
+                            columnIndexes.push(idx);
+                        });
+
+                        const placaIndex = findColumnIndex(normalizedHeaders, ['PLACA']);
+                        const renavamIndex = findColumnIndex(normalizedHeaders, ['RENAVAM']);
+                        const nomeIndex = findColumnIndex(normalizedHeaders, ['NOME', 'ESTABELECIMENTO', 'LOJA']);
+
+                        planilhaData = [];
+                        for (let i = headerRowIndex + 1; i < rows.length; i++) {
+                            const row = rows[i];
+                            if (!row || row.length === 0) {
+                                continue;
+                            }
+
+                            const normalizedRow = row.map(value => normalizeHeaderLabel(value));
+                            if (isRepeatedHeaderRow(normalizedRow, normalizedHeaders, placaIndex)) {
+                                continue;
+                            }
+
+                            const raw = {};
+                            planilhaColumns.forEach((column, colIdx) => {
+                                raw[column] = normalizeCellValue(row[columnIndexes[colIdx]]);
                             });
-                            return {
-                                index: index + 1,
-                                placa: normalizedRow['PLACA'] || '',
-                                renavam: normalizedRow['RENAVAM'] || '',
-                                nome: normalizedRow['NOME'] || '',
+
+                            const placaValue = normalizeCellValue(row[placaIndex]).toUpperCase();
+                            const renavamValue = renavamIndex >= 0 ? normalizeCellValue(row[renavamIndex]) : '';
+                            const nomeValue = nomeIndex >= 0 ? normalizeCellValue(row[nomeIndex]) : '';
+
+                            if (Object.values(raw).every(value => value === '')) {
+                                continue;
+                            }
+
+                            planilhaData.push({
+                                index: planilhaData.length + 1,
+                                placa: placaValue,
+                                renavam: renavamValue,
+                                nome: nomeValue,
+                                raw,
                                 resultado: '',
                                 resultado_detalhe: '',
                                 resultado_status: 'pending',
                                 status: 'pending',
                                 error: ''
-                            };
-                        });
+                            });
+                        }
 
                         renderTable();
                         showUI();
@@ -612,7 +665,7 @@
                     <tr data-index="${row.index}" data-status="${row.status}">
                         <td>${row.index}</td>
                         <td><strong>${escapeHtml(row.placa)}</strong></td>
-                        <td>${escapeHtml(row.renavam)}</td>
+                        <td>${escapeHtml(row.renavam) || '—'}</td>
                         <td>${escapeHtml(row.nome) || '—'}</td>
                         <td>${renderResultado(row)}</td>
                         <td>${renderStatus(row)}</td>
@@ -663,6 +716,66 @@
                 const div = document.createElement('div');
                 div.textContent = text;
                 return div.innerHTML;
+            }
+
+            function normalizeCellValue(value) {
+                if (value === null || value === undefined) {
+                    return '';
+                }
+                return String(value).trim();
+            }
+
+            function normalizeHeaderLabel(value) {
+                if (value === null || value === undefined) {
+                    return '';
+                }
+                return String(value)
+                    .trim()
+                    .normalize('NFD')
+                    .replace(/[\u0300-\u036f]/g, '')
+                    .replace(/[^a-zA-Z0-9]+/g, ' ')
+                    .replace(/\s+/g, ' ')
+                    .trim()
+                    .toUpperCase();
+            }
+
+            function findHeaderRowIndex(rows) {
+                for (let i = 0; i < rows.length; i++) {
+                    const normalized = rows[i].map(value => normalizeHeaderLabel(value));
+                    if (normalized.includes('PLACA')) {
+                        return i;
+                    }
+                }
+                return -1;
+            }
+
+            function findColumnIndex(headers, candidates) {
+                for (const candidate of candidates) {
+                    const index = headers.findIndex(header => header === candidate || header.includes(candidate));
+                    if (index >= 0) {
+                        return index;
+                    }
+                }
+                return -1;
+            }
+
+            function isRepeatedHeaderRow(row, header, placaIndex) {
+                if (placaIndex < 0) {
+                    return false;
+                }
+
+                if (row[placaIndex] !== 'PLACA') {
+                    return false;
+                }
+
+                let matches = 0;
+                for (let i = 0; i < Math.min(row.length, header.length); i++) {
+                    if (row[i] && header[i] && row[i] === header[i]) {
+                        matches += 1;
+                    }
+                }
+
+                return matches >= 2;
             }
 
             function waitForResume() {
@@ -855,6 +968,7 @@
                 }
 
                 planilhaData = [];
+                planilhaColumns = [];
                 isProcessing = false;
                 fileInput.value = '';
                 fileName.style.display = 'none';
@@ -893,7 +1007,11 @@
                             'Content-Type': 'application/json',
                             'X-CSRF-TOKEN': CSRF_TOKEN
                         },
-                        body: JSON.stringify({ dados, tipo })
+                        body: JSON.stringify({
+                            dados,
+                            tipo,
+                            colunas: planilhaColumns
+                        })
                     });
 
                     if (!response.ok) {
@@ -919,9 +1037,7 @@
             btnDownloadLiberados.addEventListener('click', async () => {
                 const liberados = planilhaData.filter(row => row.resultado_status === 'liberado');
                 const dados = liberados.map(row => ({
-                    placa: row.placa,
-                    renavam: row.renavam,
-                    nome: row.nome,
+                    ...row.raw,
                     resultado: row.resultado,
                     resultado_detalhe: row.resultado_detalhe
                 }));
@@ -932,9 +1048,7 @@
             btnDownloadGravame.addEventListener('click', async () => {
                 const comGravame = planilhaData.filter(row => row.resultado_status === 'nao_liberado');
                 const dados = comGravame.map(row => ({
-                    placa: row.placa,
-                    renavam: row.renavam,
-                    nome: row.nome,
+                    ...row.raw,
                     resultado: row.resultado,
                     resultado_detalhe: row.resultado_detalhe
                 }));

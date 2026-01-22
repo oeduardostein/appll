@@ -8,6 +8,7 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
 use Illuminate\View\View;
+use PhpOffice\PhpSpreadsheet\Cell\Coordinate;
 use PhpOffice\PhpSpreadsheet\Spreadsheet;
 use PhpOffice\PhpSpreadsheet\Writer\Xlsx;
 use Symfony\Component\HttpFoundation\Response as SymfonyResponse;
@@ -109,12 +110,46 @@ class TestePlanilhaGravameController extends Controller
         $dados = $request->input('dados', []);
         $tipo = (string) $request->input('tipo', 'resultado');
 
+        $columns = [];
+        $requestColumns = $request->input('colunas', []);
+        if (is_array($requestColumns)) {
+            foreach ($requestColumns as $column) {
+                if (!is_string($column)) {
+                    continue;
+                }
+                $column = trim($column);
+                if ($column === '') {
+                    continue;
+                }
+                if (in_array($column, $columns, true)) {
+                    continue;
+                }
+                $columns[] = $column;
+            }
+        }
+
+        if ($columns === []) {
+            $columns = ['PLACA', 'RENAVAM', 'NOME'];
+        }
+
+        $resultadoIndex = null;
+        foreach ($columns as $index => $column) {
+            if (mb_strtoupper($column) === 'RESULTADO') {
+                $resultadoIndex = $index;
+                break;
+            }
+        }
+
+        if ($resultadoIndex === null) {
+            $columns[] = 'RESULTADO';
+            $resultadoIndex = count($columns) - 1;
+        }
+
         $spreadsheet = new Spreadsheet();
         $sheet = $spreadsheet->getActiveSheet();
         $sheet->setTitle('Resultado');
 
-        $headers = ['PLACA', 'RENAVAM', 'NOME', 'RESULTADO'];
-        foreach ($headers as $colIndex => $header) {
+        foreach ($columns as $colIndex => $header) {
             $sheet->setCellValueByColumnAndRow($colIndex + 1, 1, $header);
         }
 
@@ -129,7 +164,8 @@ class TestePlanilhaGravameController extends Controller
                 'color' => ['argb' => 'FFFFFFFF'],
             ],
         ];
-        $sheet->getStyle('A1:D1')->applyFromArray($headerStyle);
+        $headerEndColumn = Coordinate::stringFromColumnIndex(count($columns));
+        $sheet->getStyle("A1:{$headerEndColumn}1")->applyFromArray($headerStyle);
 
         $rowIndex = 2;
         foreach ($dados as $linha) {
@@ -140,15 +176,25 @@ class TestePlanilhaGravameController extends Controller
                 $resultadoFinal = $resultado !== '' ? $resultado . ' - ' . $detalhe : $detalhe;
             }
 
-            $sheet->setCellValueByColumnAndRow(1, $rowIndex, $linha['placa'] ?? '');
-            $sheet->setCellValueByColumnAndRow(2, $rowIndex, $linha['renavam'] ?? '');
-            $sheet->setCellValueByColumnAndRow(3, $rowIndex, $linha['nome'] ?? '');
-            $sheet->setCellValueByColumnAndRow(4, $rowIndex, $resultadoFinal);
+            foreach ($columns as $colIndex => $column) {
+                if ($colIndex === $resultadoIndex) {
+                    $sheet->setCellValueByColumnAndRow($colIndex + 1, $rowIndex, $resultadoFinal);
+                    continue;
+                }
+
+                $sheet->setCellValueByColumnAndRow(
+                    $colIndex + 1,
+                    $rowIndex,
+                    $linha[$column] ?? ''
+                );
+            }
+
             $rowIndex++;
         }
 
-        foreach (range('A', 'D') as $col) {
-            $sheet->getColumnDimension($col)->setAutoSize(true);
+        for ($colIndex = 1; $colIndex <= count($columns); $colIndex++) {
+            $columnLetter = Coordinate::stringFromColumnIndex($colIndex);
+            $sheet->getColumnDimension($columnLetter)->setAutoSize(true);
         }
 
         $filenamePrefix = match ($tipo) {

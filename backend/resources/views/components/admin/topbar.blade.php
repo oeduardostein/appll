@@ -29,6 +29,11 @@
             'active_pattern' => 'admin.teste-planilha.*',
         ],
         [
+            'label' => 'Teste Planilha Gravame',
+            'route_name' => 'admin.teste-planilha-gravame.index',
+            'active_pattern' => 'admin.teste-planilha-gravame.*',
+        ],
+        [
             'label' => 'Configurações',
             'route_name' => 'admin.settings.index',
             'active_pattern' => 'admin.settings.*',
