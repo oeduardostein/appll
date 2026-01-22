@@ -8,6 +8,7 @@ use App\Http\Controllers\Admin\PasswordResetController;
 use App\Http\Controllers\Admin\ReportController;
 use App\Http\Controllers\Admin\SettingsController;
 use App\Http\Controllers\Admin\TestePlanilhaController;
+use App\Http\Controllers\Admin\TestePlanilhaGravameController;
 use App\Http\Controllers\Admin\UserController;
 use Illuminate\Support\Facades\Route;
 
@@ -36,6 +37,9 @@ Route::post('/excluir-conta', [AccountDeletionController::class, 'destroy'])->na
 Route::get('/testeplanilha', [TestePlanilhaController::class, 'index'])->name('teste-planilha.index');
 Route::post('/testeplanilha/consultar', [TestePlanilhaController::class, 'consultar'])->name('teste-planilha.consultar');
 Route::post('/testeplanilha/exportar', [TestePlanilhaController::class, 'exportar'])->name('teste-planilha.exportar');
+Route::get('/testeplanilha-gravame', [TestePlanilhaGravameController::class, 'index'])->name('teste-planilha-gravame.index');
+Route::post('/testeplanilha-gravame/consultar', [TestePlanilhaGravameController::class, 'consultar'])->name('teste-planilha-gravame.consultar');
+Route::post('/testeplanilha-gravame/exportar', [TestePlanilhaGravameController::class, 'exportar'])->name('teste-planilha-gravame.exportar');
 
 Route::prefix('admin')->name('admin.')->group(function () {
     Route::get('/login', [AuthController::class, 'showLoginForm'])->name('login');
@@ -50,6 +54,9 @@ Route::prefix('admin')->name('admin.')->group(function () {
         Route::get('/testeplanilha', [TestePlanilhaController::class, 'index'])->name('teste-planilha.index');
         Route::post('/testeplanilha/consultar', [TestePlanilhaController::class, 'consultar'])->name('teste-planilha.consultar');
         Route::post('/testeplanilha/exportar', [TestePlanilhaController::class, 'exportar'])->name('teste-planilha.exportar');
+        Route::get('/testeplanilha-gravame', [TestePlanilhaGravameController::class, 'index'])->name('teste-planilha-gravame.index');
+        Route::post('/testeplanilha-gravame/consultar', [TestePlanilhaGravameController::class, 'consultar'])->name('teste-planilha-gravame.consultar');
+        Route::post('/testeplanilha-gravame/exportar', [TestePlanilhaGravameController::class, 'exportar'])->name('teste-planilha-gravame.exportar');
         Route::get('/clientes', [ClientController::class, 'index'])->name('clients.index');
         Route::get('/clientes/{user}', [ClientController::class, 'show'])->name('clients.show');
         Route::get('/clientes/{user}/editar', [ClientController::class, 'edit'])->name('clients.edit');
