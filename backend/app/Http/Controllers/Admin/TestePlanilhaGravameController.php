@@ -108,6 +108,9 @@ class TestePlanilhaGravameController extends Controller
     public function exportar(Request $request): StreamedResponse
     {
         $dados = $request->input('dados', []);
+        if (!is_array($dados)) {
+            $dados = [];
+        }
         $tipo = (string) $request->input('tipo', 'resultado');
 
         $columns = [];
@@ -145,6 +148,72 @@ class TestePlanilhaGravameController extends Controller
             $resultadoIndex = count($columns) - 1;
         }
 
+        $rows = [];
+        foreach ($dados as $linha) {
+            if (!is_array($linha)) {
+                continue;
+            }
+
+            $resultado = trim((string) ($linha['resultado'] ?? ''));
+            $detalhe = trim((string) ($linha['resultado_detalhe'] ?? ''));
+            $resultadoFinal = $resultado;
+            if ($detalhe !== '') {
+                $resultadoFinal = $resultado !== '' ? $resultado . ' - ' . $detalhe : $detalhe;
+            }
+
+            $values = $linha['values'] ?? null;
+            if (!is_array($values)) {
+                $values = null;
+            }
+
+            $rowValues = [];
+            foreach ($columns as $colIndex => $column) {
+                if ($colIndex === $resultadoIndex) {
+                    $rowValues[] = $this->normalizeExportValue($resultadoFinal);
+                    continue;
+                }
+
+                $value = '';
+                if ($values !== null) {
+                    $value = $values[$colIndex] ?? '';
+                } else {
+                    $value = $linha[$column] ?? '';
+                }
+
+                $rowValues[] = $this->normalizeExportValue($value);
+            }
+
+            $rows[] = $rowValues;
+        }
+
+        $filenamePrefix = match ($tipo) {
+            'liberados' => 'gravame_liberados',
+            'com_gravame' => 'gravame_com_gravame',
+            default => 'gravame_resultado',
+        };
+        $timestamp = date('Y-m-d_His');
+
+        if (!class_exists(Spreadsheet::class) || !class_exists(Xlsx::class)) {
+            $filename = $filenamePrefix . '_' . $timestamp . '.csv';
+
+            return response()->streamDownload(function () use ($columns, $rows) {
+                $handle = fopen('php://output', 'w');
+                fwrite($handle, "\xEF\xBB\xBF");
+
+                fputcsv($handle, $columns, ';');
+
+                foreach ($rows as $row) {
+                    fputcsv($handle, $row, ';');
+                }
+
+                fclose($handle);
+            }, $filename, [
+                'Content-Type' => 'text/csv; charset=UTF-8',
+            ]);
+        }
+
+        $filename = $filenamePrefix . '_' . $timestamp . '.xlsx';
+
         $spreadsheet = new Spreadsheet();
         $sheet = $spreadsheet->getActiveSheet();
         $sheet->setTitle('Resultado');
@@ -154,7 +223,6 @@ class TestePlanilhaGravameController extends Controller
         }
 
         $headerStyle = [
-            'font' => ['bold' => true],
             'fill' => [
                 'fillType' => \PhpOffice\PhpSpreadsheet\Style\Fill::FILL_SOLID,
                 'startColor' => ['argb' => 'FF0B4EA2'],
@@ -168,27 +236,10 @@ class TestePlanilhaGravameController extends Controller
         $sheet->getStyle("A1:{$headerEndColumn}1")->applyFromArray($headerStyle);
 
         $rowIndex = 2;
-        foreach ($dados as $linha) {
-            $resultado = trim((string) ($linha['resultado'] ?? ''));
-            $detalhe = trim((string) ($linha['resultado_detalhe'] ?? ''));
-            $resultadoFinal = $resultado;
-            if ($detalhe !== '') {
-                $resultadoFinal = $resultado !== '' ? $resultado . ' - ' . $detalhe : $detalhe;
+        foreach ($rows as $rowValues) {
+            foreach ($rowValues as $colIndex => $value) {
+                $sheet->setCellValueByColumnAndRow($colIndex + 1, $rowIndex, $value);
             }
-
-            foreach ($columns as $colIndex => $column) {
-                if ($colIndex === $resultadoIndex) {
-                    $sheet->setCellValueByColumnAndRow($colIndex + 1, $rowIndex, $resultadoFinal);
-                    continue;
-                }
-
-                $sheet->setCellValueByColumnAndRow(
-                    $colIndex + 1,
-                    $rowIndex,
-                    $linha[$column] ?? ''
-                );
-            }
-
             $rowIndex++;
         }
 
@@ -197,19 +248,30 @@ class TestePlanilhaGravameController extends Controller
             $sheet->getColumnDimension($columnLetter)->setAutoSize(true);
         }
 
-        $filenamePrefix = match ($tipo) {
-            'liberados' => 'gravame_liberados',
-            'com_gravame' => 'gravame_com_gravame',
-            default => 'gravame_resultado',
-        };
-        $filename = $filenamePrefix . '_' . date('Y-m-d_His') . '.xlsx';
-
         return response()->streamDownload(function () use ($spreadsheet) {
             $writer = new Xlsx($spreadsheet);
             $writer->save('php://output');
         }, $filename, [
             'Content-Type' => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
         ]);
+    }
+
+    private function normalizeExportValue(mixed $value): string
+    {
+        if ($value === null) {
+            return '';
+        }
+
+        if (is_bool($value)) {
+            return $value ? '1' : '0';
+        }
+
+        if (is_scalar($value)) {
+            return (string) $value;
+        }
+
+        $encoded = json_encode($value, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+        return $encoded !== false ? $encoded : '';
     }
 
     /**

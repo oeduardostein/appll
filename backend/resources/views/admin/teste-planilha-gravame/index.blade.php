@@ -997,6 +997,29 @@
                 btnDownloadGravame.disabled = comGravame.length === 0;
             }
 
+            function resolveDownloadFilename(response, fallbackName) {
+                const header = response.headers.get('Content-Disposition') || response.headers.get('content-disposition') || '';
+                if (!header) {
+                    return fallbackName;
+                }
+
+                const utfMatch = header.match(/filename\*=UTF-8''([^;]+)/i);
+                if (utfMatch && utfMatch[1]) {
+                    try {
+                        return decodeURIComponent(utfMatch[1]);
+                    } catch {
+                        return utfMatch[1];
+                    }
+                }
+
+                const asciiMatch = header.match(/filename=\"?([^\";]+)\"?/i);
+                if (asciiMatch && asciiMatch[1]) {
+                    return asciiMatch[1];
+                }
+
+                return fallbackName;
+            }
+
             async function downloadPlanilha(tipo, dados) {
                 if (dados.length === 0) return;
 
@@ -1023,7 +1046,8 @@
                     const a = document.createElement('a');
                     a.href = url;
                     const prefix = tipo === 'liberados' ? 'gravame_liberados' : 'gravame_com_gravame';
-                    a.download = prefix + '_' + new Date().toISOString().slice(0, 10) + '.xlsx';
+                    const fallbackName = prefix + '_' + new Date().toISOString().slice(0, 10) + '.xlsx';
+                    a.download = resolveDownloadFilename(response, fallbackName);
                     document.body.appendChild(a);
                     a.click();
                     document.body.removeChild(a);
@@ -1037,7 +1061,7 @@
             btnDownloadLiberados.addEventListener('click', async () => {
                 const liberados = planilhaData.filter(row => row.resultado_status === 'liberado');
                 const dados = liberados.map(row => ({
-                    ...row.raw,
+                    values: planilhaColumns.map(column => row.raw?.[column] ?? ''),
                     resultado: row.resultado,
                     resultado_detalhe: row.resultado_detalhe
                 }));
@@ -1048,7 +1072,7 @@
             btnDownloadGravame.addEventListener('click', async () => {
                 const comGravame = planilhaData.filter(row => row.resultado_status === 'nao_liberado');
                 const dados = comGravame.map(row => ({
-                    ...row.raw,
+                    values: planilhaColumns.map(column => row.raw?.[column] ?? ''),
                     resultado: row.resultado,
                     resultado_detalhe: row.resultado_detalhe
                 }));
