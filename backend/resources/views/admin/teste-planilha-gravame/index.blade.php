@@ -463,9 +463,8 @@
                 <thead>
                     <tr>
                         <th>#</th>
-                        <th>Placa</th>
-                        <th>Renavam</th>
-                        <th>Nome</th>
+                <th>Placa</th>
+                <th>Nome</th>
                         <th>Resultado</th>
                         <th>Status</th>
                     </tr>
@@ -495,6 +494,7 @@
             const CONSULTAR_URL = '{{ route("admin.teste-planilha-gravame.consultar") }}';
             const EXPORTAR_URL = '{{ route("admin.teste-planilha-gravame.exportar") }}';
             const CAPTCHA_SOLVE_URL = "{{ url('api/captcha/solve') }}";
+            const OMIT_EXPORT_COLUMNS = new Set(['RENAVAM']);
 
             let planilhaData = [];
             let planilhaColumns = [];
@@ -595,8 +595,12 @@
                                 suffix += 1;
                             }
 
-                            planilhaColumns.push(uniqueLabel);
-                            columnIndexes.push(idx);
+                        if (OMIT_EXPORT_COLUMNS.has(normalizedHeaders[idx] ?? '')) {
+                            return;
+                        }
+
+                        planilhaColumns.push(uniqueLabel);
+                        columnIndexes.push(idx);
                         });
 
                         const placaIndex = findColumnIndex(normalizedHeaders, ['PLACA']);
@@ -665,7 +669,6 @@
                     <tr data-index="${row.index}" data-status="${row.status}">
                         <td>${row.index}</td>
                         <td><strong>${escapeHtml(row.placa)}</strong></td>
-                        <td>${escapeHtml(row.renavam) || '—'}</td>
                         <td>${escapeHtml(row.nome) || '—'}</td>
                         <td>${renderResultado(row)}</td>
                         <td>${renderStatus(row)}</td>
