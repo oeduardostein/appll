@@ -4,11 +4,11 @@ namespace App\Http\Controllers\Api;
 
 use Illuminate\Http\Request;
 use Illuminate\Routing\Controller;
-use Symfony\Component\HttpFoundation\Response;
+use Symfony\Component\HttpFoundation\Response as SymfonyResponse;
 
 class GravamePesquisaController extends Controller
 {
-    public function __invoke(Request $request): Response
+    public function __invoke(Request $request): SymfonyResponse
     {
         $placa = strtoupper($request->query('placa', ''));
         $captcha = strtoupper($request->query('captcha', ''));
@@ -16,7 +16,7 @@ class GravamePesquisaController extends Controller
         if ($placa === '' || $captcha === '') {
             return response()->json(
                 ['message' => 'Informe placa e captcha para realizar a consulta.'],
-                Response::HTTP_UNPROCESSABLE_ENTITY
+                SymfonyResponse::HTTP_UNPROCESSABLE_ENTITY
             );
         }
 
@@ -26,7 +26,7 @@ class GravamePesquisaController extends Controller
         if (isset($result['error'])) {
             return response()->json(
                 ['message' => $result['error']],
-                $result['status'] ?? Response::HTTP_BAD_GATEWAY
+                $result['status'] ?? SymfonyResponse::HTTP_BAD_GATEWAY
             );
         }
 
@@ -48,7 +48,7 @@ class GravamePesquisaController extends Controller
 
         return response()->json(
             $responsePayload,
-            Response::HTTP_OK,
+            SymfonyResponse::HTTP_OK,
             [],
             JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_PRETTY_PRINT
         );
@@ -69,10 +69,10 @@ class GravamePesquisaController extends Controller
             ]
         );
 
-        /** @var \Illuminate\Http\Response $response */
+        /** @var SymfonyResponse $response */
         $response = app(BaseEstadualController::class)($proxyRequest);
 
-        if ($response->getStatusCode() !== Response::HTTP_OK) {
+        if ($response->getStatusCode() !== SymfonyResponse::HTTP_OK) {
             return [
                 'error' => $this->extractErrorMessage($response),
                 'status' => $response->getStatusCode(),
@@ -83,14 +83,14 @@ class GravamePesquisaController extends Controller
         if (!is_array($content)) {
             return [
                 'error' => 'Resposta da base estadual em formato inválido.',
-                'status' => Response::HTTP_BAD_GATEWAY,
+                'status' => SymfonyResponse::HTTP_BAD_GATEWAY,
             ];
         }
 
         return ['data' => $content];
     }
 
-    private function extractErrorMessage(\Illuminate\Http\Response $response): string
+    private function extractErrorMessage(SymfonyResponse $response): string
     {
         $content = (string) $response->getContent();
         $decoded = json_decode($content, true);
