@@ -118,6 +118,36 @@
             gap: 18px;
         }
 
+        .atpv-actions {
+            display: flex;
+            justify-content: center;
+        }
+
+        .atpv-primary-button {
+            appearance: none;
+            border: none;
+            border-radius: 999px;
+            padding: 14px 24px;
+            font-size: 15px;
+            font-weight: 700;
+            color: #fff;
+            background: var(--primary);
+            cursor: pointer;
+            box-shadow: 0 12px 24px rgba(11, 82, 194, 0.25);
+            transition: transform 0.2s ease, box-shadow 0.2s ease, opacity 0.2s ease;
+        }
+
+        .atpv-primary-button:disabled {
+            cursor: not-allowed;
+            opacity: 0.55;
+            box-shadow: none;
+        }
+
+        .atpv-primary-button:not(:disabled):hover {
+            transform: translateY(-1px);
+            box-shadow: 0 16px 28px rgba(11, 82, 194, 0.3);
+        }
+
         .atpv-summary-card,
         .atpv-section-card {
             background: var(--card);
@@ -237,6 +267,11 @@
         </header>
         <main class="atpv-body">
             <div class="atpv-status-message" id="atpvStatusMessage" role="status"></div>
+            <div class="atpv-actions">
+                <button class="atpv-primary-button" type="button" id="atpvDownloadPdfBtn" disabled>
+                    Baixar PDF já emitido
+                </button>
+            </div>
             <div class="atpv-result-stack" id="atpvResultStack"></div>
         </main>
     </div>
@@ -246,6 +281,7 @@
         const resultStackEl = document.getElementById('atpvResultStack');
         const backButton = document.getElementById('atpvBackBtn');
         const copyButton = document.getElementById('atpvCopyBtn');
+        const downloadPdfButton = document.getElementById('atpvDownloadPdfBtn');
         const sessionKey = 'atpv_intencao_result';
         let storedState = null;
 
@@ -470,6 +506,9 @@
             if (copyButton) {
                 copyButton.disabled = false;
             }
+            if (downloadPdfButton) {
+                downloadPdfButton.disabled = false;
+            }
         }
 
         function renderStoredResult() {
@@ -507,6 +546,7 @@
                 showStatus('Não foi possível exibir o resultado. Refaça a consulta.', true);
                 resultStackEl.innerHTML = '';
                 if (copyButton) copyButton.disabled = true;
+                if (downloadPdfButton) downloadPdfButton.disabled = true;
             }
         }
 
@@ -539,6 +579,81 @@
                     alert('Não foi possível copiar o resultado.');
                 }
             });
+        }
+
+        async function downloadAtpvPdf() {
+            if (!storedState) {
+                showStatus('Resultado indisponível para baixar o PDF.', true);
+                return;
+            }
+
+            const authToken = localStorage.getItem('auth_token');
+            if (!authToken) {
+                window.location.href = '/login';
+                return;
+            }
+
+            const plate = (storedState.plate || storedState.payload?.consulta?.placa || '').toString().trim();
+            const renavam = (storedState.renavam || storedState.payload?.consulta?.renavam || '').toString().trim();
+            const captcha = (storedState.captcha || '').toString().trim();
+
+            if (!plate || !renavam || !captcha) {
+                showStatus('Dados insuficientes para baixar o PDF.', true);
+                return;
+            }
+
+            showStatus('Baixando PDF da ATPV-e...');
+            if (downloadPdfButton) downloadPdfButton.disabled = true;
+
+            try {
+                const params = new URLSearchParams({
+                    placa: plate,
+                    renavam: renavam,
+                    captcha: captcha,
+                });
+                const response = await fetch(`/api/emissao-atpv/pdf?${params}`, {
+                    headers: {
+                        'Accept': 'application/pdf',
+                        'Authorization': `Bearer ${authToken}`,
+                    },
+                });
+
+                if (!response.ok) {
+                    let message = 'Falha ao baixar o PDF da ATPV-e.';
+                    const contentType = response.headers.get('content-type') || '';
+                    if (contentType.includes('application/json')) {
+                        const data = await response.json().catch(() => ({}));
+                        message = data.message || message;
+                    }
+                    showStatus(message, true);
+                    return;
+                }
+
+                const contentType = response.headers.get('content-type') || '';
+                if (!contentType.includes('pdf')) {
+                    showStatus('Resposta inesperada ao gerar o PDF da ATPV-e.', true);
+                    return;
+                }
+
+                const blob = await response.blob();
+                const url = window.URL.createObjectURL(blob);
+                const link = document.createElement('a');
+                link.href = url;
+                link.download = `ATPV-${plate}-${Date.now()}.pdf`;
+                document.body.appendChild(link);
+                link.click();
+                link.remove();
+                window.URL.revokeObjectURL(url);
+                showStatus('');
+            } catch (error) {
+                showStatus('Não foi possível baixar o PDF da ATPV-e.', true);
+            } finally {
+                if (downloadPdfButton) downloadPdfButton.disabled = false;
+            }
+        }
+
+        if (downloadPdfButton) {
+            downloadPdfButton.addEventListener('click', downloadAtpvPdf);
         }
 
         if (checkAuth()) {
