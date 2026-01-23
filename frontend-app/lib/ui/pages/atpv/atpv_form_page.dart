@@ -685,6 +685,51 @@ class _AtpvFormPageState extends State<AtpvFormPage> {
           _buyerNameController.text = nome.trim();
         }
       }
+
+      final intencaoVenda = payload['intencao_venda'];
+      if (intencaoVenda is Map<String, dynamic>) {
+        final veiculoIntencao = intencaoVenda['veiculo'];
+        if (veiculoIntencao is Map<String, dynamic>) {
+          _setIfEmpty(_plateController, veiculoIntencao['placa']?.toString());
+          _setIfEmpty(_renavamController, veiculoIntencao['renavam']?.toString());
+          _setIfEmpty(_chassiController, veiculoIntencao['chassi']?.toString());
+          _setIfEmpty(_odometerController, veiculoIntencao['hodometro']?.toString());
+        }
+
+        final comprador = intencaoVenda['comprador'];
+        if (comprador is Map<String, dynamic>) {
+          if (_buyerDocumentController.text.trim().isEmpty) {
+            final docDigits = _onlyDigits(comprador['documento']?.toString());
+            if (docDigits != null) {
+              _setDocumentDigits(
+                controller: _buyerDocumentController,
+                digits: docDigits,
+                isOwner: false,
+              );
+            }
+          }
+          _setIfEmpty(_buyerNameController, comprador['nome']?.toString());
+          _setIfEmpty(_buyerEmailController, comprador['email']?.toString());
+          if (_buyerCepController.text.trim().isEmpty) {
+            final cepDigits = _onlyDigits(comprador['cep']?.toString());
+            if (cepDigits != null) {
+              _setCepDigits(cepDigits);
+            }
+          }
+          _setIfEmpty(_buyerCityController, comprador['municipio']?.toString());
+          _setIfEmpty(_buyerNeighborhoodController, comprador['bairro']?.toString());
+          _setIfEmpty(_buyerStreetController, comprador['logradouro']?.toString());
+          _setIfEmpty(_buyerNumberController, comprador['numero']?.toString());
+          _setIfEmpty(_buyerComplementController, comprador['complemento']?.toString());
+          _setIfEmpty(_buyerStateController, comprador['uf']?.toString());
+          if (_saleValueController.text.trim().isEmpty) {
+            final valorDigits = _onlyDigits(comprador['valor_venda']?.toString());
+            if (valorDigits != null && valorDigits.isNotEmpty) {
+              _setValorDigits(valorDigits);
+            }
+          }
+        }
+      }
     }
 
     if (_consultaComunicacoes.isNotEmpty) {

@@ -104,6 +104,15 @@ class AtpvService {
     try {
       final decoded = jsonDecode(body);
       if (decoded is Map<String, dynamic>) {
+        final ok = decoded['ok'];
+        if (ok is bool && !ok) {
+          final message = decoded['message']?.toString();
+          throw AtpvException(message ?? 'Falha ao consultar intenção de venda.');
+        }
+        final data = decoded['data'];
+        if (data is Map<String, dynamic>) {
+          return data;
+        }
         return decoded;
       }
     } catch (_) {

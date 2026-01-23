@@ -362,12 +362,24 @@
                 return;
             }
 
+            if (payload.ok && payload.data && typeof payload.data === 'object') {
+                payload = payload.data;
+            }
+
             const consulta = payload.consulta || {};
             const veiculo = payload.veiculo || {};
             const proprietario = payload.proprietario || {};
             const comunicacoes = Array.isArray(payload.comunicacao_vendas)
                 ? payload.comunicacao_vendas
                 : [];
+            const intencaoVenda = payload.intencao_venda || {};
+            const veiculoIntencao = intencaoVenda.veiculo || {};
+            const compradorIntencao = intencaoVenda.comprador || {};
+            const dadosIntencao = intencaoVenda.intencao || {};
+            const assinaturaIntencao = intencaoVenda.assinatura || {};
+            const resumoPlaca = veiculoIntencao.placa || consulta.placa;
+            const resumoRenavam = veiculoIntencao.renavam || consulta.renavam;
+            const resumoChassi = veiculoIntencao.chassi || veiculo.chassi;
 
             const summaryHtml = `
                 <div class="atpv-summary-card">
@@ -375,11 +387,11 @@
                     <div class="atpv-summary-grid">
                         <div class="atpv-info-row">
                             <div class="atpv-info-label">Placa</div>
-                            <div class="atpv-info-value">${formatValue(consulta.placa)}</div>
+                            <div class="atpv-info-value">${formatValue(resumoPlaca)}</div>
                         </div>
                         <div class="atpv-info-row">
                             <div class="atpv-info-label">Renavam</div>
-                            <div class="atpv-info-value">${formatValue(consulta.renavam)}</div>
+                            <div class="atpv-info-value">${formatValue(resumoRenavam)}</div>
                         </div>
                         <div class="atpv-info-row">
                             <div class="atpv-info-label">Gerado em</div>
@@ -387,8 +399,30 @@
                         </div>
                         <div class="atpv-info-row">
                             <div class="atpv-info-label">Chassi</div>
-                            <div class="atpv-info-value">${formatValue(veiculo.chassi)}</div>
+                            <div class="atpv-info-value">${formatValue(resumoChassi)}</div>
                         </div>
+                    </div>
+                </div>
+            `;
+
+            const intencaoHtml = `
+                <div class="atpv-section-card">
+                    <div class="atpv-section-title">Intenção de venda</div>
+                    <div class="atpv-section-grid">
+                        ${renderInfoRows([
+                            ['Número ATPVE', veiculoIntencao.numero_atpve],
+                            ['Hodômetro', veiculoIntencao.hodometro],
+                            ['Comprador', compradorIntencao.nome],
+                            ['Documento', compradorIntencao.documento],
+                            ['Email', compradorIntencao.email],
+                            ['Município', compradorIntencao.municipio],
+                            ['UF', compradorIntencao.uf],
+                            ['Valor da venda', compradorIntencao.valor_venda],
+                            ['Estado', dadosIntencao.estado],
+                            ['Data/Hora', dadosIntencao.data_hora],
+                            ['Atualização', dadosIntencao.data_hora_atualizacao],
+                            ['Assinatura', assinaturaIntencao.tipo],
+                        ])}
                     </div>
                 </div>
             `;
@@ -430,7 +464,7 @@
                 </div>
             `;
 
-            resultStackEl.innerHTML = summaryHtml + vehicleHtml + ownerHtml + communicationsHtml;
+            resultStackEl.innerHTML = summaryHtml + intencaoHtml + vehicleHtml + ownerHtml + communicationsHtml;
             showStatus('');
             storedState = state;
             if (copyButton) {
