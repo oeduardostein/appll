@@ -29,12 +29,14 @@ class ConsultaIntencaoVendaController extends Controller
         $lastException = null;
         $response = null;
         $baseUrl = '';
+        $step = '';
 
         foreach ($hosts as $host) {
             try {
                 $result = $this->performConsulta($host, $renavam, $placa, $captcha);
                 $response = $result['response'];
                 $baseUrl = $result['base_url'];
+                $step = $result['step'];
                 break;
             } catch (ConnectionException $e) {
                 $lastException = $e;
@@ -56,6 +58,26 @@ class ConsultaIntencaoVendaController extends Controller
             );
         }
 
+        if (! $response->successful()) {
+            $stats = $response->handlerStats();
+            $finalUrl = is_array($stats) ? ($stats['url'] ?? $baseUrl) : $baseUrl;
+            Log::warning('Consulta intenção venda: resposta não-ok', [
+                'status' => $response->status(),
+                'url' => $finalUrl,
+                'step' => $step,
+                'body_preview' => mb_substr($response->body(), 0, 300),
+            ]);
+
+            return response()->json(
+                [
+                    'ok' => false,
+                    'message' => 'Falha ao consultar o serviço. Sessão inválida ou acesso negado.',
+                    'status' => $response->status(),
+                ],
+                Response::HTTP_BAD_GATEWAY
+            );
+        }
+
         $body = $response->body();
         $body = $this->normalizeEncoding($body);
         $errors = $this->extractErrors($body);
@@ -65,6 +87,7 @@ class ConsultaIntencaoVendaController extends Controller
         Log::info('Consulta intenção venda: resposta', [
             'status' => $response->status(),
             'url' => $finalUrl,
+            'step' => $step,
             'body_preview' => mb_substr($body, 0, 300),
         ]);
 
@@ -141,13 +164,21 @@ class ConsultaIntencaoVendaController extends Controller
             'User-Agent' => 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/134.0.0.0 Safari/537.36',
         ];
 
-        Http::withOptions([
+        $initialResponse = Http::withOptions([
             'cookies' => $jar,
             'allow_redirects' => true,
             'verify' => true,
         ])
             ->withHeaders($headers)
             ->get($baseUrl);
+
+        if (! $initialResponse->successful()) {
+            return [
+                'response' => $initialResponse,
+                'base_url' => $baseUrl,
+                'step' => 'get',
+            ];
+        }
 
         $form = [
             'method' => 'pesquisar',
@@ -174,6 +205,7 @@ class ConsultaIntencaoVendaController extends Controller
         return [
             'response' => $response,
             'base_url' => $baseUrl,
+            'step' => 'post',
         ];
     }
 
