@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api;
 
 use App\Support\DetranHtmlParser;
 use GuzzleHttp\Cookie\CookieJar;
+use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Http\Request;
 use Illuminate\Routing\Controller;
 use Illuminate\Support\Facades\Http;
@@ -20,53 +21,40 @@ class ConsultaIntencaoVendaController extends Controller
             'captcha' => ['required', 'string', 'max:12'],
         ]);
 
-        $baseUrl = 'https://e-crvsp.sp.gov.br/gever/GVR/emissao/consultarIntencaoVenda.do';
-        $jar = new CookieJar();
-        $headers = [
-            'Accept' => 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
-            'Accept-Language' => 'pt-BR,pt;q=0.9',
-            'Cache-Control' => 'max-age=0',
-            'Connection' => 'keep-alive',
-            'Content-Type' => 'application/x-www-form-urlencoded',
-            'Origin' => 'https://e-crvsp.sp.gov.br',
-            'Referer' => $baseUrl,
-            'Upgrade-Insecure-Requests' => '1',
-            'User-Agent' => 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/134.0.0.0 Safari/537.36',
-        ];
-
         $renavam = trim($data['renavam']);
         $placa = strtoupper(trim($data['placa']));
         $captcha = strtoupper(trim($data['captcha']));
 
-        Http::withOptions([
-            'cookies' => $jar,
-            'allow_redirects' => true,
-            'verify' => true,
-        ])
-            ->withHeaders($headers)
-            ->get($baseUrl);
+        $hosts = ['e-crvsp.sp.gov.br', 'www.e-crvsp.sp.gov.br'];
+        $lastException = null;
+        $response = null;
+        $baseUrl = '';
 
-        $form = [
-            'method' => 'pesquisar',
-            'renavam' => $renavam,
-            'placa' => $placa,
-            'codigoEstadoIntencaoVenda' => '0',
-            'numeroAtpve' => '',
-            'dataInicioPesqSTR' => '',
-            'horaInicioPesq' => '',
-            'dataFimPesqSTR' => '',
-            'horaFimPesq' => '',
-            'captcha' => $captcha,
-        ];
+        foreach ($hosts as $host) {
+            try {
+                $result = $this->performConsulta($host, $renavam, $placa, $captcha);
+                $response = $result['response'];
+                $baseUrl = $result['base_url'];
+                break;
+            } catch (ConnectionException $e) {
+                $lastException = $e;
+                Log::warning('Consulta intenção venda: falha de conexão', [
+                    'host' => $host,
+                    'error' => $e->getMessage(),
+                ]);
+            }
+        }
 
-        $response = Http::withOptions([
-            'cookies' => $jar,
-            'allow_redirects' => true,
-            'verify' => true,
-        ])
-            ->withHeaders($headers)
-            ->asForm()
-            ->post($baseUrl, $form);
+        if (! $response) {
+            return response()->json(
+                [
+                    'ok' => false,
+                    'message' => 'Falha ao consultar o serviço. Host indisponível.',
+                    'detalhes' => $lastException ? [$lastException->getMessage()] : [],
+                ],
+                Response::HTTP_BAD_GATEWAY
+            );
+        }
 
         $body = $response->body();
         $body = $this->normalizeEncoding($body);
@@ -130,6 +118,63 @@ class ConsultaIntencaoVendaController extends Controller
             [],
             JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_PRETTY_PRINT
         );
+    }
+
+    /**
+     * @return array{response:\Illuminate\Http\Client\Response, base_url:string}
+     *
+     * @throws \Illuminate\Http\Client\ConnectionException
+     */
+    private function performConsulta(string $host, string $renavam, string $placa, string $captcha): array
+    {
+        $baseUrl = "https://{$host}/gever/GVR/emissao/consultarIntencaoVenda.do";
+        $jar = new CookieJar();
+        $headers = [
+            'Accept' => 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+            'Accept-Language' => 'pt-BR,pt;q=0.9',
+            'Cache-Control' => 'max-age=0',
+            'Connection' => 'keep-alive',
+            'Content-Type' => 'application/x-www-form-urlencoded',
+            'Origin' => "https://{$host}",
+            'Referer' => $baseUrl,
+            'Upgrade-Insecure-Requests' => '1',
+            'User-Agent' => 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/134.0.0.0 Safari/537.36',
+        ];
+
+        Http::withOptions([
+            'cookies' => $jar,
+            'allow_redirects' => true,
+            'verify' => true,
+        ])
+            ->withHeaders($headers)
+            ->get($baseUrl);
+
+        $form = [
+            'method' => 'pesquisar',
+            'renavam' => $renavam,
+            'placa' => $placa,
+            'codigoEstadoIntencaoVenda' => '0',
+            'numeroAtpve' => '',
+            'dataInicioPesqSTR' => '',
+            'horaInicioPesq' => '',
+            'dataFimPesqSTR' => '',
+            'horaFimPesq' => '',
+            'captcha' => $captcha,
+        ];
+
+        $response = Http::withOptions([
+            'cookies' => $jar,
+            'allow_redirects' => true,
+            'verify' => true,
+        ])
+            ->withHeaders($headers)
+            ->asForm()
+            ->post($baseUrl, $form);
+
+        return [
+            'response' => $response,
+            'base_url' => $baseUrl,
+        ];
     }
 
     /**
