@@ -246,6 +246,7 @@ class DetranHtmlParser
         $comunicacaoVendas = !empty($communications)
             ? array_values($communications)
             : self::parseComunicacaoVendas($xp);
+        $intencaoVenda = self::parseIntencaoVenda($xp);
 
         $output = [
             'fonte' => [
@@ -309,6 +310,7 @@ class DetranHtmlParser
                 'data_licenciamento'      => $pick($labels['CRV_DataLic']),
             ],
             'comunicacao_vendas' => $comunicacaoVendas,
+            'intencao_venda' => $intencaoVenda,
         ];
 
         $sanitize = static function (&$value) use (&$sanitize) {
@@ -332,6 +334,59 @@ class DetranHtmlParser
         $sanitize($output);
 
         return $output;
+    }
+
+    private static function parseIntencaoVenda(DOMXPath $xpath): ?array
+    {
+        $veiculoNode = self::findFieldsetByLegend($xpath, 'Dados do Veículo');
+        $compradorNode = self::findFieldsetByLegend($xpath, 'Dados do Comprador');
+        $intencaoNode = self::findFieldsetByLegend($xpath, 'Dados da Intenção de Venda');
+        $assinaturaNode = self::findFieldsetByLegend($xpath, 'Assinatura');
+
+        if (!$veiculoNode && !$compradorNode && !$intencaoNode && !$assinaturaNode) {
+            return null;
+        }
+
+        $veiculo = $veiculoNode ? self::extractLabelValuePairsFromNode($xpath, $veiculoNode) : [];
+        $comprador = $compradorNode ? self::extractLabelValuePairsFromNode($xpath, $compradorNode) : [];
+        $intencao = $intencaoNode ? self::extractLabelValuePairsFromNode($xpath, $intencaoNode) : [];
+        $assinatura = $assinaturaNode ? self::extractLabelValuePairsFromNode($xpath, $assinaturaNode) : [];
+
+        $output = [
+            'veiculo' => [
+                'numero_atpve' => $veiculo['Número ATPVE'] ?? $veiculo['Numero ATPVE'] ?? null,
+                'placa' => $veiculo['Placa'] ?? null,
+                'renavam' => $veiculo['Renavam'] ?? null,
+                'chassi' => $veiculo['Chassi'] ?? null,
+                'hodometro' => $veiculo['Hodômetro'] ?? $veiculo['Hodometro'] ?? null,
+            ],
+            'comprador' => [
+                'documento' => $comprador['CPF/CNPJ'] ?? $comprador['CPF / CNPJ'] ?? null,
+                'nome' => $comprador['Nome'] ?? null,
+                'email' => $comprador['E-mail'] ?? $comprador['Email'] ?? null,
+                'municipio' => $comprador['Município'] ?? $comprador['Municipio'] ?? null,
+                'uf' => $comprador['UF'] ?? null,
+                'valor_venda' => $comprador['Valor da venda'] ?? $comprador['Valor Venda'] ?? null,
+            ],
+            'intencao' => [
+                'uf' => $intencao['UF'] ?? null,
+                'estado' => $intencao['Estado Intenção Venda'] ?? $intencao['Estado Intencao Venda'] ?? null,
+                'data_hora' => $intencao['Data/Hora'] ?? null,
+                'data_hora_atualizacao' => $intencao['Data/Hora Atualização'] ?? $intencao['Data/Hora Atualizacao'] ?? null,
+            ],
+            'assinatura' => [
+                'tipo' => $assinatura['Tipo de Assinatura'] ?? null,
+            ],
+        ];
+
+        $hasValue = self::hasAnyValue([
+            ...array_values($output['veiculo']),
+            ...array_values($output['comprador']),
+            ...array_values($output['intencao']),
+            $output['assinatura']['tipo'] ?? null,
+        ]);
+
+        return $hasValue ? $output : null;
     }
 
     private static function parseComunicacaoVendas(DOMXPath $xpath): ?array

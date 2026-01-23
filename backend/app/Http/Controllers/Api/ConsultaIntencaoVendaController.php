@@ -100,8 +100,10 @@ class ConsultaIntencaoVendaController extends Controller
 
         $parsed = DetranHtmlParser::parse($body);
         $hasFormMarker = stripos($body, 'Consultar Intenção de Venda') !== false;
+        $hasIntencaoVenda = ! empty($parsed['intencao_venda']);
+        $hasComunicacao = ! empty($parsed['comunicacao_vendas']);
 
-        if (empty($parsed['comunicacao_vendas'])) {
+        if (! $hasIntencaoVenda && ! $hasComunicacao) {
             if (! $hasFormMarker) {
                 return response()->json(
                     [
