@@ -2009,6 +2009,16 @@ class _AtpvFormPageState extends State<AtpvFormPage> {
     final proprietario = _consultaPayload?['proprietario'] as Map<String, dynamic>?;
     final consultaInfo = _consultaPayload?['consulta'] as Map<String, dynamic>?
         ?? const <String, dynamic>{};
+    final intencaoVenda =
+        _consultaPayload?['intencao_venda'] as Map<String, dynamic>?;
+    final veiculoIntencao =
+        intencaoVenda?['veiculo'] as Map<String, dynamic>?;
+    final compradorIntencao =
+        intencaoVenda?['comprador'] as Map<String, dynamic>?;
+    final dadosIntencao =
+        intencaoVenda?['intencao'] as Map<String, dynamic>?;
+    final assinaturaIntencao =
+        intencaoVenda?['assinatura'] as Map<String, dynamic>?;
 
     final displayEntries = <MapEntry<String, String>>[];
     final consultaPlaca = consultaInfo['placa']?.toString();
@@ -2038,6 +2048,71 @@ class _AtpvFormPageState extends State<AtpvFormPage> {
       final nome = proprietario['nome']?.toString();
       if (nome != null && nome.trim().isNotEmpty) {
         displayEntries.add(MapEntry('Proprietário', nome.trim()));
+      }
+    }
+
+    if (veiculoIntencao != null) {
+      final numeroAtpve = veiculoIntencao['numero_atpve']?.toString();
+      final hodometro = veiculoIntencao['hodometro']?.toString();
+      if (numeroAtpve != null && numeroAtpve.trim().isNotEmpty) {
+        displayEntries.add(MapEntry('Número ATPVE', numeroAtpve.trim()));
+      }
+      if (hodometro != null && hodometro.trim().isNotEmpty) {
+        displayEntries.add(MapEntry('Hodômetro', hodometro.trim()));
+      }
+    }
+
+    if (compradorIntencao != null) {
+      final nome = compradorIntencao['nome']?.toString();
+      final documento = compradorIntencao['documento']?.toString();
+      final email = compradorIntencao['email']?.toString();
+      final municipio = compradorIntencao['municipio']?.toString();
+      final uf = compradorIntencao['uf']?.toString();
+      final valorVenda = compradorIntencao['valor_venda']?.toString();
+      if (nome != null && nome.trim().isNotEmpty) {
+        displayEntries.add(MapEntry('Comprador', nome.trim()));
+      }
+      if (documento != null && documento.trim().isNotEmpty) {
+        displayEntries.add(MapEntry('Documento', documento.trim()));
+      }
+      if (email != null && email.trim().isNotEmpty) {
+        displayEntries.add(MapEntry('E-mail', email.trim()));
+      }
+      if (municipio != null && municipio.trim().isNotEmpty) {
+        final ufValue = uf?.trim();
+        displayEntries.add(MapEntry(
+          'Município/UF',
+          ufValue != null && ufValue.isNotEmpty
+              ? '${municipio.trim()} / ${ufValue.toUpperCase()}'
+              : municipio.trim(),
+        ));
+      } else if (uf != null && uf.trim().isNotEmpty) {
+        displayEntries.add(MapEntry('UF', uf.trim().toUpperCase()));
+      }
+      if (valorVenda != null && valorVenda.trim().isNotEmpty) {
+        displayEntries.add(MapEntry('Valor da venda', valorVenda.trim()));
+      }
+    }
+
+    if (dadosIntencao != null) {
+      final estado = dadosIntencao['estado']?.toString();
+      final dataHora = dadosIntencao['data_hora']?.toString();
+      final dataAtualizacao = dadosIntencao['data_hora_atualizacao']?.toString();
+      if (estado != null && estado.trim().isNotEmpty) {
+        displayEntries.add(MapEntry('Estado da intenção', estado.trim()));
+      }
+      if (dataHora != null && dataHora.trim().isNotEmpty) {
+        displayEntries.add(MapEntry('Data/Hora', dataHora.trim()));
+      }
+      if (dataAtualizacao != null && dataAtualizacao.trim().isNotEmpty) {
+        displayEntries.add(MapEntry('Atualização', dataAtualizacao.trim()));
+      }
+    }
+
+    if (assinaturaIntencao != null) {
+      final tipo = assinaturaIntencao['tipo']?.toString();
+      if (tipo != null && tipo.trim().isNotEmpty) {
+        displayEntries.add(MapEntry('Assinatura', tipo.trim()));
       }
     }
 
