@@ -7,6 +7,7 @@ use GuzzleHttp\Cookie\CookieJar;
 use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Http\Request;
 use Illuminate\Routing\Controller;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 use Symfony\Component\HttpFoundation\Response;
@@ -21,6 +22,8 @@ class ConsultaIntencaoVendaController extends Controller
             'captcha' => ['required', 'string', 'max:12'],
         ]);
 
+        $token = DB::table('admin_settings')->where('id', 1)->value('value');
+
         $renavam = trim($data['renavam']);
         $placa = strtoupper(trim($data['placa']));
         $captcha = strtoupper(trim($data['captcha']));
@@ -30,13 +33,15 @@ class ConsultaIntencaoVendaController extends Controller
         $response = null;
         $baseUrl = '';
         $step = '';
+        $usedToken = false;
 
         foreach ($hosts as $host) {
             try {
-                $result = $this->performConsulta($host, $renavam, $placa, $captcha);
+                $result = $this->performConsulta($host, $renavam, $placa, $captcha, $token);
                 $response = $result['response'];
                 $baseUrl = $result['base_url'];
                 $step = $result['step'];
+                $usedToken = $result['used_token'];
                 break;
             } catch (ConnectionException $e) {
                 $lastException = $e;
@@ -61,18 +66,25 @@ class ConsultaIntencaoVendaController extends Controller
         if (! $response->successful()) {
             $stats = $response->handlerStats();
             $finalUrl = is_array($stats) ? ($stats['url'] ?? $baseUrl) : $baseUrl;
+            $status = $response->status();
             Log::warning('Consulta intenção venda: resposta não-ok', [
-                'status' => $response->status(),
+                'status' => $status,
                 'url' => $finalUrl,
                 'step' => $step,
+                'used_token' => $usedToken,
                 'body_preview' => mb_substr($response->body(), 0, 300),
             ]);
+
+            $message = 'Falha ao consultar o serviço. Sessão inválida ou acesso negado.';
+            if (in_array($status, [401, 403], true) && $usedToken) {
+                $message = 'Sessão expirada. É necessário atualizar o token de acesso.';
+            }
 
             return response()->json(
                 [
                     'ok' => false,
-                    'message' => 'Falha ao consultar o serviço. Sessão inválida ou acesso negado.',
-                    'status' => $response->status(),
+                    'message' => $message,
+                    'status' => $status,
                 ],
                 Response::HTTP_BAD_GATEWAY
             );
@@ -150,10 +162,9 @@ class ConsultaIntencaoVendaController extends Controller
      *
      * @throws \Illuminate\Http\Client\ConnectionException
      */
-    private function performConsulta(string $host, string $renavam, string $placa, string $captcha): array
+    private function performConsulta(string $host, string $renavam, string $placa, string $captcha, ?string $token): array
     {
         $baseUrl = "https://{$host}/gever/GVR/emissao/consultarIntencaoVenda.do";
-        $jar = new CookieJar();
         $headers = [
             'Accept' => 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
             'Accept-Language' => 'pt-BR,pt;q=0.9',
@@ -166,27 +177,12 @@ class ConsultaIntencaoVendaController extends Controller
             'User-Agent' => 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/134.0.0.0 Safari/537.36',
         ];
 
-        $initialResponse = Http::withOptions([
-            'cookies' => $jar,
-            'allow_redirects' => true,
-            'verify' => true,
-        ])
-            ->withHeaders($headers)
-            ->get($baseUrl);
-
-        if (! $initialResponse->successful()) {
-            return [
-                'response' => $initialResponse,
-                'base_url' => $baseUrl,
-                'step' => 'get',
-            ];
-        }
-
         $form = [
             'method' => 'pesquisar',
             'renavam' => $renavam,
             'placa' => $placa,
             'codigoEstadoIntencaoVenda' => '0',
+            'numeroAtpv' => '',
             'numeroAtpve' => '',
             'dataInicioPesqSTR' => '',
             'horaInicioPesq' => '',
@@ -195,19 +191,95 @@ class ConsultaIntencaoVendaController extends Controller
             'captcha' => $captcha,
         ];
 
-        $response = Http::withOptions([
-            'cookies' => $jar,
-            'allow_redirects' => true,
-            'verify' => true,
-        ])
-            ->withHeaders($headers)
-            ->asForm()
-            ->post($baseUrl, $form);
+        $attempts = [
+            [
+                'used_token' => false,
+                'jar' => new CookieJar(),
+            ],
+        ];
+
+        if ($token) {
+            $attempts[] = [
+                'used_token' => true,
+                'jar' => CookieJar::fromArray([
+                    'JSESSIONID' => $token,
+                    'dataUsuarPublic' => 'Mon Mar 24 2025 08:14:44 GMT-0300 (Horário Padrão de Brasília)',
+                    'naoExibirPublic' => 'sim',
+                ], $host),
+            ];
+        }
+
+        $lastResponse = null;
+        $lastStep = 'get';
+        $lastUsedToken = false;
+
+        foreach ($attempts as $attempt) {
+            $jar = $attempt['jar'];
+
+            $initialResponse = Http::withOptions([
+                'cookies' => $jar,
+                'allow_redirects' => true,
+                'verify' => true,
+            ])
+                ->withHeaders($headers)
+                ->get($baseUrl);
+
+            $lastResponse = $initialResponse;
+            $lastStep = $attempt['used_token'] ? 'get-token' : 'get';
+            $lastUsedToken = $attempt['used_token'];
+
+            if (! $initialResponse->successful()) {
+                if (! $attempt['used_token']) {
+                    continue;
+                }
+
+                return [
+                    'response' => $initialResponse,
+                    'base_url' => $baseUrl,
+                    'step' => $lastStep,
+                    'used_token' => $lastUsedToken,
+                ];
+            }
+
+            $response = Http::withOptions([
+                'cookies' => $jar,
+                'allow_redirects' => true,
+                'verify' => true,
+            ])
+                ->withHeaders($headers)
+                ->asForm()
+                ->post($baseUrl, $form);
+
+            $lastResponse = $response;
+            $lastStep = $attempt['used_token'] ? 'post-token' : 'post';
+            $lastUsedToken = $attempt['used_token'];
+
+            if ($response->successful()) {
+                return [
+                    'response' => $response,
+                    'base_url' => $baseUrl,
+                    'step' => $lastStep,
+                    'used_token' => $lastUsedToken,
+                ];
+            }
+
+            if (! $attempt['used_token']) {
+                continue;
+            }
+
+            return [
+                'response' => $response,
+                'base_url' => $baseUrl,
+                'step' => $lastStep,
+                'used_token' => $lastUsedToken,
+            ];
+        }
 
         return [
-            'response' => $response,
+            'response' => $lastResponse,
             'base_url' => $baseUrl,
-            'step' => 'post',
+            'step' => $lastStep,
+            'used_token' => $lastUsedToken,
         ];
     }
 
