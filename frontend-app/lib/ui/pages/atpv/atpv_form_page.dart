@@ -818,10 +818,6 @@ class _AtpvFormPageState extends State<AtpvFormPage> {
             label: const Text('Baixar PDF já emitido'),
           ),
           const SizedBox(height: 24),
-          if (_consultaPayload != null) ...[
-            _buildConsultaResultSection(),
-            const SizedBox(height: 24),
-          ],
           _buildEmissionFormSection(context),
         ],
       ),
