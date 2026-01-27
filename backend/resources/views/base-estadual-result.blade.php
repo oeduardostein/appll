@@ -833,6 +833,54 @@
             modal.classList.add('show');
         }
 
+        function parseCurrencyValue(raw) {
+            if (raw == null) {
+                return 0;
+            }
+            const text = String(raw).trim();
+            if (text === '') {
+                return 0;
+            }
+
+            const sanitized = text.replace(/[^\d.,-]/g, '');
+            if (sanitized === '') {
+                return 0;
+            }
+
+            const lastDot = sanitized.lastIndexOf('.');
+            const lastComma = sanitized.lastIndexOf(',');
+            let decimalIndex = -1;
+            if (lastDot >= 0 || lastComma >= 0) {
+                const candidateIndex = lastDot > lastComma ? lastDot : lastComma;
+                const digitsAfterSeparator = sanitized.length - candidateIndex - 1;
+                if (digitsAfterSeparator <= 2) {
+                    decimalIndex = candidateIndex;
+                }
+            }
+
+            let buffer = '';
+            for (let i = 0; i < sanitized.length; i++) {
+                const char = sanitized[i];
+                if (char === '.' || char === ',') {
+                    if (i === decimalIndex) {
+                        buffer += '.';
+                    }
+                    continue;
+                }
+                if ((char === '-' || char === '+') && buffer === '') {
+                    buffer += char;
+                    continue;
+                }
+                buffer += char;
+            }
+
+            if (buffer === '' || buffer === '-' || buffer === '+') {
+                return 0;
+            }
+
+            return Number(buffer) || 0;
+        }
+
         function showDebitosDetails() {
             if (!window.baseResultData || !window.baseResultData.debitos_multas) {
                 const modal = document.getElementById('detailModal');
@@ -862,7 +910,7 @@
             for (const [key, label] of Object.entries(labels)) {
                 const value = debitos[key];
                 if (value != null) {
-                    const numValue = parseFloat(String(value).replace(/[^\d,.-]/g, '').replace(',', '.')) || 0;
+                    const numValue = parseCurrencyValue(value);
                     total += numValue;
                     const formatted = typeof value === 'number' ? value.toFixed(2).replace('.', ',') : value;
                     html += `
