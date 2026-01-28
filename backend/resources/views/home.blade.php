@@ -1084,7 +1084,6 @@
 
     <main class="content">
         @include('components.home.actions')
-        @include('components.home.disclaimer')
         @include('components.home.recent')
     </main>
 
