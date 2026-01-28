@@ -10,12 +10,24 @@
 
     <style>
         :root {
+            color-scheme: light;
+            --primary: #0047AB;
+            --primary-dark: #0B3E98;
+            --accent: #2F80ED;
+            --bg: #F8FAFC;
+            --card: #E7EDFF;
+            --card-shadow: 0 6px 12px rgba(14, 59, 145, 0.08);
+            --white: #FFFFFF;
+            --text-strong: #1E293B;
+            --text-muted: #64748B;
+            --text-soft: #667085;
+            --divider: #E4E7EC;
+            --disclaimer: #F0F4FF;
+            --error: #EF4444;
             --brand-primary: #0b4ea2;
             --brand-primary-hover: #093f82;
             --brand-light: #eff4ff;
-            --text-strong: #12263a;
             --text-default: #475569;
-            --text-muted: #6b7280;
             --surface: #ffffff;
             --surface-muted: #f3f5f9;
             --border: #d0d9e3;
@@ -29,8 +41,8 @@
         body {
             margin: 0;
             min-height: 100vh;
-            background: var(--surface-muted);
-            color: var(--text-default);
+            background: var(--bg);
+            color: var(--text-strong);
             font-family: inherit;
         }
 
@@ -38,62 +50,118 @@
             color: inherit;
         }
 
-        .page-shell {
-            max-width: 1200px;
-            margin: 0 auto;
-            padding: 32px 24px 64px;
+        .header {
+            background: var(--primary);
+            border-radius: 0 0 32px 32px;
+            padding: 28px 20px 36px;
+            color: var(--white);
         }
 
-        .page-header {
+        .header-inner {
+            max-width: 720px;
+            margin: 0 auto;
             display: flex;
-            flex-wrap: wrap;
+            flex-direction: column;
+            gap: 20px;
+        }
+
+        .header-top {
+            display: flex;
             align-items: center;
             justify-content: space-between;
             gap: 16px;
-            padding: 20px 24px;
-            background: var(--surface);
-            border-radius: 18px;
-            box-shadow: 0 24px 48px rgba(15, 23, 42, 0.08), 0 1px 0 rgba(255, 255, 255, 0.6);
-            margin-bottom: 32px;
         }
 
-        .page-header__brand {
+        .brand-avatar {
+            width: 56px;
+            height: 56px;
+            border-radius: 50%;
             display: flex;
             align-items: center;
-            gap: 16px;
+            justify-content: center;
+            overflow: hidden;
+            flex-shrink: 0;
         }
 
-        .page-header__logo {
-            width: 48px;
-            height: 48px;
-            border-radius: 14px;
-            background: var(--brand-primary);
-            color: #fff;
-            font-weight: 700;
-            display: inline-flex;
+        .brand-avatar img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            display: block;
+        }
+
+        .header-actions {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .icon-button {
+            width: 44px;
+            height: 44px;
+            border-radius: 999px;
+            border: 1px solid rgba(255, 255, 255, 0.3);
+            background: rgba(255, 255, 255, 0.12);
+            color: var(--white);
+            display: flex;
             align-items: center;
             justify-content: center;
+            cursor: pointer;
+            transition: background 0.2s ease, transform 0.2s ease;
         }
 
-        .page-header__title {
-            font-size: 18px;
+        .icon-button svg {
+            width: 20px;
+            height: 20px;
+            display: block;
+        }
+
+        .icon-button:hover {
+            background: rgba(255, 255, 255, 0.2);
+            transform: translateY(-1px);
+        }
+
+        .btn-outline {
+            border-radius: 18px;
+            border: 1px solid rgba(255, 255, 255, 0.3);
+            background: rgba(255, 255, 255, 0.12);
+            color: var(--white);
+            padding: 10px 16px;
+            font-size: 15px;
             font-weight: 600;
-            color: var(--text-strong);
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            cursor: pointer;
+            transition: background 0.2s ease, transform 0.2s ease;
         }
 
-        .page-header__subtitle {
-            font-size: 14px;
-            color: var(--text-muted);
+        .btn-outline svg {
+            width: 18px;
+            height: 18px;
+            display: block;
         }
 
-        .page-header__link {
-            padding: 10px 18px;
-            border-radius: 999px;
-            border: 1px solid var(--border);
-            text-decoration: none;
+        .btn-outline:hover {
+            background: rgba(255, 255, 255, 0.2);
+            transform: translateY(-1px);
+        }
+
+        .header-info {
+            font-size: 16px;
+            line-height: 1.5;
             font-weight: 600;
-            background: var(--brand-light);
-            color: var(--brand-primary);
+            color: var(--white);
+        }
+
+        .content-wide {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 24px 24px 64px;
+        }
+
+        .hidden {
+            display: none !important;
         }
 
         .permission-gate {
@@ -130,24 +198,24 @@
             font-weight: 600;
             text-decoration: none;
         }
+
+        @media (min-width: 768px) {
+            .header {
+                padding: 32px 40px 44px;
+            }
+
+            .header-inner {
+                max-width: 860px;
+            }
+        }
     </style>
 
 </head>
 <body>
-    <div class="page-shell">
-        <header class="page-header">
-            <div class="page-header__brand">
-                <span class="page-header__logo">LL</span>
-                <div>
-                    <div class="page-header__title">LL Despachante</div>
-                    <div class="page-header__subtitle">Teste de planilha Gravame</div>
-                </div>
-            </div>
-            <div class="page-header__actions">
-                <a class="page-header__link" href="/home">Voltar para Home</a>
-            </div>
-        </header>
-        <section class="page-body" id="planilhaApp">
+    @include('components.home.header')
+
+    <main class="content-wide">
+        <section id="planilhaApp">
 <style>
         .teste-planilha__header {
             margin-bottom: 32px;
@@ -641,6 +709,35 @@
         const REQUIRED_PERMISSION = 'teste_planilha_gravame';
         const planilhaApp = document.getElementById('planilhaApp');
         const permissionGate = document.getElementById('permissionGate');
+        const userInfoEl = document.getElementById('userInfo');
+        let authToken = null;
+
+        function parseUser() {
+            const raw = localStorage.getItem('user');
+            if (!raw) return null;
+            try {
+                return JSON.parse(raw);
+            } catch (_) {
+                return null;
+            }
+        }
+
+        function updateHeaderCredits({ status, count }) {
+            if (!userInfoEl) return;
+            const user = parseUser();
+            const name = user?.username || user?.name || 'Usuário';
+            let creditsLabel = 'Créditos usados este mês: --';
+
+            if (status === 'loading') {
+                creditsLabel = 'Créditos usados este mês: carregando...';
+            } else if (status === 'error') {
+                creditsLabel = 'Créditos usados este mês: indisponível';
+            } else if (status === 'loaded') {
+                creditsLabel = `Créditos usados este mês: ${count}`;
+            }
+
+            userInfoEl.textContent = `Usuário: ${name} • ${creditsLabel}`;
+        }
 
         function handleUnauthorized() {
             localStorage.removeItem('auth_token');
@@ -648,27 +745,83 @@
             window.location.href = '/login';
         }
 
-        async function ensurePermission() {
-            const authToken = localStorage.getItem('auth_token');
+        async function fetchWithAuth(url, options = {}) {
+            const headers = {
+                'Accept': 'application/json',
+                ...(options.headers || {}),
+                'Authorization': `Bearer ${authToken}`,
+            };
+            const response = await fetch(url, { ...options, headers });
+            if (response.status === 401) {
+                handleUnauthorized();
+                throw new Error('Não autenticado.');
+            }
+            return response;
+        }
+
+        async function loadMonthlyCredits() {
+            try {
+                const response = await fetchWithAuth(`${API_BASE_URL}/api/pesquisas/ultimo-mes`);
+                if (!response.ok) {
+                    throw new Error('Falha ao carregar créditos.');
+                }
+                const data = await response.json();
+                const count = Array.isArray(data.data) ? data.data.length : 0;
+                updateHeaderCredits({ status: 'loaded', count });
+            } catch (_) {
+                updateHeaderCredits({ status: 'error', count: 0 });
+            }
+        }
+
+        function setupHeaderActions() {
+            const logoutBtn = document.getElementById('logoutBtn');
+            const profileBtn = document.getElementById('profileBtn');
+
+            logoutBtn?.addEventListener('click', async () => {
+                if (!confirm('Deseja realmente sair?')) {
+                    return;
+                }
+
+                try {
+                    if (authToken) {
+                        await fetch(`${API_BASE_URL}/api/auth/logout`, {
+                            method: 'POST',
+                            headers: {
+                                'Authorization': `Bearer ${authToken}`,
+                                'Content-Type': 'application/json',
+                                'Accept': 'application/json',
+                            },
+                        });
+                    }
+                } catch (_) {
+                    // ignore
+                } finally {
+                    localStorage.removeItem('auth_token');
+                    localStorage.removeItem('user');
+                    window.location.href = '/login';
+                }
+            });
+
+            profileBtn?.addEventListener('click', () => {
+                window.location.href = '/perfil';
+            });
+        }
+
+        function initAuth() {
+            authToken = localStorage.getItem('auth_token');
             if (!authToken) {
                 window.location.href = '/login';
                 return false;
             }
+            updateHeaderCredits({ status: 'loading', count: 0 });
+            return true;
+        }
 
+        async function ensurePermission() {
             let response;
             try {
-                response = await fetch(`${API_BASE_URL}/api/user/permissions`, {
-                    headers: {
-                        'Accept': 'application/json',
-                        'Authorization': `Bearer ${authToken}`,
-                    },
-                });
+                response = await fetchWithAuth(`${API_BASE_URL}/api/user/permissions`);
             } catch (_) {
-                return false;
-            }
-
-            if (response.status === 401) {
-                handleUnauthorized();
                 return false;
             }
 
@@ -687,6 +840,10 @@
         }
 
         (async () => {
+            if (!initAuth()) return;
+            setupHeaderActions();
+            loadMonthlyCredits();
+
             const allowed = await ensurePermission();
             if (!allowed) return;
 
@@ -1295,6 +1452,6 @@
                 <a href="/home">Voltar para a Home</a>
             </div>
         </section>
-    </div>
+    </main>
 </body>
 </html>
