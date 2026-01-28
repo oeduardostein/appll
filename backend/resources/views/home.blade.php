@@ -4120,7 +4120,8 @@
             window.location.href = '/perfil';
         });
 
-        document.getElementById('openPortalBtn').addEventListener('click', function() {
+        const openPortalBtn = document.getElementById('openPortalBtn');
+        openPortalBtn?.addEventListener('click', function() {
             window.open('https://www.e-crvsp.sp.gov.br/', '_blank', 'noopener');
         });
 
