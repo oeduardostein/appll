@@ -16,9 +16,13 @@ use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class TestePlanilhaGravameController extends Controller
 {
-    public function index(): View
+    public function index(Request $request): View
     {
-        return view('admin.teste-planilha-gravame.index');
+        if ($request->routeIs('admin.teste-planilha-gravame.index')) {
+            return view('admin.teste-planilha-gravame.index');
+        }
+
+        return view('teste-planilha-gravame');
     }
 
     /**

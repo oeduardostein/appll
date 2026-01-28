@@ -5,7 +5,6 @@ import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
-import 'package:open_filex/open_filex.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:universal_io/io.dart' as io;
 import 'package:url_launcher/url_launcher.dart';
@@ -19,6 +18,7 @@ import 'package:frontend_app/services/gravame_service.dart';
 import 'package:frontend_app/services/ficha_cadastral_service.dart';
 import 'package:frontend_app/services/pesquisa_service.dart';
 import 'package:frontend_app/ui/widgets/app_error_dialog.dart';
+import 'package:frontend_app/services/file_opener_service.dart';
 
 import '../base_state/base_estadual_page.dart';
 import '../base_state/base_outros_estados_page.dart';
@@ -1372,8 +1372,11 @@ class _HomePageState extends State<HomePage> {
 
       await file.writeAsBytes(pdfBytes, flush: true);
 
-      final result = await OpenFilex.open(file.path);
-      return (opened: result.type == ResultType.done, path: file.path);
+      final opened = await FileOpenerService.openFile(
+        file.path,
+        mimeType: 'application/pdf',
+      );
+      return (opened: opened, path: file.path);
     } catch (_) {
       return (opened: false, path: null);
     }

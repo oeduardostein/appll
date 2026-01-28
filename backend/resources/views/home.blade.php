@@ -4060,6 +4060,11 @@
                     openAtpvOptions();
                 });
             });
+            document.querySelectorAll('[data-action="teste-planilha-gravame"]').forEach((item) => {
+                item.addEventListener('click', () => {
+                    window.location.href = '/testeplanilha-gravame';
+                });
+            });
             document.querySelectorAll('[data-action="crlv"]').forEach((item) => {
                 item.addEventListener('click', () => {
                     openCrlvModal();

@@ -166,5 +166,24 @@
                 </div>
             </button>
         </div>
+
+        <div class="action-card" data-permission="teste_planilha_gravame">
+            <button class="action-card__main" type="button" data-action="teste-planilha-gravame">
+                <div class="action-card__icon">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+                        <path d="M14 2v6h6"></path>
+                        <path d="M12 18v-6"></path>
+                        <path d="m9 15 3 3 3-3"></path>
+                    </svg>
+                </div>
+                <div>
+                    <div class="action-card__title">Teste Planilha Gravame</div>
+                    <div class="action-card__description">
+                        Upload de planilha XLSX para consultar gravame ativo e intenção.
+                    </div>
+                </div>
+            </button>
+        </div>
     </div>
 </section>

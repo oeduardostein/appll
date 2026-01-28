@@ -4,15 +4,14 @@ import 'dart:typed_data';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:open_filex/open_filex.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:universal_io/io.dart' as io;
-
 import 'package:frontend_app/services/atpv_service.dart';
 import 'package:frontend_app/services/base_estadual_service.dart';
 import 'package:frontend_app/services/cep_service.dart';
 import 'package:frontend_app/ui/pages/atpv/widgets/atpv_top_bar.dart';
 import 'package:frontend_app/ui/widgets/app_error_dialog.dart';
+import 'package:frontend_app/services/file_opener_service.dart';
 
 class AtpvFormPage extends StatefulWidget {
   const AtpvFormPage({
@@ -660,9 +659,10 @@ class _AtpvFormPageState extends State<AtpvFormPage> {
     final file = io.File('${directory.path}/$filename');
 
     await file.writeAsBytes(pdfBytes, flush: true);
-    final openResult = await OpenFilex.open(file.path);
-
-    final opened = openResult.type == ResultType.done;
+    final opened = await FileOpenerService.openFile(
+      file.path,
+      mimeType: 'application/pdf',
+    );
     return (opened: opened, path: file.path);
   }
 
