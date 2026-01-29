@@ -129,10 +129,10 @@
         .placa-zero-km__pill {
             display: inline-flex;
             align-items: center;
-            padding: 6px 12px;
-            border-radius: 999px;
-            background: #e0edff;
-            color: var(--brand-primary);
+            padding: 0;
+            border-radius: 0;
+            background: transparent;
+            color: var(--text-muted);
             font-weight: 600;
             font-size: 12px;
         }
@@ -141,33 +141,6 @@
             display: grid;
             gap: 8px;
             grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
-        }
-
-        .placa-zero-km__empty {
-            padding: 24px;
-            border-radius: 16px;
-            background: var(--surface-muted);
-            color: var(--text-muted);
-            display: grid;
-            gap: 12px;
-            text-align: center;
-        }
-
-        .placa-zero-km__empty svg {
-            width: 54px;
-            height: 54px;
-            margin: 0 auto;
-            color: #94a3b8;
-        }
-
-        .placa-zero-km__empty-title {
-            font-weight: 600;
-            color: var(--text-strong);
-        }
-
-        .placa-zero-km__empty-text {
-            margin: 0;
-            font-size: 14px;
         }
 
         .placa-zero-km__plate {
@@ -240,19 +213,11 @@
             </form>
         </section>
 
-        <section class="admin-card placa-zero-km__card placa-zero-km__result" id="resultCard">
+        <section class="admin-card placa-zero-km__card placa-zero-km__result" id="resultCard" hidden>
             <span class="placa-zero-km__pill">Resultado</span>
             <div>
                 <strong>Placas disponíveis</strong>
-                <div class="placa-zero-km__empty" id="emptyState">
-                    <svg viewBox="0 0 24 24" fill="none">
-                        <path d="M12 7v5l3 3" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
-                        <circle cx="12" cy="12" r="8" stroke="currentColor" stroke-width="1.6"/>
-                    </svg>
-                    <div class="placa-zero-km__empty-title">Nenhuma consulta ainda</div>
-                    <p class="placa-zero-km__empty-text">Preencha os dados e clique em consultar para listar as placas.</p>
-                </div>
-                <div class="placa-zero-km__list" id="platesList" hidden></div>
+                <div class="placa-zero-km__list" id="platesList"></div>
             </div>
         </section>
     </div>
@@ -268,7 +233,6 @@
             const button = document.getElementById('consultarButton');
             const resultCard = document.getElementById('resultCard');
             const platesList = document.getElementById('platesList');
-            const emptyState = document.getElementById('emptyState');
 
             function normalizeDigits(value) {
                 return (value || '').replace(/\D/g, '');
@@ -297,21 +261,17 @@
                 const plates = payload?.data?.placas ?? [];
                 platesList.innerHTML = '';
                 if (plates.length === 0) {
-                    platesList.hidden = true;
-                    emptyState.hidden = false;
-                    emptyState.querySelector('.placa-zero-km__empty-title').textContent = 'Nenhuma placa encontrada';
-                    emptyState.querySelector('.placa-zero-km__empty-text').textContent = 'Não retornou placas para os prefixos configurados.';
-                    return;
+                    platesList.innerHTML = '<div class="placa-zero-km__plate">Nenhuma placa listada</div>';
+                } else {
+                    plates.forEach((plate) => {
+                        const item = document.createElement('div');
+                        item.className = 'placa-zero-km__plate';
+                        item.textContent = plate;
+                        platesList.appendChild(item);
+                    });
                 }
 
-                emptyState.hidden = true;
-                platesList.hidden = false;
-                plates.forEach((plate) => {
-                    const item = document.createElement('div');
-                    item.className = 'placa-zero-km__plate';
-                    item.textContent = plate;
-                    platesList.appendChild(item);
-                });
+                resultCard.hidden = false;
             }
 
             form.addEventListener('submit', async (event) => {
