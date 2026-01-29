@@ -165,7 +165,6 @@
 
     <div class="placa-zero-km__header">
         <h1>Consulta de Placas 0KM</h1>
-        <p>Consulta direta no eCRV com 18 prefixos fixos e retorno em JSON.</p>
     </div>
 
     <div class="placa-zero-km__grid">
