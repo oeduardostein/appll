@@ -1542,9 +1542,27 @@
         const mercosurPlatePattern = /^[A-Z]{3}[0-9][A-Z0-9][0-9]{2}$/;
         const chassiPattern = /^[A-HJ-NPR-Z0-9]{17}$/;
         const renavamPattern = /^\d{11}$/;
+        const mercosulDigitMap = {
+            '0': 'A',
+            '1': 'B',
+            '2': 'C',
+            '3': 'D',
+            '4': 'E',
+            '5': 'F',
+            '6': 'G',
+            '7': 'H',
+            '8': 'I',
+            '9': 'J',
+        };
 
         function normalizePlate(value) {
-            return value.replace(/[^A-Za-z0-9]/g, '').toUpperCase();
+            const sanitized = value.replace(/[^A-Za-z0-9]/g, '').toUpperCase();
+            if (oldPlatePattern.test(sanitized)) {
+                const letters = sanitized.slice(0, 3);
+                const digits = sanitized.slice(3).split('');
+                return `${letters}${digits[0]}${mercosulDigitMap[digits[1]] || digits[1]}${digits[2]}${digits[3]}`;
+            }
+            return sanitized;
         }
 
         function isValidPlate(value) {

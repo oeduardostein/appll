@@ -1220,7 +1220,24 @@
         }
 
         function normalizePlate(value) {
-            return value.replace(/[^A-Za-z0-9]/g, '').toUpperCase();
+            const sanitized = value.replace(/[^A-Za-z0-9]/g, '').toUpperCase();
+            if (oldPlatePattern.test(sanitized)) {
+                const digits = sanitized.slice(3).split('');
+                const map = {
+                    '0': 'A',
+                    '1': 'B',
+                    '2': 'C',
+                    '3': 'D',
+                    '4': 'E',
+                    '5': 'F',
+                    '6': 'G',
+                    '7': 'H',
+                    '8': 'I',
+                    '9': 'J',
+                };
+                return `${sanitized.slice(0, 3)}${digits[0]}${map[digits[1]] || digits[1]}${digits[2]}${digits[3]}`;
+            }
+            return sanitized;
         }
 
         function isValidPlate(value) {
