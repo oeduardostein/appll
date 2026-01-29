@@ -220,10 +220,6 @@
                 <strong>Placas disponíveis</strong>
                 <div class="placa-zero-km__list" id="platesList"></div>
             </div>
-            <div>
-                <strong>Resposta JSON</strong>
-                <pre class="placa-zero-km__json" id="jsonOutput">{}</pre>
-            </div>
         </section>
     </div>
 
@@ -238,7 +234,6 @@
             const button = document.getElementById('consultarButton');
             const resultCard = document.getElementById('resultCard');
             const platesList = document.getElementById('platesList');
-            const jsonOutput = document.getElementById('jsonOutput');
 
             function normalizeDigits(value) {
                 return (value || '').replace(/\D/g, '');
@@ -277,7 +272,6 @@
                     });
                 }
 
-                jsonOutput.textContent = JSON.stringify(payload, null, 2);
                 resultCard.hidden = false;
             }
 
