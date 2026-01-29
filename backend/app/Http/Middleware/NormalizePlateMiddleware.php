@@ -14,13 +14,10 @@ class NormalizePlateMiddleware
     public function handle(Request $request, Closure $next): mixed
     {
         $normalizedQuery = $this->normalizeArray($request->query->all());
-
-        foreach ($normalizedQuery as $key => $value) {
-            $request->query->set($key, $value);
-        }
+        $request->query->replace($normalizedQuery);
 
         $normalizedBody = $this->normalizeArray($request->request->all());
-        $request->replace($normalizedBody);
+        $request->request->replace($normalizedBody);
 
         return $next($request);
     }
