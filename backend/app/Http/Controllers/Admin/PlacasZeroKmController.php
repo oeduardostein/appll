@@ -136,13 +136,14 @@ class PlacasZeroKmController extends Controller
                 continue;
             }
 
-            $firstPlate = $parsed['placas_disponiveis'][0] ?? null;
-            if ($firstPlate) {
-                $placas[] = $firstPlate;
+            $availablePlates = $parsed['placas_disponiveis'] ?? [];
+            $lastPlate = !empty($availablePlates) ? end($availablePlates) : null;
+            if ($lastPlate) {
+                $placas[] = $lastPlate;
                 if ($debug) {
                     $details[] = [
                         'letras' => $prefix,
-                        'placa' => $firstPlate,
+                        'placa' => $lastPlate,
                     ];
                 }
             } elseif ($debug) {
