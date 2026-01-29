@@ -165,7 +165,7 @@
 
     <div class="placa-zero-km__header">
         <h1>Consulta de Placas 0KM</h1>
-        <p>Consulta direta no eCRV para escolha de placa 0KM e retorno em JSON.</p>
+        <p>Consulta direta no eCRV com 18 prefixos fixos e retorno em JSON.</p>
     </div>
 
     <div class="placa-zero-km__grid">
@@ -184,16 +184,9 @@
 
                 <div class="placa-zero-km__row">
                     <div class="placa-zero-km__field">
-                        <label for="letras">Letras (opcional)</label>
-                        <input id="letras" name="letras" type="text" maxlength="3" placeholder="Ex.: GKI">
-                    </div>
-                    <div class="placa-zero-km__field">
                         <label for="numeros">Complemento (opcional)</label>
                         <input id="numeros" name="numeros" type="text" maxlength="4" placeholder="Ex.: 1A23">
                     </div>
-                </div>
-
-                <div class="placa-zero-km__row">
                     <div class="placa-zero-km__field">
                         <label for="numeroTentativa">Número de tentativas</label>
                         <input id="numeroTentativa" name="numero_tentativa" type="number" min="1" max="3" value="3">
@@ -271,7 +264,7 @@
             }
 
             function renderResult(payload) {
-                const plates = payload?.data?.placas_disponiveis ?? [];
+                const plates = payload?.data?.placas ?? [];
                 platesList.innerHTML = '';
                 if (plates.length === 0) {
                     platesList.innerHTML = '<div class="placa-zero-km__plate">Nenhuma placa listada</div>';
@@ -296,7 +289,6 @@
                 const payload = {
                     cpf_cgc: normalizeDigits(document.getElementById('cpfCgc').value),
                     chassi: normalizeUpper(document.getElementById('chassi').value),
-                    letras: normalizeUpper(document.getElementById('letras').value),
                     numeros: normalizeUpper(document.getElementById('numeros').value),
                     numero_tentativa: document.getElementById('numeroTentativa').value,
                     placa_escolha_anterior: normalizeUpper(document.getElementById('placaEscolhaAnterior').value),

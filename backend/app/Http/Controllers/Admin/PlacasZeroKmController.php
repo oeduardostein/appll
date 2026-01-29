@@ -23,11 +23,11 @@ class PlacasZeroKmController extends Controller
     {
         $cpfCgc = preg_replace('/\D/', '', (string) $request->input('cpf_cgc', ''));
         $chassi = strtoupper(preg_replace('/[^A-Za-z0-9]/', '', (string) $request->input('chassi', '')));
-        $letras = strtoupper(preg_replace('/[^A-Z]/', '', (string) $request->input('letras', '')));
         $numeros = strtoupper(preg_replace('/[^A-Z0-9]/', '', (string) $request->input('numeros', '')));
         $numeroTentativa = (string) ((int) $request->input('numero_tentativa', 3));
         $tipoRestricao = (string) $request->input('tipo_restricao_financeira', '-1');
         $placaEscolhaAnterior = format_plate_as_mercosul((string) $request->input('placa_escolha_anterior', ''));
+        $debug = filter_var($request->input('debug', false), FILTER_VALIDATE_BOOLEAN);
 
         if ($cpfCgc === '' || !in_array(strlen($cpfCgc), [11, 14], true)) {
             return response()->json([
@@ -40,13 +40,6 @@ class PlacasZeroKmController extends Controller
             return response()->json([
                 'success' => false,
                 'error' => 'Informe um chassi válido.',
-            ], Response::HTTP_UNPROCESSABLE_ENTITY);
-        }
-
-        if ($letras !== '' && strlen($letras) !== 3) {
-            return response()->json([
-                'success' => false,
-                'error' => 'As letras devem conter 3 caracteres.',
             ], Response::HTTP_UNPROCESSABLE_ENTITY);
         }
 
@@ -64,18 +57,6 @@ class PlacasZeroKmController extends Controller
                 'error' => 'Token de sessão não configurado.',
             ], Response::HTTP_INTERNAL_SERVER_ERROR);
         }
-
-        $payload = [
-            'method' => 'pesquisarPlaca',
-            'cpfCgcProprietario' => $cpfCgc,
-            'tipoRestricaoFinanceira' => $tipoRestricao,
-            'chassi' => $chassi,
-            'cpfCgcProprietarioFormatado' => $this->formatCpfCnpj($cpfCgc),
-            'placaEscolhaAnterior' => $placaEscolhaAnterior,
-            'numeroTentativa' => $numeroTentativa,
-            'letras' => $letras,
-            'numeros' => $numeros,
-        ];
 
         $headers = [
             'Accept' => 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7',
@@ -96,61 +77,94 @@ class PlacasZeroKmController extends Controller
             'sec-ch-ua-platform' => '"Windows"',
         ];
 
-        try {
-            $cookieTimestamp = now()->setTimezone('America/Sao_Paulo')->format('D M d Y H:i:s');
-            $response = Http::timeout(30)
-                ->withHeaders($headers)
-                ->withOptions(['verify' => false])
-                ->withCookies([
-                    'dataUsuarPublic' => $cookieTimestamp . ' GMT-0300 (Horário Padrão de Brasília)',
-                    'naoExibirPublic' => 'sim',
-                    'JSESSIONID' => $token,
-                ], 'www.e-crvsp.sp.gov.br')
-                ->asForm()
-                ->post('https://www.e-crvsp.sp.gov.br/gever/GVR/emissao/escolhaPlaca.do', $payload);
+        $prefixes = [
+            'QSY',
+            'UEH',
+            'UET',
+            'UGP',
+            'TJX',
+            'UEJ',
+            'UEV',
+            'UGT',
+            'UDJ',
+            'UEJ',
+            'UFB',
+            'UGU',
+            'UDR',
+            'UEP',
+            'UGB',
+            'UDX',
+            'UET',
+            'UGM',
+        ];
 
-            if (!$response->successful()) {
-                Log::warning('Placas 0KM: Falha na requisição externa', [
-                    'status' => $response->status(),
-                    'cpf_cgc' => $cpfCgc,
-                    'chassi' => $chassi,
-                    'response_body' => substr($response->body(), 0, 500),
-                ]);
+        $placas = [];
+        $details = [];
 
-                return response()->json([
-                    'success' => false,
-                    'error' => 'Falha ao consultar o serviço do DETRAN.',
-                    'status_code' => $response->status(),
-                ], Response::HTTP_BAD_GATEWAY);
-            }
-        } catch (\Exception $e) {
-            Log::error('Placas 0KM: Erro de conexão', [
-                'message' => $e->getMessage(),
-                'cpf_cgc' => $cpfCgc,
+        foreach ($prefixes as $prefix) {
+            $payload = [
+                'method' => 'pesquisarPlaca',
+                'cpfCgcProprietario' => $cpfCgc,
+                'tipoRestricaoFinanceira' => $tipoRestricao,
                 'chassi' => $chassi,
-            ]);
+                'cpfCgcProprietarioFormatado' => $this->formatCpfCnpj($cpfCgc),
+                'placaEscolhaAnterior' => $placaEscolhaAnterior,
+                'numeroTentativa' => $numeroTentativa,
+                'letras' => $prefix,
+                'numeros' => $numeros,
+            ];
 
-            return response()->json([
-                'success' => false,
-                'error' => 'Erro ao conectar ao serviço do DETRAN. Tente novamente mais tarde.',
-            ], Response::HTTP_BAD_GATEWAY);
+            $result = $this->queryPlacasZeroKm($payload, $headers, $token, $cpfCgc, $chassi);
+            if (!$result['success']) {
+                if ($debug) {
+                    $details[] = [
+                        'letras' => $prefix,
+                        'error' => $result['error'],
+                    ];
+                }
+                continue;
+            }
+
+            $parsed = $result['data'];
+            if (!empty($parsed['errors'])) {
+                if ($debug) {
+                    $details[] = [
+                        'letras' => $prefix,
+                        'error' => $parsed['errors'][0],
+                    ];
+                }
+                continue;
+            }
+
+            $firstPlate = $parsed['placas_disponiveis'][0] ?? null;
+            if ($firstPlate) {
+                $placas[] = $firstPlate;
+                if ($debug) {
+                    $details[] = [
+                        'letras' => $prefix,
+                        'placa' => $firstPlate,
+                    ];
+                }
+            } elseif ($debug) {
+                $details[] = [
+                    'letras' => $prefix,
+                    'error' => 'Nenhuma placa retornada.',
+                ];
+            }
         }
 
-        $parsed = PlacaZeroKmParser::parse($response->body());
-
-        if (!empty($parsed['errors'])) {
-            return response()->json([
-                'success' => false,
-                'error' => $parsed['errors'][0],
-                'errors' => $parsed['errors'],
-                'data' => $parsed,
-            ], Response::HTTP_UNPROCESSABLE_ENTITY);
-        }
-
-        return response()->json([
+        $payload = [
             'success' => true,
-            'data' => $parsed,
-        ]);
+            'data' => [
+                'placas' => $placas,
+            ],
+        ];
+
+        if ($debug) {
+            $payload['data']['detalhes'] = $details;
+        }
+
+        return response()->json($payload);
     }
 
     private function formatCpfCnpj(string $digits): string
@@ -177,5 +191,57 @@ class PlacasZeroKmController extends Controller
         }
 
         return $digits;
+    }
+
+    private function queryPlacasZeroKm(
+        array $payload,
+        array $headers,
+        string $token,
+        string $cpfCgc,
+        string $chassi
+    ): array {
+        try {
+            $cookieTimestamp = now()->setTimezone('America/Sao_Paulo')->format('D M d Y H:i:s');
+            $response = Http::timeout(30)
+                ->withHeaders($headers)
+                ->withOptions(['verify' => false])
+                ->withCookies([
+                    'dataUsuarPublic' => $cookieTimestamp . ' GMT-0300 (Horário Padrão de Brasília)',
+                    'naoExibirPublic' => 'sim',
+                    'JSESSIONID' => $token,
+                ], 'www.e-crvsp.sp.gov.br')
+                ->asForm()
+                ->post('https://www.e-crvsp.sp.gov.br/gever/GVR/emissao/escolhaPlaca.do', $payload);
+
+            if (!$response->successful()) {
+                Log::warning('Placas 0KM: Falha na requisição externa', [
+                    'status' => $response->status(),
+                    'cpf_cgc' => $cpfCgc,
+                    'chassi' => $chassi,
+                    'response_body' => substr($response->body(), 0, 500),
+                ]);
+
+                return [
+                    'success' => false,
+                    'error' => 'Falha ao consultar o serviço do DETRAN.',
+                ];
+            }
+        } catch (\Exception $e) {
+            Log::error('Placas 0KM: Erro de conexão', [
+                'message' => $e->getMessage(),
+                'cpf_cgc' => $cpfCgc,
+                'chassi' => $chassi,
+            ]);
+
+            return [
+                'success' => false,
+                'error' => 'Erro ao conectar ao serviço do DETRAN. Tente novamente mais tarde.',
+            ];
+        }
+
+        return [
+            'success' => true,
+            'data' => PlacaZeroKmParser::parse($response->body()),
+        ];
     }
 }
