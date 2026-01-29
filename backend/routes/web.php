@@ -5,6 +5,7 @@ use App\Http\Controllers\Admin\AuthController;
 use App\Http\Controllers\Admin\ClientController;
 use App\Http\Controllers\Admin\CreditManagementController;
 use App\Http\Controllers\Admin\PasswordResetController;
+use App\Http\Controllers\Admin\PlacasZeroKmController;
 use App\Http\Controllers\Admin\ReportController;
 use App\Http\Controllers\Admin\SettingsController;
 use App\Http\Controllers\Admin\TestePlanilhaController;
@@ -57,6 +58,8 @@ Route::prefix('admin')->name('admin.')->group(function () {
         Route::get('/testeplanilha-gravame', [TestePlanilhaGravameController::class, 'index'])->name('teste-planilha-gravame.index');
         Route::post('/testeplanilha-gravame/consultar', [TestePlanilhaGravameController::class, 'consultar'])->name('teste-planilha-gravame.consultar');
         Route::post('/testeplanilha-gravame/exportar', [TestePlanilhaGravameController::class, 'exportar'])->name('teste-planilha-gravame.exportar');
+        Route::get('/placas-0km', [PlacasZeroKmController::class, 'index'])->name('placas-0km.index');
+        Route::post('/placas-0km/consultar', [PlacasZeroKmController::class, 'consultar'])->name('placas-0km.consultar');
         Route::get('/clientes', [ClientController::class, 'index'])->name('clients.index');
         Route::get('/clientes/{user}', [ClientController::class, 'show'])->name('clients.show');
         Route::get('/clientes/{user}/editar', [ClientController::class, 'edit'])->name('clients.edit');

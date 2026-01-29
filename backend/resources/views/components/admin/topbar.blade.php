@@ -34,6 +34,11 @@
             'active_pattern' => 'admin.teste-planilha-gravame.*',
         ],
         [
+            'label' => 'Placas 0KM',
+            'route_name' => 'admin.placas-0km.index',
+            'active_pattern' => 'admin.placas-0km.*',
+        ],
+        [
             'label' => 'Configurações',
             'route_name' => 'admin.settings.index',
             'active_pattern' => 'admin.settings.*',
