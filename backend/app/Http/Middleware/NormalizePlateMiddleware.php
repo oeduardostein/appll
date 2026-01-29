@@ -5,6 +5,10 @@ namespace App\Http\Middleware;
 use Closure;
 use Illuminate\Http\Request;
 
+if (!function_exists('format_plate_as_mercosul')) {
+    require_once __DIR__ . '/../../Support/helpers.php';
+}
+
 class NormalizePlateMiddleware
 {
     public function handle(Request $request, Closure $next): mixed
