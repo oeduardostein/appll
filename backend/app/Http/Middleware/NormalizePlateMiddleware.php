@@ -1,0 +1,48 @@
+<?php
+
+namespace App\Http\Middleware;
+
+use Closure;
+use Illuminate\Http\Request;
+
+class NormalizePlateMiddleware
+{
+    public function handle(Request $request, Closure $next): mixed
+    {
+        $normalizedQuery = $this->normalizeArray($request->query->all());
+
+        foreach ($normalizedQuery as $key => $value) {
+            $request->query->set($key, $value);
+        }
+
+        $normalizedBody = $this->normalizeArray($request->request->all());
+        $request->replace($normalizedBody);
+
+        return $next($request);
+    }
+
+    private function normalizeArray(array $data): array
+    {
+        foreach ($data as $key => $value) {
+            if (is_array($value)) {
+                $data[$key] = $this->normalizeArray($value);
+                continue;
+            }
+
+            if ($this->isPlateKey($key)) {
+                $data[$key] = format_plate_as_mercosul($value);
+                continue;
+            }
+
+            $data[$key] = $value;
+        }
+
+        return $data;
+    }
+
+    private function isPlateKey(string $key): bool
+    {
+        $lower = strtolower($key);
+        return in_array($lower, ['placa', 'plate'], true);
+    }
+}
