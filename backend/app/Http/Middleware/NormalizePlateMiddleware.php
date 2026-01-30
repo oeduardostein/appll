@@ -13,24 +13,25 @@ class NormalizePlateMiddleware
 {
     public function handle(Request $request, Closure $next): mixed
     {
-        $normalizedQuery = $this->normalizeArray($request->query->all());
+        $skipPlateNormalization = $this->shouldSkipPlateNormalization($request);
+        $normalizedQuery = $this->normalizeArray($request->query->all(), $skipPlateNormalization);
         $request->query->replace($normalizedQuery);
 
-        $normalizedBody = $this->normalizeArray($request->request->all());
+        $normalizedBody = $this->normalizeArray($request->request->all(), $skipPlateNormalization);
         $request->request->replace($normalizedBody);
 
         return $next($request);
     }
 
-    private function normalizeArray(array $data): array
+    private function normalizeArray(array $data, bool $skipPlateNormalization): array
     {
         foreach ($data as $key => $value) {
             if (is_array($value)) {
-                $data[$key] = $this->normalizeArray($value);
+                $data[$key] = $this->normalizeArray($value, $skipPlateNormalization);
                 continue;
             }
 
-            if ($this->isPlateKey($key)) {
+            if (! $skipPlateNormalization && $this->isPlateKey($key)) {
                 $data[$key] = format_plate_as_mercosul($value);
                 continue;
             }
@@ -45,5 +46,10 @@ class NormalizePlateMiddleware
     {
         $lower = strtolower($key);
         return in_array($lower, ['placa', 'plate'], true);
+    }
+
+    private function shouldSkipPlateNormalization(Request $request): bool
+    {
+        return $request->is('api/emissao-atpv');
     }
 }

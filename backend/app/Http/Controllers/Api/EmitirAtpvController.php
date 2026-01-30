@@ -10,6 +10,7 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Schema;
+use Illuminate\Validation\ValidationException;
 use Symfony\Component\HttpFoundation\Response;
 
 class EmitirAtpvController extends BaseAtpvController
@@ -22,30 +23,41 @@ class EmitirAtpvController extends BaseAtpvController
             return $this->unauthorizedResponse();
         }
 
-        $data = $request->validate([
-            'method' => ['nullable', 'string', 'max:20'],
-            'municipio2' => ['nullable', 'string', 'max:10'],
-            'renavam' => ['required', 'string', 'max:20'],
-            'placa' => ['required', 'string', 'max:10'],
-            'chassi' => ['nullable', 'string', 'max:32'],
-            'hodometro' => ['nullable', 'string', 'max:16'],
-            'email_proprietario' => ['nullable', 'string', 'max:150'],
-            'cpf_cnpj_proprietario' => ['nullable', 'string', 'max:20'],
-            'opcao_pesquisa_proprietario' => ['nullable', 'in:1,2'],
-            'cpf_cnpj_comprador' => ['required', 'string', 'max:20'],
-            'opcao_pesquisa_comprador' => ['required', 'in:1,2'],
-            'nome_comprador' => ['required', 'string', 'max:150'],
-            'email_comprador' => ['nullable', 'string', 'max:150'],
-            'valor_venda' => ['nullable', 'string', 'max:32'],
-            'cep_comprador' => ['nullable', 'string', 'max:16'],
-            'municipio_comprador' => ['nullable', 'string', 'max:150'],
-            'bairro_comprador' => ['nullable', 'string', 'max:150'],
-            'logradouro_comprador' => ['nullable', 'string', 'max:150'],
-            'numero_comprador' => ['nullable', 'string', 'max:20'],
-            'complemento_comprador' => ['nullable', 'string', 'max:100'],
-            'uf' => ['required', 'string', 'max:2'],
-            'captcha' => ['required', 'string', 'max:12'],
-        ]);
+        try {
+            $data = $request->validate([
+                'method' => ['nullable', 'string', 'max:20'],
+                'municipio2' => ['nullable', 'string', 'max:10'],
+                'renavam' => ['required', 'string', 'max:20'],
+                'placa' => ['required', 'string', 'max:10'],
+                'chassi' => ['nullable', 'string', 'max:32'],
+                'hodometro' => ['nullable', 'string', 'max:16'],
+                'email_proprietario' => ['nullable', 'string', 'max:150'],
+                'cpf_cnpj_proprietario' => ['nullable', 'string', 'max:20'],
+                'opcao_pesquisa_proprietario' => ['nullable', 'in:1,2'],
+                'cpf_cnpj_comprador' => ['required', 'string', 'max:20'],
+                'opcao_pesquisa_comprador' => ['required', 'in:1,2'],
+                'nome_comprador' => ['required', 'string', 'max:150'],
+                'email_comprador' => ['nullable', 'string', 'max:150'],
+                'valor_venda' => ['nullable', 'string', 'max:32'],
+                'cep_comprador' => ['nullable', 'string', 'max:16'],
+                'municipio_comprador' => ['nullable', 'string', 'max:150'],
+                'bairro_comprador' => ['nullable', 'string', 'max:150'],
+                'logradouro_comprador' => ['nullable', 'string', 'max:150'],
+                'numero_comprador' => ['nullable', 'string', 'max:20'],
+                'complemento_comprador' => ['nullable', 'string', 'max:100'],
+                'uf' => ['required', 'string', 'max:2'],
+                'captcha' => ['required', 'string', 'max:12'],
+            ]);
+        } catch (ValidationException $e) {
+            $fields = $this->buildAtpvFieldLog($this->collectAtpvFieldValues($request->all()));
+            $fields = $this->addFieldIssues($fields, $e->errors());
+            Log::warning('ATPV: validacao falhou', [
+                'user_id' => $user->id ?? null,
+                'fields' => $fields,
+                'errors' => $e->errors(),
+            ]);
+            throw $e;
+        }
 
         $ownerOption = $data['opcao_pesquisa_proprietario'] ?? null;
         $buyerOption = $data['opcao_pesquisa_comprador'];
@@ -55,11 +67,23 @@ class EmitirAtpvController extends BaseAtpvController
         if ($ownerOption === '1') {
             $ownerCpf = $this->formatCpf($data['cpf_cnpj_proprietario'] ?? '');
             if ($ownerCpf === '') {
+                $fields = $this->buildAtpvFieldLog($this->collectAtpvFieldValues($data));
+                $fields = $this->addFieldIssue($fields, 'cpf_cnpj_proprietario', 'cpf_invalido');
+                Log::warning('ATPV: cpf proprietario invalido', [
+                    'user_id' => $user->id ?? null,
+                    'fields' => $fields,
+                ]);
                 return $this->validationError('Informe o CPF do proprietário.');
             }
         } elseif ($ownerOption === '2') {
             $ownerCnpj = $this->formatCnpj($data['cpf_cnpj_proprietario'] ?? '');
             if ($ownerCnpj === '') {
+                $fields = $this->buildAtpvFieldLog($this->collectAtpvFieldValues($data));
+                $fields = $this->addFieldIssue($fields, 'cpf_cnpj_proprietario', 'cnpj_invalido');
+                Log::warning('ATPV: cnpj proprietario invalido', [
+                    'user_id' => $user->id ?? null,
+                    'fields' => $fields,
+                ]);
                 return $this->validationError('Informe o CNPJ do proprietário.');
             }
         }
@@ -69,11 +93,23 @@ class EmitirAtpvController extends BaseAtpvController
         if ($buyerOption === '1') {
             $buyerCpf = $this->formatCpf($data['cpf_cnpj_comprador'] ?? '');
             if ($buyerCpf === '') {
+                $fields = $this->buildAtpvFieldLog($this->collectAtpvFieldValues($data));
+                $fields = $this->addFieldIssue($fields, 'cpf_cnpj_comprador', 'cpf_invalido');
+                Log::warning('ATPV: cpf comprador invalido', [
+                    'user_id' => $user->id ?? null,
+                    'fields' => $fields,
+                ]);
                 return $this->validationError('Informe o CPF do comprador.');
             }
         } else {
             $buyerCnpj = $this->formatCnpj($data['cpf_cnpj_comprador'] ?? '');
             if ($buyerCnpj === '') {
+                $fields = $this->buildAtpvFieldLog($this->collectAtpvFieldValues($data));
+                $fields = $this->addFieldIssue($fields, 'cpf_cnpj_comprador', 'cnpj_invalido');
+                Log::warning('ATPV: cnpj comprador invalido', [
+                    'user_id' => $user->id ?? null,
+                    'fields' => $fields,
+                ]);
                 return $this->validationError('Informe o CNPJ do comprador.');
             }
         }
@@ -81,6 +117,11 @@ class EmitirAtpvController extends BaseAtpvController
         $token = DB::table('admin_settings')->where('id', 1)->value('value');
 
         if (! $token) {
+            $fields = $this->buildAtpvFieldLog($this->collectAtpvFieldValues($data));
+            Log::error('ATPV: token ausente para emissao', [
+                'user_id' => $user->id ?? null,
+                'fields' => $fields,
+            ]);
             return response()->json(
                 ['message' => 'Nenhum token encontrado para realizar a emissão.'],
                 Response::HTTP_INTERNAL_SERVER_ERROR
@@ -92,7 +133,7 @@ class EmitirAtpvController extends BaseAtpvController
         $attributes = [
             'user_id' => $user->id,
             'renavam' => $data['renavam'],
-            'placa' => strtoupper($data['placa']),
+            'placa' => $data['placa'],
             'chassi' => $data['chassi'] ?? null,
             'hodometro' => $data['hodometro'] ?? null,
             'email_proprietario' => $data['email_proprietario'] ?? null,
@@ -192,11 +233,37 @@ class EmitirAtpvController extends BaseAtpvController
             'captchaResponse' => strtoupper($data['captcha']),
         ];
 
+        $fields = $this->buildAtpvFieldLog($this->collectAtpvFieldValues($data, [
+            'municipio2' => $municipioCode,
+            'renavam' => $record->renavam,
+            'placa' => $record->placa,
+            'cpf_cnpj_proprietario' => $ownerOption === '1' ? $ownerCpf : $ownerCnpj,
+            'cpf_cnpj_comprador' => $buyerOption === '1' ? $buyerCpf : $buyerCnpj,
+            'nome_comprador' => $nomeComprador,
+            'uf' => $record->uf,
+        ]));
+
+        Log::info('ATPV: campos preparados para emissao', [
+            'atpv_request_id' => $record->id,
+            'user_id' => $user->id ?? null,
+            'fields' => $fields,
+        ]);
+
         $response = $this->postDetranForm($headers, $token, $form);
 
         $body = $response->body();
         $errors = $this->extractErrors($body);
         $messages = $this->extractMessages($body);
+        $responseFields = $this->mapRemoteIssues($fields, array_merge($errors, $messages));
+
+        Log::info('ATPV: resposta detran recebida', [
+            'atpv_request_id' => $record->id,
+            'status' => $response->status(),
+            'body_len' => strlen($body),
+            'errors' => $errors,
+            'messages' => $messages,
+            'fields' => $responseFields,
+        ]);
 
         if ($this->shouldRetryNomeComprador($errors, $messages)) {
             $nomeSemAcento = $this->stripAccents($nomeComprador);
@@ -220,6 +287,13 @@ class EmitirAtpvController extends BaseAtpvController
                 'response_errors' => $errors,
             ]);
 
+            Log::warning('ATPV: detran retornou erros', [
+                'atpv_request_id' => $record->id,
+                'errors' => $errors,
+                'messages' => $messages,
+                'fields' => $responseFields,
+            ]);
+
             return response()->json(
                 [
                     'message' => $errors[0],
@@ -234,6 +308,13 @@ class EmitirAtpvController extends BaseAtpvController
             $record->update([
                 'status' => 'failed',
                 'response_errors' => $messages,
+            ]);
+
+            Log::warning('ATPV: detran indicou falha', [
+                'atpv_request_id' => $record->id,
+                'messages' => $messages,
+                'errors' => $errors,
+                'fields' => $responseFields,
             ]);
 
             return response()->json(
@@ -259,6 +340,13 @@ class EmitirAtpvController extends BaseAtpvController
                 'tables' => $tables,
                 'messages' => $messages,
             ],
+        ]);
+
+        Log::info('ATPV: emissao concluida', [
+            'atpv_request_id' => $record->id,
+            'numero_atpv' => $numeroAtpv,
+            'fields' => $responseFields,
+            'messages' => $messages,
         ]);
 
         return response()->json(
@@ -487,6 +575,193 @@ class EmitirAtpvController extends BaseAtpvController
     private function stripNonDigits(?string $value): string
     {
         return $value ? preg_replace('/\D/', '', $value) ?? '' : '';
+    }
+
+    private function collectAtpvFieldValues(array $data, array $overrides = []): array
+    {
+        return array_merge([
+            'method' => $data['method'] ?? null,
+            'municipio2' => $data['municipio2'] ?? null,
+            'renavam' => $data['renavam'] ?? null,
+            'placa' => $data['placa'] ?? null,
+            'chassi' => $data['chassi'] ?? null,
+            'hodometro' => $data['hodometro'] ?? null,
+            'email_proprietario' => $data['email_proprietario'] ?? null,
+            'cpf_cnpj_proprietario' => $data['cpf_cnpj_proprietario'] ?? null,
+            'opcao_pesquisa_proprietario' => $data['opcao_pesquisa_proprietario'] ?? null,
+            'cpf_cnpj_comprador' => $data['cpf_cnpj_comprador'] ?? null,
+            'opcao_pesquisa_comprador' => $data['opcao_pesquisa_comprador'] ?? null,
+            'nome_comprador' => $data['nome_comprador'] ?? null,
+            'email_comprador' => $data['email_comprador'] ?? null,
+            'valor_venda' => $data['valor_venda'] ?? null,
+            'cep_comprador' => $data['cep_comprador'] ?? null,
+            'municipio_comprador' => $data['municipio_comprador'] ?? null,
+            'bairro_comprador' => $data['bairro_comprador'] ?? null,
+            'logradouro_comprador' => $data['logradouro_comprador'] ?? null,
+            'numero_comprador' => $data['numero_comprador'] ?? null,
+            'complemento_comprador' => $data['complemento_comprador'] ?? null,
+            'uf' => $data['uf'] ?? null,
+            'captcha' => $data['captcha'] ?? null,
+        ], $overrides);
+    }
+
+    private function buildAtpvFieldLog(array $values): array
+    {
+        $fields = [];
+        foreach ($values as $field => $value) {
+            $fields[$field] = [
+                'value' => $this->maskLogValue($field, $value),
+                'issues' => [],
+            ];
+        }
+
+        return $fields;
+    }
+
+    private function addFieldIssue(array $fields, string $field, string $issue): array
+    {
+        if (! isset($fields[$field])) {
+            $fields[$field] = [
+                'value' => null,
+                'issues' => [],
+            ];
+        }
+
+        $fields[$field]['issues'][] = $issue;
+
+        return $fields;
+    }
+
+    /**
+     * @param array<string, array<int, string>> $errors
+     */
+    private function addFieldIssues(array $fields, array $errors): array
+    {
+        foreach ($errors as $field => $messages) {
+            foreach ($messages as $message) {
+                $fields = $this->addFieldIssue($fields, $field, $message);
+            }
+        }
+
+        return $fields;
+    }
+
+    /**
+     * @param array<int, string> $messages
+     */
+    private function mapRemoteIssues(array $fields, array $messages): array
+    {
+        $map = [
+            'placa' => ['placa'],
+            'renavam' => ['renavam'],
+            'chassi' => ['chassi'],
+            'hodometro' => ['hodometro', 'odometro'],
+            'email_proprietario' => ['email proprietario', 'email do proprietario', 'email proprietário', 'email do proprietário'],
+            'cpf_cnpj_proprietario' => ['cpf proprietario', 'cpf do proprietario', 'cpf proprietário', 'cpf do proprietário', 'cnpj proprietario', 'cnpj do proprietario', 'cnpj proprietário', 'cnpj do proprietário'],
+            'cpf_cnpj_comprador' => ['cpf comprador', 'cpf do comprador', 'cnpj comprador', 'cnpj do comprador'],
+            'nome_comprador' => ['nome comprador', 'nome do comprador', 'comprador.nome'],
+            'email_comprador' => ['email comprador', 'email do comprador'],
+            'valor_venda' => ['valor venda', 'valorvenda', 'valor da venda', 'valor'],
+            'cep_comprador' => ['cep'],
+            'municipio_comprador' => ['municipio comprador', 'município comprador', 'municipio do comprador', 'município do comprador', 'municipio', 'município'],
+            'bairro_comprador' => ['bairro'],
+            'logradouro_comprador' => ['logradouro', 'endereco', 'endereço'],
+            'numero_comprador' => ['numero', 'número'],
+            'complemento_comprador' => ['complemento'],
+            'uf' => ['uf'],
+            'captcha' => ['captcha', 'captcharesponse'],
+            'municipio2' => ['municipio2'],
+            'method' => ['method'],
+        ];
+
+        foreach ($messages as $message) {
+            $normalized = mb_strtolower((string) $message);
+            $matched = false;
+
+            foreach ($map as $field => $keywords) {
+                foreach ($keywords as $keyword) {
+                    if ($keyword !== '' && str_contains($normalized, mb_strtolower($keyword))) {
+                        $fields = $this->addFieldIssue($fields, $field, $message);
+                        $matched = true;
+                        break 2;
+                    }
+                }
+            }
+
+            if (! $matched) {
+                $fields = $this->addFieldIssue($fields, '_geral', $message);
+            }
+        }
+
+        return $fields;
+    }
+
+    private function maskLogValue(string $field, $value): ?string
+    {
+        if ($value === null) {
+            return null;
+        }
+
+        $stringValue = trim((string) $value);
+        if ($stringValue === '') {
+            return '';
+        }
+
+        $field = strtolower($field);
+
+        if (str_contains($field, 'cpf_cnpj')) {
+            return $this->maskDigits($stringValue, 4);
+        }
+
+        if (str_contains($field, 'captcha')) {
+            return str_repeat('*', max(0, strlen($stringValue) - 2)) . substr($stringValue, -2);
+        }
+
+        if (str_contains($field, 'email')) {
+            return $this->maskEmail($stringValue);
+        }
+
+        if (str_contains($field, 'chassi')) {
+            return $this->maskKeepLast($stringValue, 4);
+        }
+
+        return $stringValue;
+    }
+
+    private function maskDigits(string $value, int $keepLast): string
+    {
+        $digits = $this->stripNonDigits($value);
+        $len = strlen($digits);
+        if ($len <= $keepLast) {
+            return $digits;
+        }
+
+        return str_repeat('*', $len - $keepLast) . substr($digits, -$keepLast);
+    }
+
+    private function maskKeepLast(string $value, int $keepLast): string
+    {
+        $len = strlen($value);
+        if ($len <= $keepLast) {
+            return $value;
+        }
+
+        return str_repeat('*', $len - $keepLast) . substr($value, -$keepLast);
+    }
+
+    private function maskEmail(string $value): string
+    {
+        $parts = explode('@', $value, 2);
+        if (count($parts) !== 2) {
+            return $this->maskKeepLast($value, 2);
+        }
+
+        $local = $parts[0];
+        $domain = $parts[1];
+        $visible = substr($local, 0, 2);
+        $maskedLocal = $visible . str_repeat('*', max(0, strlen($local) - 2));
+
+        return $maskedLocal . '@' . $domain;
     }
 
     private function validationError(string $message): Response
