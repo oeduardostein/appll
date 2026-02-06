@@ -40,6 +40,7 @@ class BaseEstadualService {
     if (response.statusCode != 200) {
       throw BaseEstadualException(
         'Não foi possível carregar o captcha (HTTP ${response.statusCode}).',
+        statusCode: response.statusCode,
       );
     }
 
@@ -118,7 +119,7 @@ class BaseEstadualService {
     if (response.statusCode != 200) {
       final message = _extractMessage(response.body) ??
           'Falha ao consultar base estadual (HTTP ${response.statusCode}).';
-      throw BaseEstadualException(message);
+      throw BaseEstadualException(message, statusCode: response.statusCode);
     }
 
     final body = response.body.trim();
@@ -168,7 +169,7 @@ class BaseEstadualService {
     if (response.statusCode != 200) {
       final message = _extractMessage(response.body) ??
           'Falha ao consultar base de outros estados (HTTP ${response.statusCode}).';
-      throw BaseEstadualException(message);
+      throw BaseEstadualException(message, statusCode: response.statusCode);
     }
 
     final body = response.body.trim();
@@ -217,7 +218,7 @@ class BaseEstadualService {
     if (response.statusCode != 200) {
       final message = _extractMessage(response.body) ??
           'Falha ao consultar bloqueios ativos (HTTP ${response.statusCode}).';
-      throw BaseEstadualException(message);
+      throw BaseEstadualException(message, statusCode: response.statusCode);
     }
 
     final body = response.body.trim();
@@ -263,6 +264,7 @@ class BaseEstadualService {
     if (response.statusCode != 200) {
       throw BaseEstadualException(
         'Falha ao emitir ATPV-e (HTTP ${response.statusCode}).',
+        statusCode: response.statusCode,
       );
     }
 
@@ -330,7 +332,7 @@ class BaseEstadualService {
     if (response.statusCode != 200) {
       final message = _extractMessage(body) ??
           'Falha ao emitir CRLV-e (HTTP ${response.statusCode}).';
-      throw BaseEstadualException(message);
+      throw BaseEstadualException(message, statusCode: response.statusCode);
     }
 
     if (body.isEmpty) {

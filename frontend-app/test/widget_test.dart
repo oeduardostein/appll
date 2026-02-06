@@ -46,7 +46,7 @@ class _FakeAuthService extends AuthService {
   }
 
   @override
-  void clearSession() {
+  void clearSession({bool clearPersisted = false}) {
     _session = null;
   }
 }

@@ -15,8 +15,46 @@ class RenainfPlacaController extends Controller
 {
     public function __invoke(Request $request): Response
     {
+        $isBlank = function ($value): bool {
+            if ($value === null) return true;
+            if (is_string($value)) return trim($value) === '';
+            return false;
+        };
+
+        $detectIssueFromHtml = function (string $html): array {
+            $plain = html_entity_decode(strip_tags($html), ENT_QUOTES | ENT_HTML5, 'UTF-8');
+            $plain = preg_replace('/\s+/u', ' ', trim($plain ?? ''));
+            $lower = mb_strtolower($plain, 'UTF-8');
+
+            if (preg_match('/captcha/u', $lower) && preg_match('/inv[aá]lid|incorret|errad|invalido/u', $lower)) {
+                return [
+                    'type' => 'captcha',
+                    'message' => 'Captcha inválido. Tente novamente.',
+                ];
+            }
+
+            if (preg_match('/nada\s*consta|nenhum|n[aã]o\s*foram\s*encontrad/u', $lower)) {
+                return [
+                    'type' => 'not_found',
+                    'message' => 'Nenhuma ocorrência RENAINF encontrada para os dados informados.',
+                ];
+            }
+
+            if (preg_match('/indispon[ií]vel|acesso\s*negado|erro\s*interno|exception/u', $lower)) {
+                return [
+                    'type' => 'upstream_error',
+                    'message' => 'A fonte retornou um erro ao processar a consulta. Tente novamente mais tarde.',
+                ];
+            }
+
+            return [
+                'type' => 'unknown',
+                'message' => 'A fonte não retornou dados para esta consulta. Isso pode indicar ausência de registros ou instabilidade. Tente novamente.',
+            ];
+        };
+
         // -------- Parser (closure p/ evitar redeclaração) --------
-        $parse = function (string $html): string {
+        $parse = function (string $html): array {
             // Página declara ISO-8859-1 — converte p/ entidades HTML (seguro p/ DOM)
             if (stripos($html, 'charset=iso-8859-1') !== false || stripos($html, 'charset=iso8859-1') !== false) {
                 $html = @mb_convert_encoding($html, 'HTML-ENTITIES', 'ISO-8859-1');
@@ -176,7 +214,7 @@ class RenainfPlacaController extends Controller
             };
             $sanitize($out);
 
-            return json_encode($out, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_PRETTY_PRINT);
+            return $out;
         };
         // -------- Fim parser --------
 
@@ -250,10 +288,59 @@ class RenainfPlacaController extends Controller
             ->asForm()
             ->post('https://www.e-crvsp.sp.gov.br/gever/GVR/pesquisa/renainf/placa.do', $form);
 
-        // -------- Saída JSON --------
-        $body = $parse($response->body());
+        if (!$response->successful()) {
+            return response()->json(
+                ['message' => 'Falha ao consultar a fonte (HTTP ' . $response->status() . ').'],
+                Response::HTTP_BAD_GATEWAY
+            );
+        }
 
-        return response($body, Response::HTTP_OK)
-            ->header('Content-Type', 'application/json; charset=UTF-8');
+        $rawHtml = (string) $response->body();
+        if (trim($rawHtml) === '') {
+            return response()->json(
+                ['message' => 'A fonte retornou uma resposta vazia. Tente novamente.'],
+                Response::HTTP_BAD_GATEWAY
+            );
+        }
+
+        try {
+            $payload = $parse($rawHtml);
+        } catch (\Throwable $e) {
+            return response()->json(
+                ['message' => 'Não foi possível interpretar a resposta da fonte. Tente novamente.'],
+                Response::HTTP_BAD_GATEWAY
+            );
+        }
+
+        $consulta = $payload['consulta'] ?? [];
+        $renainf = $payload['renainf'] ?? [];
+        $ocorrencias = is_array($renainf) ? ($renainf['ocorrencias'] ?? []) : [];
+
+        $hasConsultaData = is_array($consulta) && (
+            !$isBlank($consulta['placa'] ?? null) ||
+            !$isBlank($consulta['uf_emplacamento'] ?? null) ||
+            !$isBlank($consulta['indicador_exigibilidade'] ?? null)
+        );
+
+        $hasRenainfData = !empty($ocorrencias) ||
+            (is_array($renainf) && !$isBlank($renainf['quantidade_ocorrencias'] ?? null));
+
+        if (!$hasConsultaData && !$hasRenainfData) {
+            $issue = $detectIssueFromHtml($rawHtml);
+            $status = match ($issue['type']) {
+                'captcha' => Response::HTTP_UNPROCESSABLE_ENTITY,
+                'not_found' => Response::HTTP_NOT_FOUND,
+                default => Response::HTTP_BAD_GATEWAY,
+            };
+
+            return response()->json(['message' => $issue['message']], $status);
+        }
+
+        return response()->json(
+            $payload,
+            Response::HTTP_OK,
+            [],
+            JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES
+        );
     }
 }

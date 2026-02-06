@@ -18,6 +18,7 @@ import 'package:frontend_app/services/gravame_service.dart';
 import 'package:frontend_app/services/ficha_cadastral_service.dart';
 import 'package:frontend_app/services/pesquisa_service.dart';
 import 'package:frontend_app/ui/widgets/app_error_dialog.dart';
+import 'package:frontend_app/ui/widgets/app_notice_dialog.dart';
 import 'package:frontend_app/services/file_opener_service.dart';
 
 import '../base_state/base_estadual_page.dart';
@@ -399,9 +400,22 @@ class _HomePageState extends State<HomePage> {
     );
 
     try {
-      final captcha = autoSolve
-          ? await _baseEstadualService.solveCaptcha()
-          : (captchaOverride ?? '');
+      String captcha;
+      if (autoSolve) {
+        try {
+          captcha = await _baseEstadualService.solveCaptcha();
+        } on BaseEstadualException {
+          if (!mounted) return true;
+          Navigator.of(context, rootNavigator: true).pop();
+          return false;
+        } catch (_) {
+          if (!mounted) return true;
+          Navigator.of(context, rootNavigator: true).pop();
+          return false;
+        }
+      } else {
+        captcha = captchaOverride ?? '';
+      }
 
       if (!autoSolve && captcha.isEmpty) {
         throw BaseEstadualException('Informe o captcha para continuar.');
@@ -417,6 +431,12 @@ class _HomePageState extends State<HomePage> {
       Navigator.of(context, rootNavigator: true).pop();
       if (!mounted) return true;
 
+      final resultMessage = _extractResultMessage(result);
+      if (resultMessage != null) {
+        _showNoticeMessage(resultMessage, title: 'Consulta sem dados');
+        return true;
+      }
+
       _registerPesquisa(nome: 'Base estadual', placa: placa, renavam: renavam);
 
       Navigator.of(context).push(
@@ -430,10 +450,6 @@ class _HomePageState extends State<HomePage> {
     } on BaseEstadualException catch (e) {
       if (!mounted) return true;
       Navigator.of(context, rootNavigator: true).pop();
-
-      if (autoSolve && (e.statusCode ?? 0) >= 500) {
-        return false;
-      }
 
       _showErrorMessage(e.message);
       return true;
@@ -463,9 +479,22 @@ class _HomePageState extends State<HomePage> {
     );
 
     try {
-      final captcha = autoSolve
-          ? await _baseEstadualService.solveCaptcha()
-          : (captchaOverride ?? '');
+      String captcha;
+      if (autoSolve) {
+        try {
+          captcha = await _baseEstadualService.solveCaptcha();
+        } on BaseEstadualException {
+          if (!mounted) return true;
+          Navigator.of(context, rootNavigator: true).pop();
+          return false;
+        } catch (_) {
+          if (!mounted) return true;
+          Navigator.of(context, rootNavigator: true).pop();
+          return false;
+        }
+      } else {
+        captcha = captchaOverride ?? '';
+      }
 
       if (!autoSolve && captcha.isEmpty) {
         throw BaseEstadualException('Informe o captcha para continuar.');
@@ -480,6 +509,12 @@ class _HomePageState extends State<HomePage> {
       if (!mounted) return true;
       Navigator.of(context, rootNavigator: true).pop();
       if (!mounted) return true;
+
+      final resultMessage = _extractResultMessage(result);
+      if (resultMessage != null) {
+        _showNoticeMessage(resultMessage, title: 'Consulta sem dados');
+        return true;
+      }
 
       _registerPesquisa(
         nome: 'Base outros estados',
@@ -507,10 +542,6 @@ class _HomePageState extends State<HomePage> {
     } on BaseEstadualException catch (e) {
       if (!mounted) return true;
       Navigator.of(context, rootNavigator: true).pop();
-
-      if (autoSolve && (e.statusCode ?? 0) >= 500) {
-        return false;
-      }
 
       _showErrorMessage(e.message);
       return true;
@@ -542,9 +573,22 @@ class _HomePageState extends State<HomePage> {
     );
 
     try {
-      final captcha = autoSolve
-          ? await _baseEstadualService.solveCaptcha()
-          : (captchaOverride ?? '');
+      String captcha;
+      if (autoSolve) {
+        try {
+          captcha = await _baseEstadualService.solveCaptcha();
+        } on BaseEstadualException {
+          if (!mounted) return true;
+          Navigator.of(context, rootNavigator: true).pop();
+          return false;
+        } catch (_) {
+          if (!mounted) return true;
+          Navigator.of(context, rootNavigator: true).pop();
+          return false;
+        }
+      } else {
+        captcha = captchaOverride ?? '';
+      }
 
       if (!autoSolve && captcha.isEmpty) {
         throw BinException('Informe o captcha para continuar.');
@@ -564,6 +608,12 @@ class _HomePageState extends State<HomePage> {
       if (!mounted) return true;
       Navigator.of(context, rootNavigator: true).pop();
       if (!mounted) return true;
+
+      final resultMessage = _extractResultMessage(result);
+      if (resultMessage != null) {
+        _showNoticeMessage(resultMessage, title: 'Consulta sem dados');
+        return true;
+      }
 
       _registerPesquisa(
         nome: 'BIN',
@@ -589,10 +639,6 @@ class _HomePageState extends State<HomePage> {
     } on BaseEstadualException catch (e) {
       if (!mounted) return true;
       Navigator.of(context, rootNavigator: true).pop();
-
-      if (autoSolve && (e.statusCode ?? 0) >= 500) {
-        return false;
-      }
 
       _showErrorMessage(e.message);
       return true;
@@ -626,9 +672,22 @@ class _HomePageState extends State<HomePage> {
     );
 
     try {
-      final captcha = autoSolve
-          ? await _baseEstadualService.solveCaptcha()
-          : (captchaOverride ?? '');
+      String captcha;
+      if (autoSolve) {
+        try {
+          captcha = await _baseEstadualService.solveCaptcha();
+        } on BaseEstadualException {
+          if (!mounted) return true;
+          Navigator.of(context, rootNavigator: true).pop();
+          return false;
+        } catch (_) {
+          if (!mounted) return true;
+          Navigator.of(context, rootNavigator: true).pop();
+          return false;
+        }
+      } else {
+        captcha = captchaOverride ?? '';
+      }
 
       if (!autoSolve && captcha.isEmpty) {
         throw GravameException('Informe o captcha para continuar.');
@@ -644,6 +703,12 @@ class _HomePageState extends State<HomePage> {
       if (!mounted) return true;
       Navigator.of(context, rootNavigator: true).pop();
       if (!mounted) return true;
+
+      final resultMessage = _extractResultMessage(result);
+      if (resultMessage != null) {
+        _showNoticeMessage(resultMessage, title: 'Consulta sem dados');
+        return true;
+      }
 
       _registerPesquisa(nome: 'Gravame', placa: placa);
 
@@ -662,10 +727,6 @@ class _HomePageState extends State<HomePage> {
     } on BaseEstadualException catch (e) {
       if (!mounted) return true;
       Navigator.of(context, rootNavigator: true).pop();
-
-      if (autoSolve && (e.statusCode ?? 0) >= 500) {
-        return false;
-      }
 
       _showErrorMessage(e.message);
       return true;
@@ -699,9 +760,22 @@ class _HomePageState extends State<HomePage> {
     );
 
     try {
-      final captcha = autoSolve
-          ? await _baseEstadualService.solveCaptcha()
-          : (captchaOverride ?? request.captcha);
+      String captcha;
+      if (autoSolve) {
+        try {
+          captcha = await _baseEstadualService.solveCaptcha();
+        } on BaseEstadualException {
+          if (!mounted) return true;
+          Navigator.of(context, rootNavigator: true).pop();
+          return false;
+        } catch (_) {
+          if (!mounted) return true;
+          Navigator.of(context, rootNavigator: true).pop();
+          return false;
+        }
+      } else {
+        captcha = captchaOverride ?? request.captcha;
+      }
 
       if (!autoSolve && (captcha.isEmpty)) {
         throw RenainfException('Informe o captcha para continuar.');
@@ -738,10 +812,6 @@ class _HomePageState extends State<HomePage> {
       if (!mounted) return true;
       Navigator.of(context, rootNavigator: true).pop();
 
-      if (autoSolve && (e.statusCode ?? 0) >= 500) {
-        return false;
-      }
-
       _showErrorMessage(e.message);
       return true;
     } on RenainfException catch (e) {
@@ -776,9 +846,22 @@ class _HomePageState extends State<HomePage> {
     );
 
     try {
-      final captcha = autoSolve
-          ? await _baseEstadualService.solveCaptcha()
-          : (captchaOverride ?? '');
+      String captcha;
+      if (autoSolve) {
+        try {
+          captcha = await _baseEstadualService.solveCaptcha();
+        } on BaseEstadualException {
+          if (!mounted) return true;
+          Navigator.of(context, rootNavigator: true).pop();
+          return false;
+        } catch (_) {
+          if (!mounted) return true;
+          Navigator.of(context, rootNavigator: true).pop();
+          return false;
+        }
+      } else {
+        captcha = captchaOverride ?? '';
+      }
 
       if (!autoSolve && captcha.isEmpty) {
         throw BaseEstadualException('Informe o captcha para continuar.');
@@ -794,6 +877,15 @@ class _HomePageState extends State<HomePage> {
       if (!mounted) return true;
       Navigator.of(context, rootNavigator: true).pop();
       if (!mounted) return true;
+
+      final bloqueiosValidationMessage = _validateBloqueiosAtivosResult(result);
+      if (bloqueiosValidationMessage != null) {
+        _showNoticeMessage(
+          bloqueiosValidationMessage,
+          title: 'Consulta sem dados',
+        );
+        return true;
+      }
 
       _registerPesquisa(
         nome: 'Bloqueios ativos',
@@ -812,12 +904,11 @@ class _HomePageState extends State<HomePage> {
     } on BaseEstadualException catch (e) {
       if (!mounted) return true;
       Navigator.of(context, rootNavigator: true).pop();
-
-      if (autoSolve && (e.statusCode ?? 0) >= 500) {
-        return false;
+      if (e.statusCode == 404) {
+        _showNoticeMessage(e.message, title: 'Consulta sem dados');
+      } else {
+        _showErrorMessage(e.message);
       }
-
-      _showErrorMessage(e.message);
       return true;
     } catch (error) {
       if (!mounted) return true;
@@ -832,6 +923,84 @@ class _HomePageState extends State<HomePage> {
     }
   }
 
+  String? _validateBloqueiosAtivosResult(Map<String, dynamic> result) {
+    final message = _extractResultMessage(result);
+    if (message != null) return message;
+
+    final consulta = result['consulta'];
+    final renajud = result['renajud'];
+
+    if (consulta is! Map) {
+      return 'A API retornou um formato inesperado para esta consulta.';
+    }
+
+    final chassi = consulta['chassi']?.toString().trim();
+    final placa = consulta['placa']?.toString().trim();
+    final municipioPlaca = consulta['municipio_placa']?.toString().trim();
+    final quantidade = consulta['quantidade'];
+
+    String? ocorrenciasEncontradas;
+    String? ocorrenciasExibidas;
+    if (quantidade is Map) {
+      ocorrenciasEncontradas =
+          quantidade['ocorrencias_encontradas']?.toString().trim();
+      ocorrenciasExibidas =
+          quantidade['ocorrencias_exibidas']?.toString().trim();
+    }
+
+    final hasConsultaData = _hasNonEmptyValue(chassi) ||
+        _hasNonEmptyValue(placa) ||
+        _hasNonEmptyValue(municipioPlaca) ||
+        _hasNonEmptyValue(ocorrenciasEncontradas) ||
+        _hasNonEmptyValue(ocorrenciasExibidas);
+
+    final hasRenajudData = _hasAnyNonEmptyNestedValue(renajud);
+
+    if (hasConsultaData || hasRenajudData) {
+      return null;
+    }
+
+    return 'A API não retornou nenhum dado para esta consulta. '
+        'Isso pode significar que não existe registro para as especificações informadas '
+        'ou que houve algum erro na fonte. Tente novamente em alguns instantes.';
+  }
+
+  bool _hasNonEmptyValue(String? value) {
+    if (value == null) return false;
+    final trimmed = value.trim();
+    if (trimmed.isEmpty) return false;
+    if (trimmed == '—' || trimmed == '-') return false;
+    return true;
+  }
+
+  bool _hasAnyNonEmptyNestedValue(dynamic value) {
+    if (value == null) return false;
+    if (value is String) return _hasNonEmptyValue(value);
+    if (value is num || value is bool) return true;
+    if (value is List) {
+      for (final item in value) {
+        if (_hasAnyNonEmptyNestedValue(item)) return true;
+      }
+      return false;
+    }
+    if (value is Map) {
+      for (final entry in value.entries) {
+        if (_hasAnyNonEmptyNestedValue(entry.value)) return true;
+      }
+      return false;
+    }
+    return _hasNonEmptyValue(value.toString());
+  }
+
+  String? _extractResultMessage(Map<String, dynamic> result) {
+    final dynamic raw =
+        result['message'] ?? result['error'] ?? result['status'] ?? result['detail'];
+    if (raw is String && raw.trim().isNotEmpty) {
+      return raw.trim();
+    }
+    return null;
+  }
+
   Future<bool> _executeCrlvEmission({
     required _CrlvEmissionRequest request,
     required bool autoSolve,
@@ -844,9 +1013,22 @@ class _HomePageState extends State<HomePage> {
     );
 
     try {
-      final captcha = autoSolve
-          ? await _baseEstadualService.solveCaptcha()
-          : (captchaOverride ?? request.captcha);
+      String captcha;
+      if (autoSolve) {
+        try {
+          captcha = await _baseEstadualService.solveCaptcha();
+        } on BaseEstadualException {
+          if (!mounted) return true;
+          Navigator.of(context, rootNavigator: true).pop();
+          return false;
+        } catch (_) {
+          if (!mounted) return true;
+          Navigator.of(context, rootNavigator: true).pop();
+          return false;
+        }
+      } else {
+        captcha = captchaOverride ?? request.captcha;
+      }
 
       final normalizedCaptcha = captcha.trim().toUpperCase();
       if (!autoSolve && normalizedCaptcha.isEmpty) {
@@ -899,10 +1081,6 @@ class _HomePageState extends State<HomePage> {
       if (!mounted) return true;
       Navigator.of(context, rootNavigator: true).pop();
 
-      if (autoSolve && (e.statusCode ?? 0) >= 500) {
-        return false;
-      }
-
       _showErrorMessage(e.message);
       return true;
     } catch (error) {
@@ -930,9 +1108,22 @@ class _HomePageState extends State<HomePage> {
     );
 
     try {
-      final captcha = autoSolve
-          ? await _baseEstadualService.solveCaptcha()
-          : (captchaOverride ?? '');
+      String captcha;
+      if (autoSolve) {
+        try {
+          captcha = await _baseEstadualService.solveCaptcha();
+        } on BaseEstadualException {
+          if (!mounted) return const _CaptchaOperationResult.failure();
+          Navigator.of(context, rootNavigator: true).pop();
+          return const _CaptchaOperationResult<Map<String, dynamic>>.manual();
+        } catch (_) {
+          if (!mounted) return const _CaptchaOperationResult.failure();
+          Navigator.of(context, rootNavigator: true).pop();
+          return const _CaptchaOperationResult<Map<String, dynamic>>.manual();
+        }
+      } else {
+        captcha = captchaOverride ?? '';
+      }
 
       if (!autoSolve && captcha.isEmpty) {
         throw FichaCadastralException('Informe o captcha para continuar.');
@@ -951,10 +1142,6 @@ class _HomePageState extends State<HomePage> {
     } on BaseEstadualException catch (e) {
       if (!mounted) return const _CaptchaOperationResult.failure();
       Navigator.of(context, rootNavigator: true).pop();
-
-      if (autoSolve && (e.statusCode ?? 0) >= 500) {
-        return const _CaptchaOperationResult<Map<String, dynamic>>.manual();
-      }
 
       _showErrorMessage(e.message);
       return const _CaptchaOperationResult<Map<String, dynamic>>.failure();
@@ -990,9 +1177,22 @@ class _HomePageState extends State<HomePage> {
     );
 
     try {
-      final captcha = autoSolve
-          ? await _baseEstadualService.solveCaptcha()
-          : (captchaOverride ?? '');
+      String captcha;
+      if (autoSolve) {
+        try {
+          captcha = await _baseEstadualService.solveCaptcha();
+        } on BaseEstadualException {
+          if (!mounted) return const _CaptchaOperationResult.failure();
+          Navigator.of(context, rootNavigator: true).pop();
+          return const _CaptchaOperationResult<Map<String, dynamic>>.manual();
+        } catch (_) {
+          if (!mounted) return const _CaptchaOperationResult.failure();
+          Navigator.of(context, rootNavigator: true).pop();
+          return const _CaptchaOperationResult<Map<String, dynamic>>.manual();
+        }
+      } else {
+        captcha = captchaOverride ?? '';
+      }
 
       if (!autoSolve && captcha.isEmpty) {
         throw FichaCadastralException('Informe o captcha para continuar.');
@@ -1013,10 +1213,6 @@ class _HomePageState extends State<HomePage> {
     } on BaseEstadualException catch (e) {
       if (!mounted) return const _CaptchaOperationResult.failure();
       Navigator.of(context, rootNavigator: true).pop();
-
-      if (autoSolve && (e.statusCode ?? 0) >= 500) {
-        return const _CaptchaOperationResult<Map<String, dynamic>>.manual();
-      }
 
       _showErrorMessage(e.message);
       return const _CaptchaOperationResult<Map<String, dynamic>>.failure();
@@ -3008,6 +3204,11 @@ class _HomePageState extends State<HomePage> {
     unawaited(
       AppErrorDialog.show(context, message: message, title: 'Algo deu errado'),
     );
+  }
+
+  void _showNoticeMessage(String message, {String? title}) {
+    if (!mounted) return;
+    unawaited(AppNoticeDialog.show(context, message: message, title: title));
   }
 
   String _resolveErrorMessage(
