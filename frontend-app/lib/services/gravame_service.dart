@@ -16,18 +16,31 @@ class GravameService {
 
   final http.Client _client;
 
+  static String _sanitizeAlnum(String value) {
+    return value.replaceAll(RegExp(r'[^A-Za-z0-9]'), '').toUpperCase();
+  }
+
   static final Uri _gravameUri = Uri.parse(
     'https://applldespachante.skalacode.com/api/gravame',
   );
 
   Future<Map<String, dynamic>> consultar({
-    required String placa,
+    String? placa,
+    String? chassi,
     required String captcha,
   }) async {
+    final plateValue = _sanitizeAlnum(placa ?? '');
+    final chassiValue = _sanitizeAlnum(chassi ?? '');
+    final captchaValue = _sanitizeAlnum(captcha);
+    if (plateValue.isEmpty && chassiValue.isEmpty) {
+      throw GravameException('Informe a placa ou o chassi para consultar.');
+    }
+
     final uri = _gravameUri.replace(
       queryParameters: {
-        'placa': placa,
-        'captcha': captcha,
+        'captcha': captchaValue,
+        if (plateValue.isNotEmpty) 'placa': plateValue,
+        if (chassiValue.isNotEmpty) 'chassi': chassiValue,
       },
     );
 

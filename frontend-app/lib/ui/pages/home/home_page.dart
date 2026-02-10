@@ -20,6 +20,7 @@ import 'package:frontend_app/services/pesquisa_service.dart';
 import 'package:frontend_app/ui/widgets/app_error_dialog.dart';
 import 'package:frontend_app/ui/widgets/app_notice_dialog.dart';
 import 'package:frontend_app/services/file_opener_service.dart';
+import 'package:frontend_app/ui/formatters/plate_input_formatter.dart';
 
 import '../base_state/base_estadual_page.dart';
 import '../base_state/base_outros_estados_page.dart';
@@ -308,6 +309,7 @@ class _HomePageState extends State<HomePage> {
   Future<_GravameRequest?> _showGravameDialog({
     bool requireCaptcha = true,
     String? initialPlate,
+    String? initialChassi,
   }) {
     return showDialog<_GravameRequest>(
       context: context,
@@ -316,8 +318,10 @@ class _HomePageState extends State<HomePage> {
         fetchCaptcha: () => _baseEstadualService.fetchCaptcha(),
         captchaErrorResolver: _mapBaseEstadualCaptchaError,
         plateValidator: _isValidPlate,
+        chassiValidator: _isValidChassi,
         requireCaptcha: requireCaptcha,
         initialPlate: initialPlate,
+        initialChassi: initialChassi,
       ),
     );
   }
@@ -422,7 +426,7 @@ class _HomePageState extends State<HomePage> {
       }
 
       final result = await _baseEstadualService.consultar(
-        placa: placa,
+        placa: PlateUtils.sanitize(placa),
         renavam: renavam,
         captcha: captcha,
       );
@@ -661,7 +665,7 @@ class _HomePageState extends State<HomePage> {
   }
 
   Future<bool> _executeGravameQuery({
-    required String placa,
+    required _GravameRequest request,
     required bool autoSolve,
     String? captchaOverride,
   }) async {
@@ -672,6 +676,11 @@ class _HomePageState extends State<HomePage> {
     );
 
     try {
+      final option = request.option;
+      final placa = option == 'placa' ? (request.plate ?? '').trim().toUpperCase() : '';
+      final chassi =
+          option == 'chassi' ? (request.chassi ?? '').trim().toUpperCase() : '';
+
       String captcha;
       if (autoSolve) {
         try {
@@ -696,7 +705,8 @@ class _HomePageState extends State<HomePage> {
       final normalizedCaptcha = captcha.trim().toUpperCase();
 
       final result = await _gravameService.consultar(
-        placa: placa,
+        placa: placa.isEmpty ? null : PlateUtils.sanitize(placa),
+        chassi: chassi.isEmpty ? null : chassi,
         captcha: normalizedCaptcha,
       );
 
@@ -710,12 +720,18 @@ class _HomePageState extends State<HomePage> {
         return true;
       }
 
-      _registerPesquisa(nome: 'Gravame', placa: placa);
+      _registerPesquisa(
+        nome: 'Gravame',
+        placa: placa.isEmpty ? null : placa,
+        chassi: chassi.isEmpty ? null : chassi,
+        opcaoPesquisa: option,
+      );
 
       Navigator.of(context).push(
         MaterialPageRoute(
           builder: (_) => GravamePage(
-            placa: placa,
+            placa: placa.isEmpty ? null : placa,
+            chassi: chassi.isEmpty ? null : chassi,
             renavam: null,
             uf: null,
             payload: result,
@@ -1130,7 +1146,7 @@ class _HomePageState extends State<HomePage> {
       }
 
       final result = await _fichaCadastralService.consultarFicha(
-        placa: placa,
+        placa: PlateUtils.sanitize(placa),
         captcha: captcha.trim().toUpperCase(),
       );
 
@@ -1202,7 +1218,7 @@ class _HomePageState extends State<HomePage> {
         numeroFicha: numeroFicha,
         anoFicha: anoFicha,
         captcha: captcha.trim().toUpperCase(),
-        placa: placa,
+        placa: PlateUtils.sanitize(placa),
       );
 
       if (!mounted) return const _CaptchaOperationResult.failure();
@@ -1586,6 +1602,15 @@ class _HomePageState extends State<HomePage> {
     final plateController = TextEditingController(
       text: initialRequest?.plate ?? '',
     );
+    PlateFormat? plateFormat = initialRequest?.plate?.trim().isNotEmpty ?? false
+        ? PlateUtils.inferFormat(initialRequest!.plate)
+        : null;
+    if (plateFormat != null && plateController.text.trim().isNotEmpty) {
+      plateController.text = PlateUtils.format(
+        plateController.text,
+        plateFormat,
+      );
+    }
     final renavamController = TextEditingController(
       text: initialRequest?.renavam ?? '',
     );
@@ -1784,23 +1809,63 @@ class _HomePageState extends State<HomePage> {
                               ?.copyWith(color: const Color(0xFF475467)),
                         ),
                         const SizedBox(height: 16),
+                        Row(
+                          children: [
+                            Expanded(
+                              child: RadioListTile<PlateFormat>(
+                                value: PlateFormat.antiga,
+                                groupValue: plateFormat,
+                                contentPadding: EdgeInsets.zero,
+                                dense: true,
+                                title: const Text('Antiga (ABC-1234)'),
+                                onChanged: (value) {
+                                  if (value == null) return;
+                                  setState(() {
+                                    plateFormat = value;
+                                    plateController.clear();
+                                  });
+                                },
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: RadioListTile<PlateFormat>(
+                                value: PlateFormat.mercosul,
+                                groupValue: plateFormat,
+                                contentPadding: EdgeInsets.zero,
+                                dense: true,
+                                title: const Text('Mercosul (ABC-1D23)'),
+                                onChanged: (value) {
+                                  if (value == null) return;
+                                  setState(() {
+                                    plateFormat = value;
+                                    plateController.clear();
+                                  });
+                                },
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 8),
                         TextFormField(
                           controller: plateController,
                           decoration: const InputDecoration(labelText: 'Placa'),
+                          enabled: plateFormat != null,
                           inputFormatters: [
-                            const _UpperCaseTextFormatter(),
-                            FilteringTextInputFormatter.allow(
-                              RegExp('[A-Za-z0-9]'),
-                            ),
-                            LengthLimitingTextInputFormatter(7),
+                            if (plateFormat != null)
+                              PlateInputFormatter(plateFormat!),
+                            LengthLimitingTextInputFormatter(8),
                           ],
                           textCapitalization: TextCapitalization.characters,
                           validator: (value) {
                             final text = value?.trim().toUpperCase() ?? '';
+                            if (plateFormat == null) {
+                              return 'Selecione o padrão da placa';
+                            }
                             if (text.isEmpty) {
                               return 'Informe a placa';
                             }
-                            if (!_isValidPlate(text)) {
+                            if (!PlateUtils.isValid(text, plateFormat!)) {
                               return 'Placa inválida';
                             }
                             return null;
@@ -1860,11 +1925,16 @@ class _HomePageState extends State<HomePage> {
                                   if (!formKey.currentState!.validate()) {
                                     return;
                                   }
+                                  if (plateFormat == null) {
+                                    return;
+                                  }
+                                  final plateValue = PlateUtils.format(
+                                    plateController.text,
+                                    plateFormat!,
+                                  );
                                   Navigator.of(dialogContext).pop(
                                     _CrlvEmissionRequest(
-                                      plate: plateController.text
-                                          .trim()
-                                          .toUpperCase(),
+                                      plate: plateValue,
                                       renavam: renavamController.text.trim(),
                                       document: documentController.text.trim(),
                                       captcha: requireCaptcha
@@ -2216,7 +2286,7 @@ class _HomePageState extends State<HomePage> {
     if (request == null || !mounted) return;
 
     final autoCompleted = await _executeGravameQuery(
-      placa: request.plate,
+      request: request,
       autoSolve: true,
     );
 
@@ -2229,12 +2299,13 @@ class _HomePageState extends State<HomePage> {
     final manualRequest = await _showGravameDialog(
       requireCaptcha: true,
       initialPlate: request.plate,
+      initialChassi: request.chassi,
     );
 
     if (manualRequest == null || !mounted) return;
 
     await _executeGravameQuery(
-      placa: manualRequest.plate,
+      request: manualRequest,
       autoSolve: false,
       captchaOverride: manualRequest.captcha,
     );
@@ -2397,6 +2468,16 @@ class _HomePageState extends State<HomePage> {
     final plateController = TextEditingController(
       text: initialRequest?.plate ?? '',
     );
+    PlateFormat? plateFormat =
+        initialRequest?.plate?.trim().isNotEmpty ?? false
+            ? PlateUtils.inferFormat(initialRequest!.plate)
+            : null;
+    if (plateFormat != null && plateController.text.trim().isNotEmpty) {
+      plateController.text = PlateUtils.format(
+        plateController.text,
+        plateFormat,
+      );
+    }
     final startDateController = TextEditingController(
       text: initialRequest?.startDate != null
           ? _formatDate(initialRequest!.startDate)
@@ -2525,7 +2606,9 @@ class _HomePageState extends State<HomePage> {
               final plateText = plateController.text.trim().toUpperCase();
               final captchaText = captchaController.text.trim().toUpperCase();
               final plateValid =
-                  plateText.isNotEmpty && _isValidPlate(plateText);
+                  plateFormat != null &&
+                  plateText.isNotEmpty &&
+                  PlateUtils.isValid(plateText, plateFormat!);
               final datesValid =
                   startDate != null &&
                   endDate != null &&
@@ -2566,33 +2649,75 @@ class _HomePageState extends State<HomePage> {
                               Navigator.of(dialogContext).pop();
                             },
                             icon: const Icon(Icons.close),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 12),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: RadioListTile<PlateFormat>(
+                            value: PlateFormat.antiga,
+                            groupValue: plateFormat,
+                            contentPadding: EdgeInsets.zero,
+                            dense: true,
+                            title: const Text('Antiga (ABC-1234)'),
+                            onChanged: (value) {
+                              if (value == null) return;
+                              setState(() {
+                                plateFormat = value;
+                                plateController.clear();
+                              });
+                              formKey.currentState?.validate();
+                            },
                           ),
-                        ],
-                      ),
-                      const SizedBox(height: 12),
-                      TextFormField(
-                        controller: plateController,
-                        decoration: const InputDecoration(labelText: 'Placa'),
-                        inputFormatters: [
-                          const _UpperCaseTextFormatter(),
-                          FilteringTextInputFormatter.allow(
-                            RegExp('[A-Za-z0-9]'),
+                        ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: RadioListTile<PlateFormat>(
+                            value: PlateFormat.mercosul,
+                            groupValue: plateFormat,
+                            contentPadding: EdgeInsets.zero,
+                            dense: true,
+                            title: const Text('Mercosul (ABC-1D23)'),
+                            onChanged: (value) {
+                              if (value == null) return;
+                              setState(() {
+                                plateFormat = value;
+                                plateController.clear();
+                              });
+                              formKey.currentState?.validate();
+                            },
                           ),
-                          LengthLimitingTextInputFormatter(7),
-                        ],
-                        textCapitalization: TextCapitalization.characters,
-                        validator: (value) {
-                          final text = value?.trim().toUpperCase() ?? '';
-                          if (text.isEmpty) {
-                            return 'Informe a placa';
-                          }
-                          if (!_isValidPlate(text)) {
-                            return 'Placa inválida';
-                          }
-                          return null;
-                        },
-                        onChanged: (_) => setState(() {}),
-                      ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 8),
+                    TextFormField(
+                      controller: plateController,
+                      decoration: const InputDecoration(labelText: 'Placa'),
+                      enabled: plateFormat != null,
+                      inputFormatters: [
+                        if (plateFormat != null)
+                          PlateInputFormatter(plateFormat!),
+                        LengthLimitingTextInputFormatter(8),
+                      ],
+                      textCapitalization: TextCapitalization.characters,
+                      validator: (value) {
+                        final text = value?.trim().toUpperCase() ?? '';
+                        if (plateFormat == null) {
+                          return 'Selecione o padrão da placa';
+                        }
+                        if (text.isEmpty) {
+                          return 'Informe a placa';
+                        }
+                        if (!PlateUtils.isValid(text, plateFormat!)) {
+                          return 'Placa inválida';
+                        }
+                        return null;
+                      },
+                      onChanged: (_) => setState(() {}),
+                    ),
                       const SizedBox(height: 12),
                       DropdownButtonFormField<int>(
                         value: selectedStatusValue,
@@ -2816,6 +2941,9 @@ class _HomePageState extends State<HomePage> {
                                 if (!formKey.currentState!.validate()) {
                                   return;
                                 }
+                                if (plateFormat == null) {
+                                  return;
+                                }
                                 if (selectedUf == null ||
                                     selectedStatusValue == null ||
                                     startDate == null ||
@@ -2823,11 +2951,13 @@ class _HomePageState extends State<HomePage> {
                                   return;
                                 }
                                 FocusManager.instance.primaryFocus?.unfocus();
+                                final plateValue = PlateUtils.format(
+                                  plateController.text,
+                                  plateFormat!,
+                                );
                                 Navigator.of(dialogContext).pop(
                                   _RenainfRequest(
-                                    plate: plateController.text
-                                        .trim()
-                                        .toUpperCase(),
+                                    plate: plateValue,
                                     statusCode: selectedStatusValue!,
                                     statusLabel: selectedStatusLabel,
                                     uf: selectedUf!,
@@ -3856,6 +3986,7 @@ class _VehicleLookupDialogState extends State<_VehicleLookupDialog> {
   String? _captchaBase64;
   String? _captchaError;
   _BinSearchOption _binSearchOption = _BinSearchOption.placaRenavam;
+  PlateFormat? _plateFormat;
 
   bool get _isBinLookup => widget.includeChassi;
   bool get _isChassiMode =>
@@ -3876,6 +4007,15 @@ class _VehicleLookupDialogState extends State<_VehicleLookupDialog> {
       _binSearchOption = _BinSearchOption.chassi;
     }
     _captchaController = TextEditingController();
+    if (_isPlacaRenavamMode && _plateController.text.trim().isNotEmpty) {
+      _plateFormat = PlateUtils.inferFormat(_plateController.text);
+      if (_plateFormat != null) {
+        _plateController.text = PlateUtils.format(
+          _plateController.text,
+          _plateFormat!,
+        );
+      }
+    }
     if (widget.requireCaptcha) {
       _refreshCaptcha();
     }
@@ -3929,7 +4069,10 @@ class _VehicleLookupDialogState extends State<_VehicleLookupDialog> {
     if (!_formKey.currentState!.validate()) {
       return;
     }
-    final placaValue = _plateController.text.trim().toUpperCase();
+    final rawPlate = _plateController.text.trim().toUpperCase();
+    final placaValue = (_plateFormat != null)
+        ? PlateUtils.format(rawPlate, _plateFormat!)
+        : rawPlate;
     final renavamValue = widget.includeRenavam
         ? _renavamController.text.trim().toUpperCase()
         : '';
@@ -3945,6 +4088,17 @@ class _VehicleLookupDialogState extends State<_VehicleLookupDialog> {
       if (_isPlacaRenavamMode &&
           (placaValue.isEmpty || (widget.includeRenavam && renavamValue.isEmpty))) {
         _showSnack('Informe placa e renavam para consultar.');
+        return;
+      }
+    }
+
+    if (_isPlacaRenavamMode) {
+      if (_plateFormat == null) {
+        _showSnack('Selecione o padrão da placa para consultar.');
+        return;
+      }
+      if (!PlateUtils.isValid(placaValue, _plateFormat!)) {
+        _showSnack('Placa inválida.');
         return;
       }
     }
@@ -4029,6 +4183,8 @@ class _VehicleLookupDialogState extends State<_VehicleLookupDialog> {
                             if (value == null) return;
                             setState(() {
                               _binSearchOption = value;
+                              _plateFormat = null;
+                              _plateController.clear();
                             });
                           },
                         ),
@@ -4054,22 +4210,62 @@ class _VehicleLookupDialogState extends State<_VehicleLookupDialog> {
                   const SizedBox(height: 8),
                 ],
                 if (_isPlacaRenavamMode) ...[
+                  Row(
+                    children: [
+                      Expanded(
+                        child: RadioListTile<PlateFormat>(
+                          value: PlateFormat.antiga,
+                          groupValue: _plateFormat,
+                          contentPadding: EdgeInsets.zero,
+                          dense: true,
+                          title: const Text('Antiga (ABC-1234)'),
+                          onChanged: (value) {
+                            if (value == null) return;
+                            setState(() {
+                              _plateFormat = value;
+                              _plateController.clear();
+                            });
+                          },
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: RadioListTile<PlateFormat>(
+                          value: PlateFormat.mercosul,
+                          groupValue: _plateFormat,
+                          contentPadding: EdgeInsets.zero,
+                          dense: true,
+                          title: const Text('Mercosul (ABC-1D23)'),
+                          onChanged: (value) {
+                            if (value == null) return;
+                            setState(() {
+                              _plateFormat = value;
+                              _plateController.clear();
+                            });
+                          },
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
                   TextFormField(
                     controller: _plateController,
                     decoration: const InputDecoration(labelText: 'Placa'),
+                    enabled: _plateFormat != null,
                     inputFormatters: [
-                      const _UpperCaseTextFormatter(),
-                      FilteringTextInputFormatter.allow(RegExp('[A-Za-z0-9]')),
-                      LengthLimitingTextInputFormatter(7),
+                      if (_plateFormat != null) PlateInputFormatter(_plateFormat!),
+                      LengthLimitingTextInputFormatter(8),
                     ],
                     textCapitalization: TextCapitalization.characters,
                     validator: (value) {
                       final text = value?.trim().toUpperCase() ?? '';
+                      if (_plateFormat == null) {
+                        return 'Selecione o padrão da placa';
+                      }
                       if (text.isEmpty) {
                         return 'Informe a placa';
                       }
-                      final normalized = text.replaceAll('-', '');
-                      if (!widget.plateValidator(normalized)) {
+                      if (!PlateUtils.isValid(text, _plateFormat!)) {
                         return 'Placa inválida';
                       }
                       return null;
@@ -4250,35 +4446,58 @@ class _GravameDialog extends StatefulWidget {
   const _GravameDialog({
     required this.fetchCaptcha,
     required this.plateValidator,
+    required this.chassiValidator,
     this.captchaErrorResolver,
     this.requireCaptcha = true,
     this.initialPlate,
+    this.initialChassi,
   });
 
   final Future<String> Function() fetchCaptcha;
   final bool Function(String value) plateValidator;
+  final bool Function(String value) chassiValidator;
   final String Function(Object error)? captchaErrorResolver;
   final bool requireCaptcha;
   final String? initialPlate;
+  final String? initialChassi;
 
   @override
   State<_GravameDialog> createState() => _GravameDialogState();
 }
 
+enum _GravameSearchOption { placa, chassi }
+
 class _GravameDialogState extends State<_GravameDialog> {
   final _formKey = GlobalKey<FormState>();
   late final TextEditingController _plateController;
+  late final TextEditingController _chassiController;
   late final TextEditingController _captchaController;
 
   bool _isLoadingCaptcha = false;
   String? _captchaBase64;
   String? _captchaError;
+  _GravameSearchOption _searchOption = _GravameSearchOption.placa;
+  PlateFormat? _plateFormat;
 
   @override
   void initState() {
     super.initState();
     _plateController = TextEditingController(text: widget.initialPlate ?? '');
+    _chassiController = TextEditingController(text: widget.initialChassi ?? '');
     _captchaController = TextEditingController();
+    if (widget.initialChassi?.trim().isNotEmpty ?? false) {
+      _searchOption = _GravameSearchOption.chassi;
+    }
+    if (_searchOption == _GravameSearchOption.placa &&
+        _plateController.text.trim().isNotEmpty) {
+      _plateFormat = PlateUtils.inferFormat(_plateController.text);
+      if (_plateFormat != null) {
+        _plateController.text = PlateUtils.format(
+          _plateController.text,
+          _plateFormat!,
+        );
+      }
+    }
     if (widget.requireCaptcha) {
       _refreshCaptcha();
     }
@@ -4287,6 +4506,7 @@ class _GravameDialogState extends State<_GravameDialog> {
   @override
   void dispose() {
     _plateController.dispose();
+    _chassiController.dispose();
     _captchaController.dispose();
     super.dispose();
   }
@@ -4326,9 +4546,21 @@ class _GravameDialogState extends State<_GravameDialog> {
     }
     if (!_formKey.currentState!.validate()) return;
 
+    final plateValue = _searchOption == _GravameSearchOption.placa
+        ? (_plateFormat == null
+              ? ''
+              : PlateUtils.format(_plateController.text, _plateFormat!))
+        : '';
+
     Navigator.of(context).pop(
       _GravameRequest(
-        plate: _plateController.text.trim().toUpperCase(),
+        option: _searchOption == _GravameSearchOption.chassi ? 'chassi' : 'placa',
+        plate: _searchOption == _GravameSearchOption.placa
+            ? plateValue
+            : null,
+        chassi: _searchOption == _GravameSearchOption.chassi
+            ? _chassiController.text.trim().toUpperCase()
+            : null,
         captcha: widget.requireCaptcha
             ? _captchaController.text.trim().toUpperCase()
             : '',
@@ -4379,34 +4611,139 @@ class _GravameDialogState extends State<_GravameDialog> {
                 const SizedBox(height: 12),
                 Text(
                   widget.requireCaptcha
-                      ? 'Informe placa e captcha para consultar o gravame.'
-                      : 'Informe apenas a placa. Resolveremos o captcha automaticamente.',
+                      ? 'Informe a placa ou o chassi e o captcha para consultar o gravame.'
+                      : 'Informe a placa ou o chassi. Resolveremos o captcha automaticamente.',
                   style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                     color: const Color(0xFF475467),
                   ),
                 ),
                 const SizedBox(height: 20),
-                TextFormField(
-                  controller: _plateController,
-                  decoration: const InputDecoration(labelText: 'Placa'),
-                  inputFormatters: [
-                    const _UpperCaseTextFormatter(),
-                    FilteringTextInputFormatter.allow(RegExp('[A-Za-z0-9]')),
-                    LengthLimitingTextInputFormatter(7),
+                Row(
+                  children: [
+                    Expanded(
+                      child: RadioListTile<_GravameSearchOption>(
+                        value: _GravameSearchOption.placa,
+                        groupValue: _searchOption,
+                        contentPadding: EdgeInsets.zero,
+                        dense: true,
+                        title: const Text('Placa'),
+                        onChanged: (value) {
+                          if (value == null) return;
+                          setState(() {
+                            _searchOption = value;
+                            _plateFormat = null;
+                            _plateController.clear();
+                            _chassiController.clear();
+                          });
+                        },
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: RadioListTile<_GravameSearchOption>(
+                        value: _GravameSearchOption.chassi,
+                        groupValue: _searchOption,
+                        contentPadding: EdgeInsets.zero,
+                        dense: true,
+                        title: const Text('Chassi'),
+                        onChanged: (value) {
+                          if (value == null) return;
+                          setState(() {
+                            _searchOption = value;
+                            _plateFormat = null;
+                            _plateController.clear();
+                            _chassiController.clear();
+                          });
+                        },
+                      ),
+                    ),
                   ],
-                  textCapitalization: TextCapitalization.characters,
-                  validator: (value) {
-                    final text = value?.trim().toUpperCase() ?? '';
-                    if (text.isEmpty) {
-                      return 'Informe a placa';
-                    }
-                    final normalized = text.replaceAll('-', '');
-                    if (!widget.plateValidator(normalized)) {
-                      return 'Placa inválida';
-                    }
-                    return null;
-                  },
                 ),
+                const SizedBox(height: 8),
+                if (_searchOption == _GravameSearchOption.placa) ...[
+                  Row(
+                    children: [
+                      Expanded(
+                        child: RadioListTile<PlateFormat>(
+                          value: PlateFormat.antiga,
+                          groupValue: _plateFormat,
+                          contentPadding: EdgeInsets.zero,
+                          dense: true,
+                          title: const Text('Antiga (ABC-1234)'),
+                          onChanged: (value) {
+                            if (value == null) return;
+                            setState(() {
+                              _plateFormat = value;
+                              _plateController.clear();
+                            });
+                          },
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: RadioListTile<PlateFormat>(
+                          value: PlateFormat.mercosul,
+                          groupValue: _plateFormat,
+                          contentPadding: EdgeInsets.zero,
+                          dense: true,
+                          title: const Text('Mercosul (ABC-1D23)'),
+                          onChanged: (value) {
+                            if (value == null) return;
+                            setState(() {
+                              _plateFormat = value;
+                              _plateController.clear();
+                            });
+                          },
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                  TextFormField(
+                    controller: _plateController,
+                    decoration: const InputDecoration(labelText: 'Placa'),
+                    enabled: _plateFormat != null,
+                    inputFormatters: [
+                      if (_plateFormat != null)
+                        PlateInputFormatter(_plateFormat!),
+                      LengthLimitingTextInputFormatter(8),
+                    ],
+                    textCapitalization: TextCapitalization.characters,
+                    validator: (value) {
+                      final text = value?.trim().toUpperCase() ?? '';
+                      if (_plateFormat == null) {
+                        return 'Selecione o padrão da placa';
+                      }
+                      if (text.isEmpty) {
+                        return 'Informe a placa';
+                      }
+                      if (!PlateUtils.isValid(text, _plateFormat!)) {
+                        return 'Placa inválida';
+                      }
+                      return null;
+                    },
+                  ),
+                ] else
+                  TextFormField(
+                    controller: _chassiController,
+                    decoration: const InputDecoration(labelText: 'Chassi'),
+                    inputFormatters: [
+                      const _UpperCaseTextFormatter(),
+                      FilteringTextInputFormatter.allow(RegExp('[A-Za-z0-9]')),
+                      LengthLimitingTextInputFormatter(17),
+                    ],
+                    textCapitalization: TextCapitalization.characters,
+                    validator: (value) {
+                      final text = value?.trim().toUpperCase() ?? '';
+                      if (text.isEmpty) {
+                        return 'Informe o chassi';
+                      }
+                      if (!widget.chassiValidator(text)) {
+                        return 'Chassi inválido';
+                      }
+                      return null;
+                    },
+                  ),
                 if (widget.requireCaptcha) ...[
                   const SizedBox(height: 20),
                   Container(
@@ -4552,12 +4889,22 @@ class _FichaConsultaDialogState extends State<_FichaConsultaDialog> {
   bool _isLoadingCaptcha = false;
   String? _captchaBase64;
   String? _captchaError;
+  PlateFormat? _plateFormat;
 
   @override
   void initState() {
     super.initState();
     _plateController = TextEditingController(text: widget.initialPlate ?? '');
     _captchaController = TextEditingController();
+    if (_plateController.text.trim().isNotEmpty) {
+      _plateFormat = PlateUtils.inferFormat(_plateController.text);
+      if (_plateFormat != null) {
+        _plateController.text = PlateUtils.format(
+          _plateController.text,
+          _plateFormat!,
+        );
+      }
+    }
     if (widget.requireCaptcha) {
       _refreshCaptcha();
     }
@@ -4605,9 +4952,11 @@ class _FichaConsultaDialogState extends State<_FichaConsultaDialog> {
     }
     if (!_formKey.currentState!.validate()) return;
 
+    if (_plateFormat == null) return;
+
     Navigator.of(context).pop(
       _FichaConsultaRequest(
-        plate: _plateController.text.trim().toUpperCase(),
+        plate: PlateUtils.format(_plateController.text, _plateFormat!),
         captcha: widget.requireCaptcha
             ? _captchaController.text.trim().toUpperCase()
             : '',
@@ -4671,22 +5020,63 @@ class _FichaConsultaDialogState extends State<_FichaConsultaDialog> {
                     ),
                   ),
                 const SizedBox(height: 20),
+                Row(
+                  children: [
+                    Expanded(
+                      child: RadioListTile<PlateFormat>(
+                        value: PlateFormat.antiga,
+                        groupValue: _plateFormat,
+                        contentPadding: EdgeInsets.zero,
+                        dense: true,
+                        title: const Text('Antiga (ABC-1234)'),
+                        onChanged: (value) {
+                          if (value == null) return;
+                          setState(() {
+                            _plateFormat = value;
+                            _plateController.clear();
+                          });
+                        },
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: RadioListTile<PlateFormat>(
+                        value: PlateFormat.mercosul,
+                        groupValue: _plateFormat,
+                        contentPadding: EdgeInsets.zero,
+                        dense: true,
+                        title: const Text('Mercosul (ABC-1D23)'),
+                        onChanged: (value) {
+                          if (value == null) return;
+                          setState(() {
+                            _plateFormat = value;
+                            _plateController.clear();
+                          });
+                        },
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 8),
                 TextFormField(
                   controller: _plateController,
                   decoration: const InputDecoration(labelText: 'Placa'),
+                  enabled: _plateFormat != null,
                   inputFormatters: [
-                    const _UpperCaseTextFormatter(),
-                    FilteringTextInputFormatter.allow(RegExp('[A-Za-z0-9]')),
-                    LengthLimitingTextInputFormatter(7),
+                    if (_plateFormat != null)
+                      PlateInputFormatter(_plateFormat!),
+                    LengthLimitingTextInputFormatter(8),
                   ],
                   textCapitalization: TextCapitalization.characters,
                   validator: (value) {
                     final text = value?.trim().toUpperCase() ?? '';
+                    if (_plateFormat == null) {
+                      return 'Selecione o padrão da placa';
+                    }
                     if (text.isEmpty) {
                       return 'Informe a placa';
                     }
-                    final normalized = text.replaceAll('-', '');
-                    if (!widget.plateValidator(normalized)) {
+                    if (!PlateUtils.isValid(text, _plateFormat!)) {
                       return 'Placa inválida';
                     }
                     return null;
@@ -5092,9 +5482,16 @@ class _CrlvEmissionRequest {
 }
 
 class _GravameRequest {
-  const _GravameRequest({required this.plate, required this.captcha});
+  const _GravameRequest({
+    required this.option,
+    required this.captcha,
+    this.plate,
+    this.chassi,
+  });
 
-  final String plate;
+  final String option;
+  final String? plate;
+  final String? chassi;
   final String captcha;
 }
 

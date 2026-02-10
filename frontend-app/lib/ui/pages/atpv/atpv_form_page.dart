@@ -10,6 +10,7 @@ import 'package:frontend_app/services/atpv_service.dart';
 import 'package:frontend_app/services/base_estadual_service.dart';
 import 'package:frontend_app/services/cep_service.dart';
 import 'package:frontend_app/ui/pages/atpv/widgets/atpv_top_bar.dart';
+import 'package:frontend_app/ui/formatters/plate_input_formatter.dart';
 import 'package:frontend_app/ui/widgets/app_error_dialog.dart';
 import 'package:frontend_app/services/file_opener_service.dart';
 
@@ -70,6 +71,7 @@ class _AtpvFormPageState extends State<AtpvFormPage> {
   String? _captchaError;
   String? _submissionError;
   String? _lastCaptchaUsed;
+  PlateFormat? _plateFormat;
   int _ownerDocOption = 1;
   int _buyerDocOption = 1;
   bool _updatingOwnerDoc = false;
@@ -101,6 +103,15 @@ class _AtpvFormPageState extends State<AtpvFormPage> {
         widget.initialConsultaComunicacoes ?? const <Map<String, dynamic>>[];
     if (_consultaPayload != null) {
       _prefillFromConsulta();
+    }
+    if (_plateController.text.trim().isNotEmpty) {
+      _plateFormat = PlateUtils.inferFormat(_plateController.text);
+      if (_plateFormat != null) {
+        _plateController.text = PlateUtils.format(
+          _plateController.text,
+          _plateFormat!,
+        );
+      }
     }
     _ownerDocOption = _resolveDocOption(_ownerDocumentController.text);
     _buyerDocOption = _resolveDocOption(_buyerDocumentController.text);
@@ -323,6 +334,10 @@ class _AtpvFormPageState extends State<AtpvFormPage> {
     if (!form.validate()) {
       return;
     }
+    if (_plateFormat == null) {
+      await _showErrorAlert('Selecione o padrão da placa.');
+      return;
+    }
 
     if (!_termsAccepted) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -358,10 +373,14 @@ class _AtpvFormPageState extends State<AtpvFormPage> {
       final ownerDocDigits = _onlyDigits(_ownerDocumentController.text);
       final buyerDocDigits = _onlyDigits(_buyerDocumentController.text);
       final cepDigits = _onlyDigits(_buyerCepController.text);
+      final plateFormatted = PlateUtils.format(
+        _plateController.text,
+        _plateFormat!,
+      );
 
       final result = await _atpvService.emitirAtpv(
         renavam: _renavamController.text.trim(),
-        placa: _plateController.text.trim().toUpperCase(),
+        placa: PlateUtils.sanitize(plateFormatted),
         captcha: captcha,
         chassi: _chassiController.text.trim().isEmpty
             ? null
@@ -837,15 +856,66 @@ class _AtpvFormPageState extends State<AtpvFormPage> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
+                Row(
+                  children: [
+                    Expanded(
+                      child: RadioListTile<PlateFormat>(
+                        value: PlateFormat.antiga,
+                        groupValue: _plateFormat,
+                        dense: true,
+                        contentPadding: EdgeInsets.zero,
+                        title: const Text('Antiga (ABC-1234)'),
+                        onChanged: (value) {
+                          if (value == null) return;
+                          setState(() {
+                            _plateFormat = value;
+                            _plateController.clear();
+                          });
+                        },
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: RadioListTile<PlateFormat>(
+                        value: PlateFormat.mercosul,
+                        groupValue: _plateFormat,
+                        dense: true,
+                        contentPadding: EdgeInsets.zero,
+                        title: const Text('Mercosul (ABC-1D23)'),
+                        onChanged: (value) {
+                          if (value == null) return;
+                          setState(() {
+                            _plateFormat = value;
+                            _plateController.clear();
+                          });
+                        },
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 8),
                 _buildTextField(
                   label: 'Placa',
                   controller: _plateController,
                   textCapitalization: TextCapitalization.characters,
+                  enabled: _plateFormat != null,
                   inputFormatters: [
-                    const UpperCaseTextFormatter(),
-                    FilteringTextInputFormatter.allow(RegExp('[A-Za-z0-9]')),
-                    LengthLimitingTextInputFormatter(7),
+                    if (_plateFormat != null) PlateInputFormatter(_plateFormat!),
+                    LengthLimitingTextInputFormatter(8),
                   ],
+                  validator: (value) {
+                    final text = value?.trim().toUpperCase() ?? '';
+                    if (_plateFormat == null) {
+                      return 'Selecione o padrão da placa.';
+                    }
+                    if (text.isEmpty) {
+                      return 'Informe a placa.';
+                    }
+                    if (!PlateUtils.isValid(text, _plateFormat!)) {
+                      return 'Placa inválida.';
+                    }
+                    return null;
+                  },
                 ),
                 const SizedBox(height: 16),
                 _buildTextField(
@@ -1782,6 +1852,7 @@ class _AtpvFormPageState extends State<AtpvFormPage> {
     TextInputType? keyboardType,
     List<TextInputFormatter>? inputFormatters,
     TextCapitalization textCapitalization = TextCapitalization.none,
+    bool enabled = true,
     bool readOnly = false,
     bool requiredField = true,
     String? Function(String?)? validator,
@@ -1790,6 +1861,7 @@ class _AtpvFormPageState extends State<AtpvFormPage> {
     return TextFormField(
       controller: controller,
       readOnly: readOnly,
+      enabled: enabled,
       textCapitalization: textCapitalization,
       keyboardType: keyboardType,
       inputFormatters: inputFormatters,
@@ -2203,6 +2275,7 @@ class _DownloadPdfDialogState extends State<_DownloadPdfDialog> {
   final _plateController = TextEditingController();
   final _renavamController = TextEditingController();
   final _captchaController = TextEditingController();
+  PlateFormat? _plateFormat;
 
   Uint8List? _captchaBytes;
   bool _loadingCaptcha = false;
@@ -2264,6 +2337,7 @@ class _DownloadPdfDialogState extends State<_DownloadPdfDialog> {
     final form = _formKey.currentState;
     if (form == null) return;
     if (!form.validate()) return;
+    if (_plateFormat == null) return;
 
     setState(() {
       _submitting = true;
@@ -2271,7 +2345,7 @@ class _DownloadPdfDialogState extends State<_DownloadPdfDialog> {
 
     Navigator.of(context).pop(
       _AtpvPdfDownloadRequest(
-        placa: _plateController.text.trim().toUpperCase(),
+        placa: PlateUtils.format(_plateController.text, _plateFormat!),
         renavam: _renavamController.text.trim(),
         captcha: _captchaController.text.trim().toUpperCase(),
       ),
@@ -2323,18 +2397,63 @@ class _DownloadPdfDialogState extends State<_DownloadPdfDialog> {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
+              Row(
+                children: [
+                  Expanded(
+                    child: RadioListTile<PlateFormat>(
+                      value: PlateFormat.antiga,
+                      groupValue: _plateFormat,
+                      dense: true,
+                      contentPadding: EdgeInsets.zero,
+                      title: const Text('Antiga (ABC-1234)'),
+                      onChanged: (value) {
+                        if (value == null) return;
+                        setState(() {
+                          _plateFormat = value;
+                          _plateController.clear();
+                        });
+                      },
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: RadioListTile<PlateFormat>(
+                      value: PlateFormat.mercosul,
+                      groupValue: _plateFormat,
+                      dense: true,
+                      contentPadding: EdgeInsets.zero,
+                      title: const Text('Mercosul (ABC-1D23)'),
+                      onChanged: (value) {
+                        if (value == null) return;
+                        setState(() {
+                          _plateFormat = value;
+                          _plateController.clear();
+                        });
+                      },
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 8),
               TextFormField(
                 controller: _plateController,
                 decoration: const InputDecoration(labelText: 'Placa'),
                 textCapitalization: TextCapitalization.characters,
+                enabled: _plateFormat != null,
                 inputFormatters: [
-                  const UpperCaseTextFormatter(),
-                  FilteringTextInputFormatter.allow(RegExp('[A-Za-z0-9]')),
-                  LengthLimitingTextInputFormatter(7),
+                  if (_plateFormat != null)
+                    PlateInputFormatter(_plateFormat!),
+                  LengthLimitingTextInputFormatter(8),
                 ],
                 validator: (value) {
-                  final text = value?.trim() ?? '';
-                  if (text.length != 7) {
+                  final text = value?.trim().toUpperCase() ?? '';
+                  if (_plateFormat == null) {
+                    return 'Selecione o padrão da placa.';
+                  }
+                  if (text.isEmpty) {
+                    return 'Informe a placa.';
+                  }
+                  if (!PlateUtils.isValid(text, _plateFormat!)) {
                     return 'Informe uma placa válida.';
                   }
                   return null;

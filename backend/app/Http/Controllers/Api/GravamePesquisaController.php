@@ -10,17 +10,28 @@ class GravamePesquisaController extends Controller
 {
     public function __invoke(Request $request): SymfonyResponse
     {
-        $placa = strtoupper($request->query('placa', ''));
-        $captcha = strtoupper($request->query('captcha', ''));
+        $placa = strtoupper((string) $request->query('placa', ''));
+        $chassi = strtoupper((string) $request->query('chassi', ''));
+        $captcha = strtoupper((string) $request->query('captcha', ''));
 
-        if ($placa === '' || $captcha === '') {
+        $placa = preg_replace('/[^A-Za-z0-9]/', '', $placa) ?? '';
+        $chassi = preg_replace('/[^A-Za-z0-9]/', '', $chassi) ?? '';
+        $captcha = preg_replace('/[^A-Za-z0-9]/', '', $captcha) ?? '';
+
+        if (($placa === '' && $chassi === '') || $captcha === '') {
             return response()->json(
-                ['message' => 'Informe placa e captcha para realizar a consulta.'],
+                ['message' => 'Informe placa ou chassi e captcha para realizar a consulta.'],
                 SymfonyResponse::HTTP_UNPROCESSABLE_ENTITY
             );
         }
 
-        $result = $this->queryBaseEstadual($placa, '', $captcha);
+        if ($placa !== '') {
+            $chassi = '';
+        } else {
+            $placa = '';
+        }
+
+        $result = $this->queryBaseEstadual($placa, '', $chassi, $captcha);
         $origin = 'base_estadual';
 
         if (isset($result['error'])) {
@@ -57,7 +68,7 @@ class GravamePesquisaController extends Controller
     /**
      * @return array<string, mixed>
      */
-    private function queryBaseEstadual(string $placa, string $renavam, string $captcha): array
+    private function queryBaseEstadual(string $placa, string $renavam, string $chassi, string $captcha): array
     {
         $proxyRequest = Request::create(
             '/api/base-estadual',
@@ -65,6 +76,7 @@ class GravamePesquisaController extends Controller
             [
                 'placa' => $placa,
                 'renavam' => $renavam,
+                'chassi' => $chassi,
                 'captcha' => $captcha,
             ]
         );

@@ -373,6 +373,31 @@
         const refreshBtn = document.getElementById('refreshBtn');
         const deleteBtn = document.getElementById('deleteAccountBtn');
 
+        function getStoredItem(key) {
+            return sessionStorage.getItem(key) || localStorage.getItem(key);
+        }
+
+        function isRememberedAuth() {
+            return !!localStorage.getItem('auth_token');
+        }
+
+        function setStoredItem(key, value) {
+            if (isRememberedAuth()) {
+                localStorage.setItem(key, value);
+                sessionStorage.removeItem(key);
+            } else {
+                sessionStorage.setItem(key, value);
+                localStorage.removeItem(key);
+            }
+        }
+
+        function clearStoredAuth() {
+            sessionStorage.removeItem('auth_token');
+            localStorage.removeItem('auth_token');
+            sessionStorage.removeItem('user');
+            localStorage.removeItem('user');
+        }
+
         function showError(message) {
             errorAlert.textContent = message;
             errorAlert.classList.add('show');
@@ -380,7 +405,7 @@
         }
 
         function parseUser() {
-            const raw = localStorage.getItem('user');
+            const raw = getStoredItem('user');
             if (!raw) return null;
             try {
                 return JSON.parse(raw);
@@ -403,8 +428,7 @@
         }
 
         function handleUnauthorized() {
-            localStorage.removeItem('auth_token');
-            localStorage.removeItem('user');
+            clearStoredAuth();
             window.location.href = '/login';
         }
 
@@ -438,7 +462,7 @@
                     throw new Error(data.message || 'Não foi possível carregar o perfil.');
                 }
                 if (data.user) {
-                    localStorage.setItem('user', JSON.stringify(data.user));
+                    setStoredItem('user', JSON.stringify(data.user));
                     updateUserInfo(data.user);
                 }
             } catch (error) {
@@ -468,8 +492,7 @@
                 if (!response.ok) {
                     throw new Error(data.message || 'Não foi possível excluir a conta.');
                 }
-                localStorage.removeItem('auth_token');
-                localStorage.removeItem('user');
+                clearStoredAuth();
                 window.location.href = '/login';
             } catch (error) {
                 showError(error.message || 'Não foi possível excluir a conta.');
@@ -486,7 +509,7 @@
         refreshBtn.addEventListener('click', loadUser);
         deleteBtn.addEventListener('click', deleteAccount);
 
-        authToken = localStorage.getItem('auth_token');
+        authToken = getStoredItem('auth_token');
         if (!authToken) {
             handleUnauthorized();
         } else {

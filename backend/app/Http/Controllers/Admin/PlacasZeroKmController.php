@@ -26,7 +26,7 @@ class PlacasZeroKmController extends Controller
         $numeros = strtoupper(preg_replace('/[^A-Z0-9]/', '', (string) $request->input('numeros', '')));
         $numeroTentativa = (string) ((int) $request->input('numero_tentativa', 3));
         $tipoRestricao = (string) $request->input('tipo_restricao_financeira', '-1');
-        $placaEscolhaAnterior = format_plate_as_mercosul((string) $request->input('placa_escolha_anterior', ''));
+        $placaEscolhaAnterior = normalize_plate((string) $request->input('placa_escolha_anterior', ''));
         $debug = filter_var($request->input('debug', false), FILTER_VALIDATE_BOOLEAN);
 
         if ($cpfCgc === '' || !in_array(strlen($cpfCgc), [11, 14], true)) {

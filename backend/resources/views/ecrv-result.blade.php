@@ -331,7 +331,18 @@
 
     <script>
         const API_BASE_URL = window.location.origin;
-        let authToken = localStorage.getItem('auth_token');
+        function getStoredItem(key) {
+            return sessionStorage.getItem(key) || localStorage.getItem(key);
+        }
+
+        function clearStoredAuth() {
+            sessionStorage.removeItem('auth_token');
+            localStorage.removeItem('auth_token');
+            sessionStorage.removeItem('user');
+            localStorage.removeItem('user');
+        }
+
+        let authToken = getStoredItem('auth_token');
         const userInfoEl = document.getElementById('userInfo');
         const statusMessageEl = document.getElementById('ecrvStatusMessage');
         const resultStackEl = document.getElementById('ecrvResultStack');
@@ -346,7 +357,7 @@
         let ecrvPdfLoading = false;
 
         function parseUser() {
-            const raw = localStorage.getItem('user');
+            const raw = getStoredItem('user');
             if (!raw) return null;
             try {
                 return JSON.parse(raw);
@@ -375,8 +386,7 @@
 
         function handleUnauthorized() {
             authToken = null;
-            localStorage.removeItem('auth_token');
-            localStorage.removeItem('user');
+            clearStoredAuth();
             window.location.href = '/login';
         }
 
@@ -736,8 +746,7 @@
                 console.error('Erro ao fazer logout:', error);
             } finally {
                 authToken = null;
-                localStorage.removeItem('auth_token');
-                localStorage.removeItem('user');
+                clearStoredAuth();
                 window.location.href = '/login';
             }
         });

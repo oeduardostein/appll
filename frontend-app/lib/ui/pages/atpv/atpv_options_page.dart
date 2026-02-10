@@ -6,6 +6,7 @@ import 'package:flutter/services.dart';
 
 import 'package:frontend_app/services/atpv_service.dart';
 import 'package:frontend_app/services/base_estadual_service.dart';
+import 'package:frontend_app/ui/formatters/plate_input_formatter.dart';
 import 'package:frontend_app/ui/pages/atpv/atpv_form_page.dart';
 import 'package:frontend_app/ui/pages/atpv/widgets/atpv_top_bar.dart';
 import 'package:frontend_app/ui/widgets/app_error_dialog.dart';
@@ -354,6 +355,7 @@ class _ConsultIntencaoVendaDialogState
   late final TextEditingController _plateController;
   late final TextEditingController _renavamController;
   final _captchaController = TextEditingController();
+  PlateFormat? _plateFormat;
 
   final BaseEstadualService _baseEstadualService = BaseEstadualService();
 
@@ -368,6 +370,15 @@ class _ConsultIntencaoVendaDialogState
         TextEditingController(text: widget.initialRequest?.plate ?? '');
     _renavamController =
         TextEditingController(text: widget.initialRequest?.renavam ?? '');
+    if (_plateController.text.trim().isNotEmpty) {
+      _plateFormat = PlateUtils.inferFormat(_plateController.text);
+      if (_plateFormat != null) {
+        _plateController.text = PlateUtils.format(
+          _plateController.text,
+          _plateFormat!,
+        );
+      }
+    }
     if (widget.requireCaptcha) {
       _refreshCaptcha();
     }
@@ -430,7 +441,11 @@ class _ConsultIntencaoVendaDialogState
       return;
     }
 
-    final placa = _plateController.text.trim().toUpperCase();
+    if (_plateFormat == null) {
+      return;
+    }
+
+    final placa = PlateUtils.format(_plateController.text, _plateFormat!);
     final renavam = _renavamController.text.trim();
     final captcha = widget.requireCaptcha
         ? _captchaController.text.trim().toUpperCase()
@@ -491,20 +506,63 @@ class _ConsultIntencaoVendaDialogState
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
+              Row(
+                children: [
+                  Expanded(
+                    child: RadioListTile<PlateFormat>(
+                      value: PlateFormat.antiga,
+                      groupValue: _plateFormat,
+                      contentPadding: EdgeInsets.zero,
+                      dense: true,
+                      title: const Text('Antiga (ABC-1234)'),
+                      onChanged: (value) {
+                        if (value == null) return;
+                        setState(() {
+                          _plateFormat = value;
+                          _plateController.clear();
+                        });
+                      },
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: RadioListTile<PlateFormat>(
+                      value: PlateFormat.mercosul,
+                      groupValue: _plateFormat,
+                      contentPadding: EdgeInsets.zero,
+                      dense: true,
+                      title: const Text('Mercosul (ABC-1D23)'),
+                      onChanged: (value) {
+                        if (value == null) return;
+                        setState(() {
+                          _plateFormat = value;
+                          _plateController.clear();
+                        });
+                      },
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 8),
               TextFormField(
                 controller: _plateController,
                 textCapitalization: TextCapitalization.characters,
                 decoration: const InputDecoration(labelText: 'Placa'),
+                enabled: _plateFormat != null,
                 inputFormatters: [
-                  FilteringTextInputFormatter.allow(RegExp('[A-Za-z0-9]')),
-                  LengthLimitingTextInputFormatter(7),
+                  if (_plateFormat != null)
+                    PlateInputFormatter(_plateFormat!),
+                  LengthLimitingTextInputFormatter(8),
                 ],
                 validator: (value) {
-                  final text = value?.trim() ?? '';
+                  final text = value?.trim().toUpperCase() ?? '';
+                  if (_plateFormat == null) {
+                    return 'Selecione o padrão da placa.';
+                  }
                   if (text.isEmpty) {
                     return 'Informe a placa.';
                   }
-                  if (text.length < 7) {
+                  if (!PlateUtils.isValid(text, _plateFormat!)) {
                     return 'Placa inválida.';
                   }
                   return null;

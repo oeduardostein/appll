@@ -1133,8 +1133,19 @@
         const recentList = document.getElementById('recentList');
         const recentRetry = document.getElementById('recentRetry');
 
+        function getStoredItem(key) {
+            return sessionStorage.getItem(key) || localStorage.getItem(key);
+        }
+
+        function clearStoredAuth() {
+            sessionStorage.removeItem('auth_token');
+            localStorage.removeItem('auth_token');
+            sessionStorage.removeItem('user');
+            localStorage.removeItem('user');
+        }
+
         function parseUser() {
-            const raw = localStorage.getItem('user');
+            const raw = getStoredItem('user');
             if (!raw) return null;
             try {
                 return JSON.parse(raw);
@@ -1160,8 +1171,7 @@
         }
 
         function handleUnauthorized() {
-            localStorage.removeItem('auth_token');
-            localStorage.removeItem('user');
+            clearStoredAuth();
             window.location.href = '/login';
         }
 
@@ -1180,7 +1190,7 @@
         }
 
         function checkAuth() {
-            authToken = localStorage.getItem('auth_token');
+            authToken = getStoredItem('auth_token');
             if (!authToken) {
                 window.location.href = '/login';
                 return false;
@@ -1364,6 +1374,7 @@
         const baseQueryClose = document.getElementById('baseQueryClose');
         const baseCancelBtn = document.getElementById('baseCancelBtn');
         const basePlateInput = document.getElementById('basePlateInput');
+        const basePlateFormatInputs = Array.from(document.querySelectorAll('input[name="basePlateFormat"]'));
         const basePlateError = document.getElementById('basePlateError');
         const baseConsultBtn = document.getElementById('baseConsultBtn');
 
@@ -1409,6 +1420,7 @@
         const binPlacaGroup = document.getElementById('binPlacaGroup');
         const binChassiGroup = document.getElementById('binChassiGroup');
         const binOptionInputs = Array.from(document.querySelectorAll('input[name="binSearchOption"]'));
+        const binPlateFormatInputs = Array.from(document.querySelectorAll('input[name="binPlateFormat"]'));
 
         const binCaptchaOverlay = document.getElementById('binCaptchaOverlay');
         const binCaptchaClose = document.getElementById('binCaptchaClose');
@@ -1423,12 +1435,14 @@
         const binCaptchaPlacaGroup = document.getElementById('binCaptchaPlacaGroup');
         const binCaptchaChassiGroup = document.getElementById('binCaptchaChassiGroup');
         const binCaptchaOptionInputs = Array.from(document.querySelectorAll('input[name="binCaptchaSearchOption"]'));
+        const binCaptchaPlateFormatInputs = Array.from(document.querySelectorAll('input[name="binCaptchaPlateFormat"]'));
         const binCaptchaImage = document.getElementById('binCaptchaImage');
         const binCaptchaLoading = document.getElementById('binCaptchaLoading');
         const renainfOverlay = document.getElementById('renainfOverlay');
         const renainfClose = document.getElementById('renainfClose');
         const renainfCancel = document.getElementById('renainfCancel');
         const renainfPlateInput = document.getElementById('renainfPlateInput');
+        const renainfPlateFormatInputs = Array.from(document.querySelectorAll('input[name="renainfPlateFormat"]'));
         const renainfStatusSelect = document.getElementById('renainfStatusSelect');
         const renainfUfSelect = document.getElementById('renainfUfSelect');
         const renainfStartDate = document.getElementById('renainfStartDate');
@@ -1453,7 +1467,12 @@
         const gravameOverlay = document.getElementById('gravameOverlay');
         const gravameClose = document.getElementById('gravameClose');
         const gravameCancel = document.getElementById('gravameCancel');
+        const gravamePlacaGroup = document.getElementById('gravamePlacaGroup');
+        const gravameChassiGroup = document.getElementById('gravameChassiGroup');
+        const gravameOptionInputs = Array.from(document.querySelectorAll('input[name="gravameSearchOption"]'));
         const gravamePlateInput = document.getElementById('gravamePlateInput');
+        const gravamePlateFormatInputs = Array.from(document.querySelectorAll('input[name="gravamePlateFormat"]'));
+        const gravameChassiInput = document.getElementById('gravameChassiInput');
         const gravameError = document.getElementById('gravameError');
         const gravameSubmit = document.getElementById('gravameSubmit');
 
@@ -1461,7 +1480,12 @@
         const gravameCaptchaClose = document.getElementById('gravameCaptchaClose');
         const gravameCaptchaCancel = document.getElementById('gravameCaptchaCancel');
         const gravameCaptchaRefresh = document.getElementById('gravameCaptchaRefresh');
+        const gravameCaptchaPlacaGroup = document.getElementById('gravameCaptchaPlacaGroup');
+        const gravameCaptchaChassiGroup = document.getElementById('gravameCaptchaChassiGroup');
+        const gravameCaptchaOptionInputs = Array.from(document.querySelectorAll('input[name="gravameCaptchaSearchOption"]'));
         const gravameCaptchaPlate = document.getElementById('gravameCaptchaPlate');
+        const gravameCaptchaPlateFormatInputs = Array.from(document.querySelectorAll('input[name="gravameCaptchaPlateFormat"]'));
+        const gravameCaptchaChassiInput = document.getElementById('gravameCaptchaChassiInput');
         const gravameCaptchaInput = document.getElementById('gravameCaptchaInput');
         const gravameCaptchaImage = document.getElementById('gravameCaptchaImage');
         const gravameCaptchaLoading = document.getElementById('gravameCaptchaLoading');
@@ -1491,6 +1515,7 @@
         const crlvClose = document.getElementById('crlvClose');
         const crlvCancel = document.getElementById('crlvCancelBtn');
         const crlvPlateInput = document.getElementById('crlvPlateInput');
+        const crlvPlateFormatInputs = Array.from(document.querySelectorAll('input[name="crlvPlateFormat"]'));
         const crlvRenavamInput = document.getElementById('crlvRenavamInput');
         const crlvDocumentInput = document.getElementById('crlvDocumentInput');
         const crlvError = document.getElementById('crlvError');
@@ -1518,6 +1543,7 @@
         const atpvConsultationClose = document.getElementById('atpvConsultationClose');
         const atpvConsultCancel = document.getElementById('atpvConsultCancel');
         const atpvPlateInput = document.getElementById('atpvPlateInput');
+        const atpvPlateFormatInputs = Array.from(document.querySelectorAll('input[name="atpvPlateFormat"]'));
         const atpvRenavamInput = document.getElementById('atpvRenavamInput');
         const atpvConsultError = document.getElementById('atpvConsultError');
         const atpvConsultSubmit = document.getElementById('atpvConsultSubmit');
@@ -1538,39 +1564,215 @@
         const errorOverlayMessage = document.getElementById('errorOverlayMessage');
         const errorOverlayClose = document.getElementById('errorOverlayClose');
 
-        const oldPlatePattern = /^[A-Z]{3}[0-9]{4}$/;
-        const mercosurPlatePattern = /^[A-Z]{3}[0-9][A-Z0-9][0-9]{2}$/;
+        const PLATE_FORMAT_ANTIGA = 'antiga';
+        const PLATE_FORMAT_MERCOSUL = 'mercosul';
+
+        const oldPlatePattern = /^[A-Z]{3}-[0-9]{4}$/;
+        const mercosulPlatePattern = /^[A-Z]{3}-[0-9][A-Z0-9][0-9]{2}$/;
         const chassiPattern = /^[A-HJ-NPR-Z0-9]{17}$/;
         const renavamPattern = /^\d{11}$/;
-        const mercosulDigitMap = {
-            '0': 'A',
-            '1': 'B',
-            '2': 'C',
-            '3': 'D',
-            '4': 'E',
-            '5': 'F',
-            '6': 'G',
-            '7': 'H',
-            '8': 'I',
-            '9': 'J',
-        };
 
-        function normalizePlate(value) {
-            const sanitized = value.replace(/[^A-Za-z0-9]/g, '').toUpperCase();
-            if (oldPlatePattern.test(sanitized)) {
-                const letters = sanitized.slice(0, 3);
-                const digits = sanitized.slice(3).split('');
-                return `${letters}${digits[0]}${mercosulDigitMap[digits[1]] || digits[1]}${digits[2]}${digits[3]}`;
-            }
-            return sanitized;
+        function normalizePlateChars(value) {
+            return (value || '').replace(/[^A-Za-z0-9]/g, '').toUpperCase();
         }
 
-        function isValidPlate(value) {
-            const normalized = normalizePlate(value);
-            if (normalized.length !== 7) {
-                return false;
+        function sanitizePlate(value) {
+            return normalizePlateChars(value);
+        }
+
+        function formatPlate(value, format) {
+            const cleaned = normalizePlateChars(value);
+
+            if (format === PLATE_FORMAT_ANTIGA) {
+                let letters = '';
+                let digits = '';
+                for (const char of cleaned) {
+                    if (letters.length < 3) {
+                        if (/[A-Z]/.test(char)) {
+                            letters += char;
+                        }
+                        continue;
+                    }
+                    if (digits.length < 4 && /[0-9]/.test(char)) {
+                        digits += char;
+                    }
+                }
+                if (letters.length === 3) {
+                    return `${letters}-${digits}`;
+                }
+                return letters;
             }
-            return oldPlatePattern.test(normalized) || mercosurPlatePattern.test(normalized);
+
+            if (format === PLATE_FORMAT_MERCOSUL) {
+                let letters = '';
+                let digit = '';
+                let middle = '';
+                let lastDigits = '';
+
+                for (const char of cleaned) {
+                    if (letters.length < 3) {
+                        if (/[A-Z]/.test(char)) {
+                            letters += char;
+                        }
+                        continue;
+                    }
+                    if (digit === '') {
+                        if (/[0-9]/.test(char)) {
+                            digit = char;
+                        }
+                        continue;
+                    }
+                    if (middle === '') {
+                        if (/[A-Z0-9]/.test(char)) {
+                            middle = char;
+                        }
+                        continue;
+                    }
+                    if (lastDigits.length < 2 && /[0-9]/.test(char)) {
+                        lastDigits += char;
+                    }
+                }
+
+                if (letters.length === 3) {
+                    return `${letters}-${digit}${middle}${lastDigits}`;
+                }
+                return letters;
+            }
+
+            return value || '';
+        }
+
+        function isValidPlate(value, format) {
+            const plate = (value || '').toUpperCase();
+            if (format === PLATE_FORMAT_ANTIGA) {
+                return oldPlatePattern.test(plate);
+            }
+            if (format === PLATE_FORMAT_MERCOSUL) {
+                return mercosulPlatePattern.test(plate);
+            }
+            return false;
+        }
+
+        function getSelectedRadioValue(inputs) {
+            const selected = inputs.find((input) => input.checked);
+            return selected ? selected.value : '';
+        }
+
+        function setupPlateFormatField({ formatInputs, inputEl, errorEl, helperText }) {
+            if (!inputEl || !Array.isArray(formatInputs) || formatInputs.length === 0) {
+                return;
+            }
+
+            inputEl.disabled = true;
+            inputEl.dataset.plateFormat = '';
+            if (helperText) {
+                inputEl.placeholder = helperText;
+            }
+
+            function applyFormatSelection(value) {
+                inputEl.dataset.plateFormat = value;
+                inputEl.disabled = !value;
+                inputEl.value = '';
+                inputEl.maxLength = 8;
+                inputEl.placeholder = value === PLATE_FORMAT_ANTIGA ? 'ABC-1234' : 'ABC-1D23';
+                if (errorEl) {
+                    errorEl.textContent = '';
+                }
+                if (!inputEl.disabled) {
+                    setTimeout(() => inputEl.focus(), 0);
+                }
+            }
+
+            formatInputs.forEach((radio) => {
+                radio.checked = false;
+                radio.addEventListener('change', () => applyFormatSelection(getSelectedRadioValue(formatInputs)));
+            });
+
+            inputEl.addEventListener('input', () => {
+                const format = inputEl.dataset.plateFormat;
+                if (!format) {
+                    inputEl.value = '';
+                    return;
+                }
+                inputEl.value = formatPlate(inputEl.value, format);
+                if (errorEl) {
+                    errorEl.textContent = '';
+                }
+            });
+        }
+
+        function resetPlateFormatField({ formatInputs, inputEl, errorEl, helperText }) {
+            if (!inputEl || !Array.isArray(formatInputs) || formatInputs.length === 0) {
+                return;
+            }
+
+            formatInputs.forEach((radio) => {
+                radio.checked = false;
+            });
+            inputEl.disabled = true;
+            inputEl.dataset.plateFormat = '';
+            inputEl.value = '';
+            inputEl.maxLength = 8;
+            if (helperText) {
+                inputEl.placeholder = helperText;
+            } else {
+                inputEl.placeholder = 'Selecione o padrão da placa';
+            }
+            if (errorEl) {
+                errorEl.textContent = '';
+            }
+        }
+
+        function inferPlateFormat(value) {
+            const plate = (value || '').toUpperCase();
+            if (oldPlatePattern.test(plate)) {
+                return PLATE_FORMAT_ANTIGA;
+            }
+            if (mercosulPlatePattern.test(plate)) {
+                return PLATE_FORMAT_MERCOSUL;
+            }
+            return '';
+        }
+
+        function selectPlateFormat(formatInputs, format) {
+            if (!Array.isArray(formatInputs) || !format) {
+                return;
+            }
+            const target = formatInputs.find((radio) => radio.value === format);
+            if (!target) {
+                return;
+            }
+            target.checked = true;
+            target.dispatchEvent(new Event('change', { bubbles: true }));
+        }
+
+        function requireValidPlateFromInput(inputEl, errorEl) {
+            const format = inputEl?.dataset?.plateFormat || '';
+            if (!format) {
+                if (errorEl) {
+                    errorEl.textContent = 'Selecione o padrão da placa antes de digitar.';
+                }
+                return null;
+            }
+
+            const plate = formatPlate(inputEl.value, format);
+            inputEl.value = plate;
+
+            if (!plate) {
+                if (errorEl) {
+                    errorEl.textContent = 'Informe a placa do veículo.';
+                }
+                return null;
+            }
+
+            if (!isValidPlate(plate, format)) {
+                if (errorEl) {
+                    errorEl.textContent = 'Placa inválida.';
+                }
+                return null;
+            }
+
+            return plate;
         }
 
         function normalizeChassi(value) {
@@ -1651,12 +1853,16 @@
         }
 
         function openBaseEstadualModal() {
-            basePlateInput.value = '';
-            basePlateError.textContent = '';
+            resetPlateFormatField({
+                formatInputs: basePlateFormatInputs,
+                inputEl: basePlateInput,
+                errorEl: basePlateError,
+                helperText: 'Selecione o padrão da placa',
+            });
             baseQueryOverlay.classList.remove('hidden');
             baseQueryOverlay.classList.add('show');
             baseQueryOverlay.setAttribute('aria-hidden', 'false');
-            setTimeout(() => basePlateInput.focus(), 0);
+            setTimeout(() => basePlateFormatInputs[0]?.focus(), 0);
         }
 
         function closeBaseEstadualModal() {
@@ -1752,14 +1958,19 @@
 
         function openCrlvModal() {
             if (!crlvOverlay) return;
-            crlvPlateInput.value = '';
+            resetPlateFormatField({
+                formatInputs: crlvPlateFormatInputs,
+                inputEl: crlvPlateInput,
+                errorEl: crlvError,
+                helperText: 'Selecione o padrão da placa',
+            });
             crlvRenavamInput.value = '';
             crlvDocumentInput.value = '';
             crlvError.textContent = '';
             crlvOverlay.classList.remove('hidden');
             crlvOverlay.classList.add('show');
             crlvOverlay.setAttribute('aria-hidden', 'false');
-            setTimeout(() => crlvPlateInput?.focus(), 0);
+            setTimeout(() => crlvPlateFormatInputs[0]?.focus(), 0);
         }
 
         function closeCrlvModal() {
@@ -1845,7 +2056,7 @@
             const cnpj = isCpf ? '' : (formattedCnpj || document || '');
             const opcaoPesquisa = isCpf ? '1' : '2';
             const params = new URLSearchParams({
-                placa: plate || '',
+                placa: sanitizePlate(plate || ''),
                 renavam: renavam || '',
                 cpf,
                 cnpj,
@@ -1932,17 +2143,12 @@
         }
 
         async function performCrlvEmission() {
-            const plate = normalizePlate(crlvPlateInput.value);
+            const plate = requireValidPlateFromInput(crlvPlateInput, crlvError);
+            if (!plate) {
+                return;
+            }
             const renavam = normalizeRenavam(crlvRenavamInput.value);
             const documentValue = crlvDocumentInput.value.trim();
-            if (!plate) {
-                crlvError.textContent = 'Informe a placa do veículo.';
-                return;
-            }
-            if (!isValidPlate(plate)) {
-                crlvError.textContent = 'Placa inválida.';
-                return;
-            }
             if (!renavam) {
                 crlvError.textContent = 'Informe o renavam.';
                 return;
@@ -2065,10 +2271,17 @@
             closeAtpvOptions();
             if (!atpvConsultationOverlay) return;
             atpvConsultError.textContent = '';
+            resetPlateFormatField({
+                formatInputs: atpvPlateFormatInputs,
+                inputEl: atpvPlateInput,
+                errorEl: atpvConsultError,
+                helperText: 'Selecione o padrão da placa',
+            });
+            atpvRenavamInput.value = '';
             atpvConsultationOverlay.classList.remove('hidden');
             atpvConsultationOverlay.classList.add('show');
             atpvConsultationOverlay.setAttribute('aria-hidden', 'false');
-            setTimeout(() => atpvPlateInput?.focus(), 0);
+            setTimeout(() => atpvPlateFormatInputs[0]?.focus(), 0);
         }
 
         function closeAtpvConsultationModal() {
@@ -2216,17 +2429,13 @@
         }
 
         async function performAtpvConsultation({ autoSolve = true, captchaOverride = '' } = {}) {
-            const plate = normalizePlate(atpvPlateInput.value);
+            const plate = requireValidPlateFromInput(atpvPlateInput, atpvConsultError);
+            if (!plate) {
+                return;
+            }
+            const plateSanitized = sanitizePlate(plate);
             const renavam = normalizeRenavam(atpvRenavamInput.value);
 
-            if (!plate) {
-                atpvConsultError.textContent = 'Informe a placa do veículo.';
-                return;
-            }
-            if (!isValidPlate(plate)) {
-                atpvConsultError.textContent = 'Placa inválida.';
-                return;
-            }
             if (!renavam) {
                 atpvConsultError.textContent = 'Informe o renavam.';
                 return;
@@ -2265,7 +2474,7 @@
                 }
 
                 const normalizedCaptcha = captchaValue.trim().toUpperCase();
-                const result = await fetchIntencaoVenda(renavam, plate, normalizedCaptcha);
+                const result = await fetchIntencaoVenda(renavam, plateSanitized, normalizedCaptcha);
                 closeAtpvConsultationModal();
                 await registerAtpvPesquisa(plate, renavam);
                 redirectToAtpvResult(result, plate, renavam, normalizedCaptcha);
@@ -2300,7 +2509,7 @@
             try {
                 const result = await fetchIntencaoVenda(
                     atpvCaptchaMeta.renavam,
-                    atpvCaptchaMeta.plate,
+                    sanitizePlate(atpvCaptchaMeta.plate),
                     captcha
                 );
                 closeAtpvCaptchaModal();
@@ -2377,15 +2586,11 @@
         }
 
         async function performBaseEstadualSearch() {
-            const placa = normalizePlate(basePlateInput.value);
+            const placa = requireValidPlateFromInput(basePlateInput, basePlateError);
             if (!placa) {
-                basePlateError.textContent = 'Informe a placa do veículo.';
                 return;
             }
-            if (!isValidPlate(placa)) {
-                basePlateError.textContent = 'Placa inválida.';
-                return;
-            }
+            const placaSanitized = sanitizePlate(placa);
 
             basePlateError.textContent = '';
             setBaseConsultLoading(true);
@@ -2400,7 +2605,7 @@
                     return;
                 }
 
-                const result = await fetchBaseEstadual(placa, captcha);
+                const result = await fetchBaseEstadual(placaSanitized, captcha);
                 await registerBaseEstadualPesquisa(placa);
                 closeBaseEstadualModal();
                 redirectToBaseEstadualResult(result);
@@ -2418,7 +2623,8 @@
         }
 
         async function performBaseCaptchaSearch() {
-            const placa = normalizePlate(baseCaptchaPlate.value);
+            const placa = baseCaptchaPlate.value;
+            const placaSanitized = sanitizePlate(placa);
             const captcha = baseCaptchaInput.value.trim().toUpperCase();
 
             if (!captcha) {
@@ -2430,7 +2636,7 @@
             setBaseCaptchaLoading(true);
 
             try {
-                const result = await fetchBaseEstadual(placa, captcha);
+                const result = await fetchBaseEstadual(placaSanitized, captcha);
                 await registerBaseEstadualPesquisa(placa);
                 closeBaseCaptchaModal();
                 redirectToBaseEstadualResult(result);
@@ -2686,6 +2892,7 @@
         const ecrvClose = document.getElementById('ecrvClose');
         const ecrvCancel = document.getElementById('ecrvCancelBtn');
         const ecrvPlateInput = document.getElementById('ecrvPlateInput');
+        const ecrvPlateFormatInputs = Array.from(document.querySelectorAll('input[name="ecrvPlateFormat"]'));
         const ecrvPlateError = document.getElementById('ecrvPlateError');
         const ecrvAdvanceBtn = document.getElementById('ecrvAdvanceBtn');
         const ecrvDescription = document.getElementById('ecrvDescription');
@@ -2715,13 +2922,24 @@
 
         function setEcrvDescription(requireCaptcha) {
             ecrvDescription.textContent = requireCaptcha
-                ? 'Digite a placa e o captcha exibido para recuperar o número da ficha.'
-                : 'Informe somente a placa. Resolveremos o captcha automaticamente.';
+                ? 'Selecione o padrão da placa, digite a placa e o captcha exibido para recuperar o número da ficha.'
+                : 'Selecione o padrão da placa e informe o valor. Resolveremos o captcha automaticamente.';
         }
 
         function openEcrvModal({ requireCaptcha = false, plate = '', captchaMessage = '' } = {}) {
             ecrvRequireCaptcha = requireCaptcha;
-            ecrvPlateInput.value = plate;
+            resetPlateFormatField({
+                formatInputs: ecrvPlateFormatInputs,
+                inputEl: ecrvPlateInput,
+                errorEl: ecrvPlateError,
+                helperText: 'Selecione o padrão da placa',
+            });
+            const incomingPlate = (plate || '').toString().trim().toUpperCase();
+            const inferred = inferPlateFormat(incomingPlate);
+            if (inferred) {
+                selectPlateFormat(ecrvPlateFormatInputs, inferred);
+                ecrvPlateInput.value = formatPlate(incomingPlate, inferred);
+            }
             ecrvPlateError.textContent = '';
             ecrvCaptchaError.textContent = captchaMessage;
             setEcrvDescription(requireCaptcha);
@@ -2734,7 +2952,17 @@
             ecrvOverlay.classList.remove('hidden');
             ecrvOverlay.classList.add('show');
             ecrvOverlay.setAttribute('aria-hidden', 'false');
-            setTimeout(() => ecrvPlateInput.focus(), 0);
+            setTimeout(() => {
+                if (ecrvPlateInput.disabled) {
+                    ecrvPlateFormatInputs[0]?.focus();
+                    return;
+                }
+                if (requireCaptcha) {
+                    ecrvCaptchaInput.focus();
+                    return;
+                }
+                ecrvPlateInput.focus();
+            }, 0);
         }
 
         function closeEcrvModal() {
@@ -2829,7 +3057,7 @@
 
         async function fetchFichaCadastral(plate, captcha) {
             const params = new URLSearchParams({
-                placa: plate,
+                placa: sanitizePlate(plate),
                 captcha,
             });
 
@@ -2846,7 +3074,7 @@
             const params = new URLSearchParams({
                 numero_ficha: numeroFicha,
                 ano_ficha: anoFicha,
-                placa: placa,
+                placa: sanitizePlate(placa),
                 captcha,
             });
 
@@ -2999,13 +3227,8 @@
         }
 
         async function performEcrvConsulta() {
-            const plate = normalizePlate(ecrvPlateInput.value);
+            const plate = requireValidPlateFromInput(ecrvPlateInput, ecrvPlateError);
             if (!plate) {
-                ecrvPlateError.textContent = 'Informe a placa.';
-                return;
-            }
-            if (!isValidPlate(plate)) {
-                ecrvPlateError.textContent = 'Placa inválida.';
                 return;
             }
 
@@ -3299,7 +3522,12 @@
 
         function openRenainfModal() {
             const defaults = getDefaultRenainfDates();
-            renainfPlateInput.value = '';
+            resetPlateFormatField({
+                formatInputs: renainfPlateFormatInputs,
+                inputEl: renainfPlateInput,
+                errorEl: renainfError,
+                helperText: 'Selecione o padrão da placa',
+            });
             renainfStatusSelect.value = '2';
             renainfUfSelect.value = '';
             renainfStartDate.value = defaults.start;
@@ -3308,7 +3536,7 @@
             renainfOverlay.classList.remove('hidden');
             renainfOverlay.classList.add('show');
             renainfOverlay.setAttribute('aria-hidden', 'false');
-            setTimeout(() => renainfPlateInput.focus(), 0);
+            setTimeout(() => renainfPlateFormatInputs[0]?.focus(), 0);
         }
 
         function closeRenainfModal() {
@@ -3389,7 +3617,7 @@
 
         async function fetchRenainf(payload) {
             const params = new URLSearchParams({
-                placa: payload.plate,
+                placa: sanitizePlate(payload.plate),
                 indExigib: payload.statusCode,
                 uf: payload.uf,
                 periodoIni: payload.periodoIni,
@@ -3433,21 +3661,15 @@
         }
 
         async function performRenainfSearch() {
-            const plate = normalizePlate(renainfPlateInput.value);
+            const plate = requireValidPlateFromInput(renainfPlateInput, renainfError);
+            if (!plate) {
+                return;
+            }
             const statusCode = renainfStatusSelect.value || '2';
             const statusLabel = renainfStatusSelect.selectedOptions[0]?.textContent?.trim() || renainfStatusLabels[statusCode];
             const uf = (renainfUfSelect.value || '').trim().toUpperCase();
             const start = renainfStartDate.value;
             const end = renainfEndDate.value;
-
-            if (!plate) {
-                renainfError.textContent = 'Informe a placa do veículo.';
-                return;
-            }
-            if (!isValidPlate(plate)) {
-                renainfError.textContent = 'Placa inválida.';
-                return;
-            }
             if (!uf) {
                 renainfError.textContent = 'Selecione a UF.';
                 return;
@@ -3484,7 +3706,7 @@
                 }
 
                 const result = await fetchRenainf({
-                    plate,
+                    plate: sanitizePlate(plate),
                     statusCode,
                     statusLabel: meta.statusLabel,
                     uf,
@@ -3526,7 +3748,7 @@
 
             try {
                 const result = await fetchRenainf({
-                    plate: meta.plate,
+                    plate: sanitizePlate(meta.plate),
                     statusCode: meta.statusCode,
                     statusLabel: meta.statusLabel,
                     uf: meta.uf,
@@ -3546,12 +3768,20 @@
         }
 
         function openGravameModal() {
-            gravamePlateInput.value = '';
+            resetPlateFormatField({
+                formatInputs: gravamePlateFormatInputs,
+                inputEl: gravamePlateInput,
+                errorEl: gravameError,
+                helperText: 'Selecione o padrão da placa',
+            });
+            gravameChassiInput.value = '';
             gravameError.textContent = '';
+            setSelectedBinOption(gravameOptionInputs, 'placa');
+            updateBinMode('placa', gravamePlacaGroup, gravameChassiGroup);
             gravameOverlay.classList.remove('hidden');
             gravameOverlay.classList.add('show');
             gravameOverlay.setAttribute('aria-hidden', 'false');
-            setTimeout(() => gravamePlateInput.focus(), 0);
+            setTimeout(() => gravamePlateFormatInputs[0]?.focus(), 0);
         }
 
         function closeGravameModal() {
@@ -3560,15 +3790,40 @@
             gravameOverlay.setAttribute('aria-hidden', 'true');
         }
 
-        function openGravameCaptchaModal(placa, message = '') {
-            gravameCaptchaPlate.value = placa;
+        function openGravameCaptchaModal(values, message = '') {
+            const option = values?.option || 'placa';
+            setSelectedBinOption(gravameCaptchaOptionInputs, option);
+            updateBinMode(option, gravameCaptchaPlacaGroup, gravameCaptchaChassiGroup);
+            resetPlateFormatField({
+                formatInputs: gravameCaptchaPlateFormatInputs,
+                inputEl: gravameCaptchaPlate,
+                errorEl: gravameCaptchaError,
+                helperText: 'Selecione o padrão da placa',
+            });
+            if (option === 'placa') {
+                const incomingPlate = values?.placa || '';
+                const inferred = inferPlateFormat(incomingPlate);
+                if (inferred) {
+                    selectPlateFormat(gravameCaptchaPlateFormatInputs, inferred);
+                    gravameCaptchaPlate.value = formatPlate(incomingPlate, inferred);
+                } else {
+                    gravameCaptchaPlate.value = '';
+                }
+            }
+            gravameCaptchaChassiInput.value = values?.chassi || '';
             gravameCaptchaInput.value = '';
             gravameCaptchaError.textContent = message;
             gravameCaptchaOverlay.classList.remove('hidden');
             gravameCaptchaOverlay.classList.add('show');
             gravameCaptchaOverlay.setAttribute('aria-hidden', 'false');
             loadGravameCaptchaImage();
-            setTimeout(() => gravameCaptchaInput.focus(), 0);
+            setTimeout(() => {
+                if (option === 'placa' && gravameCaptchaPlate.disabled) {
+                    gravameCaptchaPlateFormatInputs[0]?.focus();
+                    return;
+                }
+                gravameCaptchaInput.focus();
+            }, 0);
         }
 
         function closeGravameCaptchaModal() {
@@ -3623,11 +3878,16 @@
             }
         }
 
-        async function fetchGravame(placa, captcha) {
-            const params = new URLSearchParams({
-                placa: placa,
-                captcha: captcha,
-            });
+        async function fetchGravame(values, captcha) {
+            const paramsPayload = { captcha };
+            if (values?.placa) {
+                paramsPayload.placa = sanitizePlate(values.placa);
+            }
+            if (values?.chassi) {
+                paramsPayload.chassi = values.chassi;
+            }
+
+            const params = new URLSearchParams(paramsPayload);
 
             const response = await fetch(`${API_BASE_URL}/api/gravame?${params}`);
             if (!response.ok) {
@@ -3644,7 +3904,7 @@
             window.location.href = '/resultado-gravame';
         }
 
-        async function registerGravamePesquisa(placa) {
+        async function registerGravamePesquisa(values) {
             try {
                 await fetch(`${API_BASE_URL}/api/pesquisas`, {
                     method: 'POST',
@@ -3655,7 +3915,9 @@
                     },
                     body: JSON.stringify({
                         nome: 'Gravame',
-                        placa: placa,
+                        placa: values?.placa || null,
+                        chassi: values?.chassi || null,
+                        opcao_pesquisa: values?.option || null,
                     }),
                 });
             } catch (error) {
@@ -3664,15 +3926,27 @@
         }
 
         async function performGravameSearch() {
-            const placa = normalizePlate(gravamePlateInput.value);
-
-            if (!placa) {
-                gravameError.textContent = 'Informe a placa do veículo.';
+            const option = getSelectedBinOption(gravameOptionInputs);
+            const placa = option === 'placa' ? requireValidPlateFromInput(gravamePlateInput, gravameError) : '';
+            if (option === 'placa' && !placa) {
                 return;
             }
-            if (!isValidPlate(placa)) {
-                gravameError.textContent = 'Placa inválida.';
-                return;
+            const chassi = normalizeChassi(gravameChassiInput.value);
+            const values = {
+                option,
+                placa: option === 'placa' ? placa : '',
+                chassi: option === 'chassi' ? chassi : '',
+            };
+
+            if (option === 'chassi') {
+                if (!chassi) {
+                    gravameError.textContent = 'Informe o chassi do veículo.';
+                    return;
+                }
+                if (!isValidChassi(chassi)) {
+                    gravameError.textContent = 'Chassi inválido.';
+                    return;
+                }
             }
 
             gravameError.textContent = '';
@@ -3684,16 +3958,18 @@
                     captcha = await solveBaseCaptcha();
                 } catch (captchaError) {
                     closeGravameModal();
-                    openGravameCaptchaModal(placa, 'Captcha automático indisponível. Digite o captcha manualmente.');
+                    openGravameCaptchaModal(values, 'Captcha automático indisponível. Digite o captcha manualmente.');
                     return;
                 }
 
-                const result = await fetchGravame(placa, captcha);
-                await registerGravamePesquisa(placa);
+                const result = await fetchGravame(values, captcha);
+                await registerGravamePesquisa(values);
                 closeGravameModal();
                 const veiculoData = result?.veiculo || {};
                 redirectToGravameResult(result, {
-                    placa,
+                    opcao_pesquisa: option,
+                    placa: values.placa || veiculoData.placa || '',
+                    chassi: values.chassi || veiculoData.chassi || '',
                     renavam: veiculoData.renavam || '',
                     uf: veiculoData.uf || '',
                 });
@@ -3701,7 +3977,7 @@
                 const message = error.message || 'Não foi possível concluir a pesquisa Gravame.';
                 if (message.toLowerCase().includes('captcha')) {
                     closeGravameModal();
-                    openGravameCaptchaModal(placa, 'Captcha automático falhou. Digite o captcha manualmente.');
+                    openGravameCaptchaModal(values, 'Captcha automático falhou. Digite o captcha manualmente.');
                     return;
                 }
                 gravameError.textContent = message;
@@ -3711,8 +3987,29 @@
         }
 
         async function performGravameCaptchaSearch() {
-            const placa = normalizePlate(gravameCaptchaPlate.value);
+            const option = getSelectedBinOption(gravameCaptchaOptionInputs);
+            const placa = option === 'placa' ? requireValidPlateFromInput(gravameCaptchaPlate, gravameCaptchaError) : '';
+            if (option === 'placa' && !placa) {
+                return;
+            }
+            const chassi = normalizeChassi(gravameCaptchaChassiInput.value);
             const captcha = gravameCaptchaInput.value.trim().toUpperCase();
+            const values = {
+                option,
+                placa: option === 'placa' ? placa : '',
+                chassi: option === 'chassi' ? chassi : '',
+            };
+
+            if (option === 'chassi') {
+                if (!chassi) {
+                    gravameCaptchaError.textContent = 'Informe o chassi do veículo.';
+                    return;
+                }
+                if (!isValidChassi(chassi)) {
+                    gravameCaptchaError.textContent = 'Chassi inválido.';
+                    return;
+                }
+            }
 
             if (!captcha) {
                 gravameCaptchaError.textContent = 'Informe o captcha.';
@@ -3723,12 +4020,14 @@
             setGravameCaptchaLoading(true);
 
             try {
-                const result = await fetchGravame(placa, captcha);
-                await registerGravamePesquisa(placa);
+                const result = await fetchGravame(values, captcha);
+                await registerGravamePesquisa(values);
                 closeGravameCaptchaModal();
                 const veiculoData = result?.veiculo || {};
                 redirectToGravameResult(result, {
-                    placa,
+                    opcao_pesquisa: option,
+                    placa: values.placa || veiculoData.placa || '',
+                    chassi: values.chassi || veiculoData.chassi || '',
                     renavam: veiculoData.renavam || '',
                     uf: veiculoData.uf || '',
                 });
@@ -3758,7 +4057,12 @@
         }
 
         function openBinModal() {
-            binPlacaInput.value = '';
+            resetPlateFormatField({
+                formatInputs: binPlateFormatInputs,
+                inputEl: binPlacaInput,
+                errorEl: binError,
+                helperText: 'Selecione o padrão da placa',
+            });
             binRenavamInput.value = '';
             binChassiInput.value = '';
             binError.textContent = '';
@@ -3767,7 +4071,7 @@
             binOverlay.classList.remove('hidden');
             binOverlay.classList.add('show');
             binOverlay.setAttribute('aria-hidden', 'false');
-            setTimeout(() => binPlacaInput.focus(), 0);
+            setTimeout(() => binPlateFormatInputs[0]?.focus(), 0);
         }
 
         function closeBinModal() {
@@ -3780,7 +4084,22 @@
             const option = values.option || 'placa';
             setSelectedBinOption(binCaptchaOptionInputs, option);
             updateBinMode(option, binCaptchaPlacaGroup, binCaptchaChassiGroup);
-            binCaptchaPlacaInput.value = values.placa || '';
+            resetPlateFormatField({
+                formatInputs: binCaptchaPlateFormatInputs,
+                inputEl: binCaptchaPlacaInput,
+                errorEl: binCaptchaError,
+                helperText: 'Selecione o padrão da placa',
+            });
+            if (option === 'placa') {
+                const incomingPlate = values.placa || '';
+                const inferred = inferPlateFormat(incomingPlate);
+                if (inferred) {
+                    selectPlateFormat(binCaptchaPlateFormatInputs, inferred);
+                    binCaptchaPlacaInput.value = formatPlate(incomingPlate, inferred);
+                } else {
+                    binCaptchaPlacaInput.value = '';
+                }
+            }
             binCaptchaRenavamInput.value = values.renavam || '';
             binCaptchaChassiInput.value = values.chassi || '';
             binCaptchaInput.value = '';
@@ -3789,7 +4108,13 @@
             binCaptchaOverlay.classList.add('show');
             binCaptchaOverlay.setAttribute('aria-hidden', 'false');
             loadBinCaptchaImage();
-            setTimeout(() => binCaptchaInput.focus(), 0);
+            setTimeout(() => {
+                if (option === 'placa' && binCaptchaPlacaInput.disabled) {
+                    binCaptchaPlateFormatInputs[0]?.focus();
+                    return;
+                }
+                binCaptchaInput.focus();
+            }, 0);
         }
 
         function closeBinCaptchaModal() {
@@ -3907,7 +4232,10 @@
         async function performBinSearch() {
             const option = getSelectedBinOption(binOptionInputs);
             const isChassi = option === 'chassi';
-            const placa = normalizePlate(binPlacaInput.value);
+            const placa = isChassi ? '' : requireValidPlateFromInput(binPlacaInput, binError);
+            if (!isChassi && !placa) {
+                return;
+            }
             const renavam = normalizeRenavam(binRenavamInput.value);
             const chassi = normalizeChassi(binChassiInput.value);
 
@@ -3921,14 +4249,6 @@
                     return;
                 }
             } else {
-                if (!placa) {
-                    binError.textContent = 'Informe a placa.';
-                    return;
-                }
-                if (!isValidPlate(placa)) {
-                    binError.textContent = 'Placa inválida.';
-                    return;
-                }
                 if (!renavam) {
                     binError.textContent = 'Informe o renavam.';
                     return;
@@ -3960,7 +4280,13 @@
                     return;
                 }
 
-                const result = await fetchBin(buildBinPayload(searchOption, meta.placa, meta.renavam, meta.chassi, captcha));
+                const result = await fetchBin(buildBinPayload(
+                    searchOption,
+                    meta.placa ? sanitizePlate(meta.placa) : '',
+                    meta.renavam,
+                    meta.chassi,
+                    captcha,
+                ));
                 await registerBinPesquisa(meta);
                 closeBinModal();
                 redirectToBinResult(result, meta);
@@ -3980,7 +4306,10 @@
         async function performBinCaptchaSearch() {
             const option = getSelectedBinOption(binCaptchaOptionInputs);
             const isChassi = option === 'chassi';
-            const placa = normalizePlate(binCaptchaPlacaInput.value);
+            const placa = isChassi ? '' : requireValidPlateFromInput(binCaptchaPlacaInput, binCaptchaError);
+            if (!isChassi && !placa) {
+                return;
+            }
             const renavam = normalizeRenavam(binCaptchaRenavamInput.value);
             const chassi = normalizeChassi(binCaptchaChassiInput.value);
             const captcha = binCaptchaInput.value.trim().toUpperCase();
@@ -3996,10 +4325,6 @@
                     return;
                 }
             } else {
-                if (!placa || !isValidPlate(placa)) {
-                    binCaptchaError.textContent = 'Placa inválida.';
-                    return;
-                }
                 if (!renavam || !isValidRenavam(renavam)) {
                     binCaptchaError.textContent = 'Renavam inválido.';
                     return;
@@ -4018,7 +4343,13 @@
             };
 
             try {
-                const result = await fetchBin(buildBinPayload(searchOption, meta.placa, meta.renavam, meta.chassi, captcha));
+                const result = await fetchBin(buildBinPayload(
+                    searchOption,
+                    meta.placa ? sanitizePlate(meta.placa) : '',
+                    meta.renavam,
+                    meta.chassi,
+                    captcha,
+                ));
                 await registerBinPesquisa(meta);
                 closeBinCaptchaModal();
                 redirectToBinResult(result, meta);
@@ -4128,8 +4459,7 @@
             } catch (error) {
                 console.error('Erro ao fazer logout:', error);
             } finally {
-                localStorage.removeItem('auth_token');
-                localStorage.removeItem('user');
+                clearStoredAuth();
                 window.location.href = '/login';
             }
         });
@@ -4143,6 +4473,61 @@
             window.open('https://www.e-crvsp.sp.gov.br/', '_blank', 'noopener');
         });
 
+        setupPlateFormatField({
+            formatInputs: basePlateFormatInputs,
+            inputEl: basePlateInput,
+            errorEl: basePlateError,
+            helperText: 'Selecione o padrão da placa',
+        });
+        setupPlateFormatField({
+            formatInputs: crlvPlateFormatInputs,
+            inputEl: crlvPlateInput,
+            errorEl: crlvError,
+            helperText: 'Selecione o padrão da placa',
+        });
+        setupPlateFormatField({
+            formatInputs: atpvPlateFormatInputs,
+            inputEl: atpvPlateInput,
+            errorEl: atpvConsultError,
+            helperText: 'Selecione o padrão da placa',
+        });
+        setupPlateFormatField({
+            formatInputs: ecrvPlateFormatInputs,
+            inputEl: ecrvPlateInput,
+            errorEl: ecrvPlateError,
+            helperText: 'Selecione o padrão da placa',
+        });
+        setupPlateFormatField({
+            formatInputs: renainfPlateFormatInputs,
+            inputEl: renainfPlateInput,
+            errorEl: renainfError,
+            helperText: 'Selecione o padrão da placa',
+        });
+        setupPlateFormatField({
+            formatInputs: binPlateFormatInputs,
+            inputEl: binPlacaInput,
+            errorEl: binError,
+            helperText: 'Selecione o padrão da placa',
+        });
+        setupPlateFormatField({
+            formatInputs: binCaptchaPlateFormatInputs,
+            inputEl: binCaptchaPlacaInput,
+            errorEl: binCaptchaError,
+            helperText: 'Selecione o padrão da placa',
+        });
+        setupPlateFormatField({
+            formatInputs: gravamePlateFormatInputs,
+            inputEl: gravamePlateInput,
+            errorEl: gravameError,
+            helperText: 'Selecione o padrão da placa',
+        });
+        setupPlateFormatField({
+            formatInputs: gravameCaptchaPlateFormatInputs,
+            inputEl: gravameCaptchaPlate,
+            errorEl: gravameCaptchaError,
+            helperText: 'Selecione o padrão da placa',
+        });
+
         baseQueryClose.addEventListener('click', closeBaseEstadualModal);
         baseCancelBtn.addEventListener('click', closeBaseEstadualModal);
         baseQueryOverlay.addEventListener('click', (event) => {
@@ -4151,7 +4536,6 @@
             }
         });
         basePlateInput.addEventListener('input', () => {
-            basePlateInput.value = normalizePlate(basePlateInput.value);
             basePlateError.textContent = '';
         });
         basePlateInput.addEventListener('keydown', (event) => {
@@ -4190,7 +4574,6 @@
             }
         });
         crlvPlateInput?.addEventListener('input', () => {
-            crlvPlateInput.value = normalizePlate(crlvPlateInput.value);
             crlvError.textContent = '';
         });
         crlvRenavamInput?.addEventListener('input', () => {
@@ -4248,7 +4631,6 @@
             }
         });
         atpvPlateInput?.addEventListener('input', () => {
-            atpvPlateInput.value = normalizePlate(atpvPlateInput.value);
             atpvConsultError.textContent = '';
         });
         atpvRenavamInput?.addEventListener('input', () => {
@@ -4326,7 +4708,6 @@
             }
         });
         renainfPlateInput.addEventListener('input', () => {
-            renainfPlateInput.value = normalizePlate(renainfPlateInput.value);
             renainfError.textContent = '';
         });
         renainfStatusSelect.addEventListener('change', () => {
@@ -4375,10 +4756,18 @@
                 const option = getSelectedBinOption(binOptionInputs);
                 updateBinMode(option, binPlacaGroup, binChassiGroup);
                 binError.textContent = '';
+                if (option === 'placa') {
+                    resetPlateFormatField({
+                        formatInputs: binPlateFormatInputs,
+                        inputEl: binPlacaInput,
+                        errorEl: binError,
+                        helperText: 'Selecione o padrão da placa',
+                    });
+                    binPlateFormatInputs[0]?.focus();
+                }
             });
         });
         binPlacaInput.addEventListener('input', () => {
-            binPlacaInput.value = normalizePlate(binPlacaInput.value);
             binError.textContent = '';
         });
         binRenavamInput.addEventListener('input', () => {
@@ -4404,10 +4793,18 @@
                 const option = getSelectedBinOption(binCaptchaOptionInputs);
                 updateBinMode(option, binCaptchaPlacaGroup, binCaptchaChassiGroup);
                 binCaptchaError.textContent = '';
+                if (option === 'placa') {
+                    resetPlateFormatField({
+                        formatInputs: binCaptchaPlateFormatInputs,
+                        inputEl: binCaptchaPlacaInput,
+                        errorEl: binCaptchaError,
+                        helperText: 'Selecione o padrão da placa',
+                    });
+                    binCaptchaPlateFormatInputs[0]?.focus();
+                }
             });
         });
         binCaptchaPlacaInput.addEventListener('input', () => {
-            binCaptchaPlacaInput.value = normalizePlate(binCaptchaPlacaInput.value);
             binCaptchaError.textContent = '';
         });
         binCaptchaRenavamInput.addEventListener('input', () => {
@@ -4437,11 +4834,38 @@
                 closeGravameModal();
             }
         });
+        gravameOptionInputs.forEach((input) => {
+            input.addEventListener('change', () => {
+                const option = getSelectedBinOption(gravameOptionInputs);
+                updateBinMode(option, gravamePlacaGroup, gravameChassiGroup);
+                gravameError.textContent = '';
+                if (option === 'chassi') {
+                    gravameChassiInput.focus();
+                } else {
+                    resetPlateFormatField({
+                        formatInputs: gravamePlateFormatInputs,
+                        inputEl: gravamePlateInput,
+                        errorEl: gravameError,
+                        helperText: 'Selecione o padrão da placa',
+                    });
+                    gravamePlateFormatInputs[0]?.focus();
+                }
+            });
+        });
         gravamePlateInput.addEventListener('input', () => {
-            gravamePlateInput.value = normalizePlate(gravamePlateInput.value);
             gravameError.textContent = '';
         });
         gravamePlateInput.addEventListener('keydown', (event) => {
+            if (event.key === 'Enter') {
+                event.preventDefault();
+                performGravameSearch();
+            }
+        });
+        gravameChassiInput.addEventListener('input', () => {
+            gravameChassiInput.value = normalizeChassi(gravameChassiInput.value);
+            gravameError.textContent = '';
+        });
+        gravameChassiInput.addEventListener('keydown', (event) => {
             if (event.key === 'Enter') {
                 event.preventDefault();
                 performGravameSearch();
@@ -4456,6 +4880,31 @@
             if (event.target === gravameCaptchaOverlay) {
                 closeGravameCaptchaModal();
             }
+        });
+        gravameCaptchaOptionInputs.forEach((input) => {
+            input.addEventListener('change', () => {
+                const option = getSelectedBinOption(gravameCaptchaOptionInputs);
+                updateBinMode(option, gravameCaptchaPlacaGroup, gravameCaptchaChassiGroup);
+                gravameCaptchaError.textContent = '';
+                if (option === 'placa') {
+                    resetPlateFormatField({
+                        formatInputs: gravameCaptchaPlateFormatInputs,
+                        inputEl: gravameCaptchaPlate,
+                        errorEl: gravameCaptchaError,
+                        helperText: 'Selecione o padrão da placa',
+                    });
+                    gravameCaptchaPlateFormatInputs[0]?.focus();
+                } else {
+                    gravameCaptchaChassiInput.focus();
+                }
+            });
+        });
+        gravameCaptchaPlate.addEventListener('input', () => {
+            gravameCaptchaError.textContent = '';
+        });
+        gravameCaptchaChassiInput.addEventListener('input', () => {
+            gravameCaptchaChassiInput.value = normalizeChassi(gravameCaptchaChassiInput.value);
+            gravameCaptchaError.textContent = '';
         });
         gravameCaptchaInput.addEventListener('input', () => {
             gravameCaptchaInput.value = gravameCaptchaInput.value.replace(/\s/g, '').toUpperCase();

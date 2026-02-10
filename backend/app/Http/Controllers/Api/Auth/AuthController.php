@@ -2,9 +2,11 @@
 
 namespace App\Http\Controllers\Api\Auth;
 
+use App\Mail\LoginSecurityKeyMail;
 use App\Http\Controllers\Api\Traits\FindsUserFromApiToken;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Auth\LoginRequest;
+use App\Http\Requests\Auth\LoginVerifyRequest;
 use App\Http\Requests\Auth\RegisterRequest;
 use App\Http\Resources\UserResource;
 use App\Models\ApiToken;
@@ -12,6 +14,7 @@ use App\Models\User;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Str;
 
 class AuthController extends Controller
@@ -49,6 +52,7 @@ class AuthController extends Controller
     public function login(LoginRequest $request): JsonResponse
     {
         $data = $request->validated();
+        $rememberMe = filter_var($request->input('remember_me', false), FILTER_VALIDATE_BOOLEAN);
         $identifier = $data['identifier'];
         $field = filter_var($identifier, FILTER_VALIDATE_EMAIL) ? 'email' : 'name';
 
@@ -73,6 +77,107 @@ class AuthController extends Controller
                 ],
             ], 403);
         }
+
+        $challengeId = Str::random(60);
+        $securityKey = str_pad((string) random_int(0, 999999), 6, '0', STR_PAD_LEFT);
+        $expiresAt = now()->addMinutes(10);
+
+        $user->forceFill([
+            'login_security_challenge' => $challengeId,
+            'login_security_key_hash' => hash('sha256', $securityKey),
+            'login_security_key_expires_at' => $expiresAt,
+            'login_security_key_sent_at' => now(),
+        ])->save();
+
+        try {
+            Mail::to($user->email)->send(new LoginSecurityKeyMail($securityKey, $expiresAt));
+        } catch (\Throwable $e) {
+            $user->forceFill([
+                'login_security_challenge' => null,
+                'login_security_key_hash' => null,
+                'login_security_key_expires_at' => null,
+                'login_security_key_sent_at' => null,
+            ])->save();
+
+            return response()->json([
+                'status' => 'error',
+                'message' => 'Não foi possível enviar a chave de segurança por e-mail. Tente novamente em alguns instantes.',
+            ], 502);
+        }
+
+        return response()->json([
+            'status' => 'two_factor_required',
+            'message' => 'Enviamos uma chave de segurança para o seu e-mail. Digite-a para concluir o login.',
+            'challenge_id' => $challengeId,
+            'expires_in' => 600,
+            'remember_me' => $rememberMe,
+        ]);
+    }
+
+    /**
+     * Handle the second step of login using the security key sent by email.
+     */
+    public function verifyLogin(LoginVerifyRequest $request): JsonResponse
+    {
+        $data = $request->validated();
+        $challengeId = (string) $data['challenge_id'];
+        $securityKey = strtoupper((string) $data['security_key']);
+        $securityKey = preg_replace('/[^A-Za-z0-9]/', '', $securityKey) ?? '';
+
+        /** @var User|null $user */
+        $user = User::query()
+            ->where('login_security_challenge', $challengeId)
+            ->first();
+
+        if (! $user) {
+            return response()->json([
+                'status' => 'error',
+                'message' => 'Não foi possível validar sua chave de segurança. Faça login novamente para receber uma nova chave.',
+            ], 422);
+        }
+
+        if (! $user->is_active) {
+            return response()->json([
+                'status' => 'error',
+                'message' => 'Sua conta está inativa. Entre em contato com o suporte.',
+            ], 403);
+        }
+
+        $expiresAt = $user->login_security_key_expires_at;
+        if (! $expiresAt || $expiresAt->isPast()) {
+            $user->forceFill([
+                'login_security_challenge' => null,
+                'login_security_key_hash' => null,
+                'login_security_key_expires_at' => null,
+                'login_security_key_sent_at' => null,
+            ])->save();
+
+            return response()->json([
+                'status' => 'error',
+                'message' => 'Sua chave de segurança expirou. Faça login novamente para receber uma nova chave.',
+            ], 422);
+        }
+
+        $expectedHash = (string) ($user->login_security_key_hash ?? '');
+        $providedHash = hash('sha256', $securityKey);
+
+        if ($expectedHash === '' || ! hash_equals($expectedHash, $providedHash)) {
+            return response()->json([
+                'status' => 'error',
+                'message' => 'A chave de acesso está incorreta. Verifique e tente novamente.',
+                'errors' => [
+                    'security_key' => ['A chave de acesso está incorreta.'],
+                ],
+            ], 422);
+        }
+
+        $user->forceFill([
+            'login_security_challenge' => null,
+            'login_security_key_hash' => null,
+            'login_security_key_expires_at' => null,
+            'login_security_key_sent_at' => null,
+            'last_login_at' => now(),
+        ])->save();
 
         $token = $this->issueToken($user, $request);
 

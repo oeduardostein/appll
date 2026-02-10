@@ -5,13 +5,26 @@
             <button class="be-dialog-close" type="button" id="atpvConsultationClose" aria-label="Fechar">&times;</button>
         </div>
         <div class="be-dialog-body">
+            <div class="be-radio-group">
+                <label class="be-radio-option">
+                    <input type="radio" name="atpvPlateFormat" value="antiga">
+                    <span class="be-radio-mark"></span>
+                    <span class="be-radio-text">Placa antiga (ABC-1234)</span>
+                </label>
+                <label class="be-radio-option">
+                    <input type="radio" name="atpvPlateFormat" value="mercosul">
+                    <span class="be-radio-mark"></span>
+                    <span class="be-radio-text">Mercosul (ABC-1D23)</span>
+                </label>
+            </div>
             <input
                 class="be-input"
                 id="atpvPlateInput"
                 type="text"
-                placeholder="Placa"
-                maxlength="7"
+                placeholder="Selecione o padrão da placa"
+                maxlength="8"
                 autocomplete="off"
+                disabled
             >
             <input
                 class="be-input"

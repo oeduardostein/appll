@@ -18,6 +18,10 @@ class BaseEstadualService {
 
   final http.Client _client;
 
+  static String _sanitizePlate(String value) {
+    return value.replaceAll(RegExp(r'[^A-Za-z0-9]'), '').toUpperCase();
+  }
+
   static final Uri _captchaUri = Uri.parse(
     'https://applldespachante.skalacode.com/api/captcha',
   );
@@ -108,7 +112,7 @@ class BaseEstadualService {
   }) async {
     final uri = _consultaBaseUri.replace(
       queryParameters: {
-        'placa': placa,
+        'placa': _sanitizePlate(placa),
         'renavam': renavam,
         'captcha': captcha,
       },
@@ -253,7 +257,7 @@ class BaseEstadualService {
       'https://applldespachante.skalacode.com/api/emissao-atpv',
     ).replace(
       queryParameters: {
-        'placa': placa,
+        'placa': _sanitizePlate(placa),
         'renavam': renavam,
         'captchaResponse': captchaResponse,
       },
@@ -303,7 +307,7 @@ class BaseEstadualService {
       'https://applldespachante.skalacode.com/api/emissao-crlv',
     ).replace(
       queryParameters: {
-        'placa': placa,
+        'placa': _sanitizePlate(placa),
         'renavam': renavam,
         'cpf': cpf,
         'cnpj': cnpj,

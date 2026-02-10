@@ -6,13 +6,26 @@
         </div>
         <div class="be-dialog-body">
             <p class="be-dialog-helper">Informe placa, status, UF e período. Resolveremos o captcha automaticamente.</p>
+            <div class="be-radio-group">
+                <label class="be-radio-option">
+                    <input type="radio" name="renainfPlateFormat" value="antiga">
+                    <span class="be-radio-mark"></span>
+                    <span class="be-radio-text">Placa antiga (ABC-1234)</span>
+                </label>
+                <label class="be-radio-option">
+                    <input type="radio" name="renainfPlateFormat" value="mercosul">
+                    <span class="be-radio-mark"></span>
+                    <span class="be-radio-text">Mercosul (ABC-1D23)</span>
+                </label>
+            </div>
             <input
                 class="be-input"
                 id="renainfPlateInput"
                 type="text"
-                placeholder="Placa"
-                maxlength="7"
+                placeholder="Selecione o padrão da placa"
+                maxlength="8"
                 autocomplete="off"
+                disabled
             >
             <select class="be-input be-select" id="renainfStatusSelect">
                 <option value="2">Todas</option>

@@ -6,16 +6,53 @@
         </div>
         <div class="be-dialog-body">
             <p class="be-dialog-helper">
-                Informe apenas a placa. Resolveremos o captcha automaticamente.
+                Pesquise pela placa ou pelo chassi. Resolveremos o captcha automaticamente.
             </p>
-            <input
-                class="be-input"
-                id="gravamePlateInput"
-                type="text"
-                placeholder="Placa"
-                maxlength="7"
-                autocomplete="off"
-            >
+            <div class="be-radio-group">
+                <label class="be-radio-option">
+                    <input type="radio" name="gravameSearchOption" value="placa" checked>
+                    <span class="be-radio-mark"></span>
+                    <span class="be-radio-text">Placa</span>
+                </label>
+                <label class="be-radio-option">
+                    <input type="radio" name="gravameSearchOption" value="chassi">
+                    <span class="be-radio-mark"></span>
+                    <span class="be-radio-text">Chassi</span>
+                </label>
+            </div>
+            <div class="be-field-group" id="gravamePlacaGroup">
+                <div class="be-radio-group">
+                    <label class="be-radio-option">
+                        <input type="radio" name="gravamePlateFormat" value="antiga">
+                        <span class="be-radio-mark"></span>
+                        <span class="be-radio-text">Antiga (ABC-1234)</span>
+                    </label>
+                    <label class="be-radio-option">
+                        <input type="radio" name="gravamePlateFormat" value="mercosul">
+                        <span class="be-radio-mark"></span>
+                        <span class="be-radio-text">Mercosul (ABC-1D23)</span>
+                    </label>
+                </div>
+                <input
+                    class="be-input"
+                    id="gravamePlateInput"
+                    type="text"
+                    placeholder="Selecione o padrão da placa"
+                    maxlength="8"
+                    autocomplete="off"
+                    disabled
+                >
+            </div>
+            <div class="be-field-group hidden" id="gravameChassiGroup">
+                <input
+                    class="be-input"
+                    id="gravameChassiInput"
+                    type="text"
+                    placeholder="Chassi"
+                    maxlength="17"
+                    autocomplete="off"
+                >
+            </div>
             <div class="be-dialog-error" id="gravameError"></div>
             <button class="be-dialog-submit" type="button" id="gravameSubmit">
                 <span class="be-btn-text">Consultar</span>

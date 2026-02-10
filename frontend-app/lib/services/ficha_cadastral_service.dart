@@ -17,6 +17,10 @@ class FichaCadastralService {
 
   final http.Client _client;
 
+  static String _sanitizeAlnum(String value) {
+    return value.replaceAll(RegExp(r'[^A-Za-z0-9]'), '').toUpperCase();
+  }
+
   static final Uri _consultaUri = Uri.parse(
     'https://applldespachante.skalacode.com/api/ficha-cadastral/consulta',
   );
@@ -31,8 +35,8 @@ class FichaCadastralService {
   }) async {
     final uri = _consultaUri.replace(
       queryParameters: {
-        'placa': placa,
-        'captcha': captcha,
+        'placa': _sanitizeAlnum(placa),
+        'captcha': _sanitizeAlnum(captcha),
       },
     );
 
@@ -57,10 +61,10 @@ class FichaCadastralService {
     final query = {
       'numero_ficha': numeroFicha,
       'ano_ficha': anoFicha,
-      'captcha': captcha,
+      'captcha': _sanitizeAlnum(captcha),
     };
     if (placa != null && placa.isNotEmpty) {
-      query['placa'] = placa;
+      query['placa'] = _sanitizeAlnum(placa);
     }
 
     final uri = _andamentoUri.replace(queryParameters: query);

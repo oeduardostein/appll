@@ -8,13 +8,26 @@
             <p class="be-dialog-description">
                 Informe apenas os dados. Resolveremos o captcha automaticamente.
             </p>
+            <div class="be-radio-group">
+                <label class="be-radio-option">
+                    <input type="radio" name="crlvPlateFormat" value="antiga">
+                    <span class="be-radio-mark"></span>
+                    <span class="be-radio-text">Placa antiga (ABC-1234)</span>
+                </label>
+                <label class="be-radio-option">
+                    <input type="radio" name="crlvPlateFormat" value="mercosul">
+                    <span class="be-radio-mark"></span>
+                    <span class="be-radio-text">Mercosul (ABC-1D23)</span>
+                </label>
+            </div>
             <input
                 class="be-input"
                 id="crlvPlateInput"
                 type="text"
-                placeholder="Placa"
-                maxlength="7"
+                placeholder="Selecione o padrão da placa"
+                maxlength="8"
                 autocomplete="off"
+                disabled
             >
             <input
                 class="be-input"

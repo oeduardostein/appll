@@ -17,15 +17,28 @@ class BaseEstadualController extends Controller
      */
     public function __invoke(Request $request): Response
     {
-        $placa = $request->query('placa');
-        $captcha = $request->query('captcha');
-        $renavam = $request->query('renavam', '');
+        $placa = strtoupper((string) $request->query('placa', ''));
+        $chassi = strtoupper((string) $request->query('chassi', ''));
+        $captcha = strtoupper((string) $request->query('captcha', ''));
+        $renavam = (string) $request->query('renavam', '');
 
-        if (!$placa || !$captcha) {
+        $placa = preg_replace('/[^A-Za-z0-9]/', '', $placa) ?? '';
+        $chassi = preg_replace('/[^A-Za-z0-9]/', '', $chassi) ?? '';
+        $captcha = preg_replace('/[^A-Za-z0-9]/', '', $captcha) ?? '';
+        $renavam = preg_replace('/\\D/', '', $renavam) ?? '';
+
+        if (($placa === '' && $chassi === '') || $captcha === '') {
             return response()->json(
-                ['message' => 'Informe placa e captcha para realizar a consulta.'],
+                ['message' => 'Informe placa ou chassi e captcha para realizar a consulta.'],
                 Response::HTTP_UNPROCESSABLE_ENTITY
             );
+        }
+
+        if ($placa !== '') {
+            $chassi = '';
+        } else {
+            $placa = '';
+            $renavam = '';
         }
 
         $token = DB::table('admin_settings')->where('id', 1)->value('value');
@@ -72,7 +85,7 @@ class BaseEstadualController extends Controller
                     'placa' => $placa,
                     'renavam' => $renavam,
                     'municipio' => '0',
-                    'chassi' => '',
+                    'chassi' => $chassi,
                     'captchaResponse' => strtoupper($captcha),
                 ]);
 
@@ -92,6 +105,7 @@ class BaseEstadualController extends Controller
                 Log::warning('BaseEstadual: Falha na requisição externa', [
                     'status' => $statusCode,
                     'placa' => $placa,
+                    'chassi' => $chassi,
                     'response_body' => substr($response->body(), 0, 500),
                 ]);
 
@@ -107,6 +121,7 @@ class BaseEstadualController extends Controller
             Log::error('BaseEstadual: Erro de conexão', [
                 'message' => $e->getMessage(),
                 'placa' => $placa,
+                'chassi' => $chassi,
             ]);
 
             return response()->json(
@@ -119,6 +134,7 @@ class BaseEstadualController extends Controller
             Log::error('BaseEstadual: Erro na requisição', [
                 'message' => $e->getMessage(),
                 'placa' => $placa,
+                'chassi' => $chassi,
             ]);
 
             return response()->json(
@@ -132,6 +148,7 @@ class BaseEstadualController extends Controller
                 'message' => $e->getMessage(),
                 'trace' => $e->getTraceAsString(),
                 'placa' => $placa,
+                'chassi' => $chassi,
             ]);
 
             return response()->json(

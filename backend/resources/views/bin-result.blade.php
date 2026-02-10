@@ -282,7 +282,11 @@
     <main class="bin-result-body" id="binResultBody"></main>
 
     <script>
-        const authToken = localStorage.getItem('auth_token');
+        function getAuthToken() {
+            return sessionStorage.getItem('auth_token') || localStorage.getItem('auth_token');
+        }
+
+        const authToken = getAuthToken();
         const csrfToken = document.querySelector('meta[name="csrf-token"]')?.content;
         const binResultBody = document.getElementById('binResultBody');
         const binSubtitle = document.getElementById('binSubtitle');

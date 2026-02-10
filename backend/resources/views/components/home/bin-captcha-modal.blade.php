@@ -18,13 +18,26 @@
                 </label>
             </div>
             <div class="be-field-group" id="binCaptchaPlacaGroup">
+                <div class="be-radio-group">
+                    <label class="be-radio-option">
+                        <input type="radio" name="binCaptchaPlateFormat" value="antiga">
+                        <span class="be-radio-mark"></span>
+                        <span class="be-radio-text">Antiga (ABC-1234)</span>
+                    </label>
+                    <label class="be-radio-option">
+                        <input type="radio" name="binCaptchaPlateFormat" value="mercosul">
+                        <span class="be-radio-mark"></span>
+                        <span class="be-radio-text">Mercosul (ABC-1D23)</span>
+                    </label>
+                </div>
                 <input
                     class="be-input"
                     id="binCaptchaPlacaInput"
                     type="text"
-                    placeholder="Placa"
-                    maxlength="7"
+                    placeholder="Selecione o padrão da placa"
+                    maxlength="8"
                     autocomplete="off"
+                    disabled
                 >
                 <input
                     class="be-input"

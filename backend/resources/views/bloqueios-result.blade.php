@@ -454,7 +454,11 @@
     </div>
 
     <script>
-        let authToken = localStorage.getItem('auth_token');
+        function getAuthToken() {
+            return sessionStorage.getItem('auth_token') || localStorage.getItem('auth_token');
+        }
+
+        let authToken = getAuthToken();
         const statusMessageEl = document.getElementById('bloqueiosStatusMessage');
         const resultStackEl = document.getElementById('bloqueiosResultStack');
         const originTextEl = document.getElementById('bloqueiosOriginText');

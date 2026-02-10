@@ -550,8 +550,12 @@
             }
         }
 
+        function getAuthToken() {
+            return sessionStorage.getItem('auth_token') || localStorage.getItem('auth_token');
+        }
+
         function checkAuth() {
-            const token = localStorage.getItem('auth_token');
+            const token = getAuthToken();
             if (!token) {
                 window.location.href = '/login';
                 return false;
@@ -587,7 +591,7 @@
                 return;
             }
 
-            const authToken = localStorage.getItem('auth_token');
+            const authToken = getAuthToken();
             if (!authToken) {
                 window.location.href = '/login';
                 return;

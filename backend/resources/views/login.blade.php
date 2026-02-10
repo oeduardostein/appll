@@ -284,15 +284,48 @@
                     <div class="error-message" id="passwordError"></div>
                 </div>
 
+                <div class="form-group" style="display:flex;align-items:center;gap:10px;margin-top:12px;">
+                    <input type="checkbox" id="rememberMe" style="width:auto;">
+                    <label for="rememberMe" style="margin:0;color:#475569;font-size:13px;font-weight:600;">Manter conectado</label>
+                </div>
+
                 <div class="forgot-password">
                     <a href="#" onclick="alert('Funcionalidade em desenvolvimento'); return false;">Esqueci minha senha</a>
                 </div>
 
                 <button type="submit" class="btn" id="submitBtn">
-                    <span id="btnText">Entrar</span>
+                    <span id="btnText">Enviar chave</span>
                     <div class="loading" id="loading">
                         <div class="spinner"></div>
                     </div>
+                </button>
+            </form>
+
+            <form id="securityKeyForm" style="display:none;margin-top:16px;">
+                <div class="form-group">
+                    <label for="securityKey">Chave de segurança</label>
+                    <input
+                        type="text"
+                        id="securityKey"
+                        name="securityKey"
+                        placeholder="Digite a chave enviada por e-mail"
+                        inputmode="numeric"
+                        autocomplete="one-time-code"
+                        maxlength="6"
+                        required
+                    >
+                    <div class="error-message" id="securityKeyError"></div>
+                </div>
+
+                <button type="submit" class="btn" id="verifyBtn">
+                    <span id="verifyBtnText">Entrar</span>
+                    <div class="loading" id="verifyLoading">
+                        <div class="spinner"></div>
+                    </div>
+                </button>
+
+                <button type="button" class="btn" id="backBtn" style="margin-top:10px;background:#64748b;">
+                    Voltar
                 </button>
             </form>
 
@@ -304,6 +337,29 @@
 
     <script>
         const API_BASE_URL = window.location.origin;
+        const TOKEN_KEY = 'auth_token';
+        const USER_KEY = 'user';
+
+        function getStoredItem(key) {
+            return sessionStorage.getItem(key) || localStorage.getItem(key);
+        }
+
+        function setStoredItem(key, value, remember) {
+            if (remember) {
+                localStorage.setItem(key, value);
+                sessionStorage.removeItem(key);
+            } else {
+                sessionStorage.setItem(key, value);
+                localStorage.removeItem(key);
+            }
+        }
+
+        function clearStoredAuth() {
+            sessionStorage.removeItem(TOKEN_KEY);
+            localStorage.removeItem(TOKEN_KEY);
+            sessionStorage.removeItem(USER_KEY);
+            localStorage.removeItem(USER_KEY);
+        }
 
         // Toggle senha
         document.getElementById('passwordToggle').addEventListener('click', function() {
@@ -353,6 +409,24 @@
             alert.classList.add('show');
         }
 
+        function setStep(step) {
+            const loginForm = document.getElementById('loginForm');
+            const securityForm = document.getElementById('securityKeyForm');
+
+            if (step === 2) {
+                loginForm.style.display = 'none';
+                securityForm.style.display = 'block';
+                document.getElementById('securityKey').focus();
+            } else {
+                loginForm.style.display = 'block';
+                securityForm.style.display = 'none';
+                document.getElementById('identifier').focus();
+            }
+        }
+
+        let pendingChallengeId = null;
+        let pendingRememberMe = false;
+
         // Login
         document.getElementById('loginForm').addEventListener('submit', async function(e) {
             e.preventDefault();
@@ -360,6 +434,7 @@
 
             const identifier = document.getElementById('identifier').value.trim();
             const password = document.getElementById('password').value;
+            const rememberMe = !!document.getElementById('rememberMe').checked;
 
             // Validação
             let hasError = false;
@@ -399,7 +474,8 @@
                     },
                     body: JSON.stringify({
                         identifier: identifier,
-                        password: password
+                        password: password,
+                        remember_me: rememberMe
                     })
                 });
 
@@ -409,16 +485,22 @@
                     throw new Error(data.message || 'Credenciais inválidas');
                 }
 
-                if (data.status === 'success' && data.token) {
-                    // Salvar token no localStorage
-                    localStorage.setItem('auth_token', data.token);
-                    localStorage.setItem('user', JSON.stringify(data.user || {}));
-                    
-                    // Redirecionar para home
-                    window.location.href = '/home';
-                } else {
-                    throw new Error('Resposta inválida do servidor');
+                if (data.status === 'two_factor_required' && data.challenge_id) {
+                    pendingChallengeId = data.challenge_id;
+                    pendingRememberMe = rememberMe;
+                    showError(data.message || 'Digite a chave enviada por e-mail para continuar.');
+                    setStep(2);
+                    return;
                 }
+
+                if (data.status === 'success' && data.token) {
+                    setStoredItem(TOKEN_KEY, data.token, rememberMe);
+                    setStoredItem(USER_KEY, JSON.stringify(data.user || {}), rememberMe);
+                    window.location.href = '/home';
+                    return;
+                }
+
+                throw new Error('Resposta inválida do servidor');
 
             } catch (error) {
                 showError(error.message || 'Não foi possível entrar. Tente novamente.');
@@ -439,8 +521,79 @@
             }
         });
 
+        document.getElementById('securityKeyForm').addEventListener('submit', async function(e) {
+            e.preventDefault();
+            clearErrors();
+
+            const securityKey = document.getElementById('securityKey').value.trim();
+
+            if (!pendingChallengeId) {
+                showError('Não foi possível continuar. Faça login novamente.');
+                setStep(1);
+                return;
+            }
+
+            if (!securityKey) {
+                validateField('securityKey', false, 'Informe a chave de segurança');
+                return;
+            }
+
+            const verifyBtn = document.getElementById('verifyBtn');
+            const verifyBtnText = document.getElementById('verifyBtnText');
+            const verifyLoading = document.getElementById('verifyLoading');
+
+            verifyBtn.disabled = true;
+            verifyBtnText.style.display = 'none';
+            verifyLoading.classList.add('show');
+
+            try {
+                const response = await fetch(`${API_BASE_URL}/api/auth/login/verify`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Accept': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        challenge_id: pendingChallengeId,
+                        security_key: securityKey
+                    })
+                });
+
+                const data = await response.json();
+
+                if (!response.ok) {
+                    if (data?.errors?.security_key?.[0]) {
+                        validateField('securityKey', false, data.errors.security_key[0]);
+                    }
+                    throw new Error(data.message || 'Não foi possível validar a chave de segurança.');
+                }
+
+                if (data.status === 'success' && data.token) {
+                    setStoredItem(TOKEN_KEY, data.token, pendingRememberMe);
+                    setStoredItem(USER_KEY, JSON.stringify(data.user || {}), pendingRememberMe);
+                    window.location.href = '/home';
+                    return;
+                }
+
+                throw new Error('Resposta inválida do servidor');
+            } catch (error) {
+                showError(error.message || 'Não foi possível validar a chave. Tente novamente.');
+            } finally {
+                verifyBtn.disabled = false;
+                verifyBtnText.style.display = 'block';
+                verifyLoading.classList.remove('show');
+            }
+        });
+
+        document.getElementById('backBtn').addEventListener('click', function() {
+            pendingChallengeId = null;
+            pendingRememberMe = false;
+            document.getElementById('securityKey').value = '';
+            setStep(1);
+        });
+
         // Verificar se já está autenticado
-        if (localStorage.getItem('auth_token')) {
+        if (getStoredItem(TOKEN_KEY)) {
             window.location.href = '/home';
         }
     </script>

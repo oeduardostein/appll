@@ -29,6 +29,10 @@ class RenainfService {
   final http.Client _client;
   final String _baseUrl;
 
+  static String _sanitizePlate(String value) {
+    return value.replaceAll(RegExp(r'[^A-Za-z0-9]'), '').toUpperCase();
+  }
+
   Future<RenainfResult> consultar({
     required String plate,
     required int statusCode,
@@ -38,10 +42,12 @@ class RenainfService {
     required DateTime endDate,
     required String captcha,
   }) async {
+    final requestPlate = plate.trim().toUpperCase();
+    final normalizedPlate = _sanitizePlate(requestPlate);
     final uri = _buildUri(
       '/api/renainf',
       queryParameters: {
-        'placa': plate,
+        'placa': normalizedPlate,
         'indExigib': statusCode.toString(),
         'periodoIni': _formatRequestDate(startDate),
         'periodoFin': _formatRequestDate(endDate),
@@ -78,7 +84,7 @@ class RenainfService {
 
     return RenainfResult.fromJson(
       effectivePayload,
-      requestPlate: plate,
+      requestPlate: requestPlate,
       requestStatusCode: statusCode,
       requestStatusLabel: statusLabel,
       requestUf: uf,

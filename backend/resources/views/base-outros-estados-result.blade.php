@@ -497,7 +497,11 @@
         const baseResultContent = document.getElementById('baseResultContent');
         const baseResultBack = document.getElementById('baseResultBack');
         const baseOutrosSubtitle = document.getElementById('baseOutrosSubtitle');
-        const authToken = localStorage.getItem('auth_token');
+        function getAuthToken() {
+            return sessionStorage.getItem('auth_token') || localStorage.getItem('auth_token');
+        }
+
+        const authToken = getAuthToken();
         const csrfToken = document.querySelector('meta[name="csrf-token"]')?.content;
         let metaData = null;
 

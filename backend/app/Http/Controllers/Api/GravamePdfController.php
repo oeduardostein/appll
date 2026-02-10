@@ -22,7 +22,10 @@ class GravamePdfController extends Controller
 
         $veiculo = is_array($payload['veiculo'] ?? null) ? $payload['veiculo'] : [];
         $placa = trim((string) ($meta['placa'] ?? $veiculo['placa'] ?? ''));
-        $sanitized = preg_replace('/[^A-Za-z0-9]/', '', $placa);
+        $chassi = trim((string) ($meta['chassi'] ?? $veiculo['chassi'] ?? ''));
+
+        $identifier = $placa !== '' ? $placa : $chassi;
+        $sanitized = preg_replace('/[^A-Za-z0-9]/', '', $identifier);
 
         $filename = sprintf(
             'pesquisa_gravame_%s.pdf',

@@ -363,7 +363,11 @@
     </main>
 
     <script>
-        const authToken = localStorage.getItem('auth_token');
+        function getAuthToken() {
+            return sessionStorage.getItem('auth_token') || localStorage.getItem('auth_token');
+        }
+
+        const authToken = getAuthToken();
         const csrfToken = document.querySelector('meta[name="csrf-token"]')?.content;
         const summaryContainer = document.getElementById('gravameSummaryCard');
         const detailsContainer = document.getElementById('gravameDetailsCard');
@@ -411,9 +415,18 @@
         }
 
         function formatSubtitleText() {
+            const option = nonEmptyString(gravameMeta?.opcao_pesquisa);
             const placa = nonEmptyString(gravameMeta?.placa) || nonEmptyString(gravameResultData?.veiculo?.placa);
+            const chassi = nonEmptyString(gravameMeta?.chassi) || nonEmptyString(gravameResultData?.veiculo?.chassi);
+
+            if (option.toLowerCase() === 'chassi' && chassi) {
+                return `Chassi: ${chassi}`;
+            }
             if (placa) {
                 return `Placa: ${placa}`;
+            }
+            if (chassi) {
+                return `Chassi: ${chassi}`;
             }
             return '';
         }
@@ -435,6 +448,7 @@
             const generatedAt = nonEmptyString(fonte.gerado_em);
             const origin = nonEmptyString(payload?.origin);
             const placaValue = nonEmptyString(meta?.placa) || nonEmptyString(veiculo.placa) || '—';
+            const chassiValue = nonEmptyString(meta?.chassi) || nonEmptyString(veiculo.chassi) || '—';
             const renavamValue = nonEmptyString(meta?.renavam) || nonEmptyString(veiculo.renavam) || '—';
             const ufValue = nonEmptyString(meta?.uf) || nonEmptyString(veiculo.uf) || '—';
             const procedencia = nonEmptyString(veiculo.procedencia);
@@ -445,6 +459,10 @@
                     <div class="gravame-summary-tile">
                         <div class="gravame-summary-label">Placa</div>
                         <div class="gravame-summary-value">${placaValue}</div>
+                    </div>
+                    <div class="gravame-summary-tile">
+                        <div class="gravame-summary-label">Chassi</div>
+                        <div class="gravame-summary-value">${chassiValue}</div>
                     </div>
                     <div class="gravame-summary-tile">
                         <div class="gravame-summary-label">Renavam</div>
@@ -612,8 +630,10 @@
                 }
 
                 const blob = await response.blob();
-                const placaValue = nonEmptyString(gravameMeta?.placa) || 'consulta';
-                const sanitized = placaValue.replace(/[^A-Za-z0-9]/g, '') || 'consulta';
+                const identifierValue = nonEmptyString(gravameMeta?.placa) ||
+                    nonEmptyString(gravameMeta?.chassi) ||
+                    'consulta';
+                const sanitized = identifierValue.replace(/[^A-Za-z0-9]/g, '') || 'consulta';
                 const filename = `pesquisa_gravame_${sanitized}.pdf`;
 
                 const url = URL.createObjectURL(blob);

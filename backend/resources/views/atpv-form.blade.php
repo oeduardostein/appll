@@ -157,7 +157,7 @@
             color: var(--text-soft);
         }
 
-        .input-group input,
+        .input-group input:not([type="radio"]):not([type="checkbox"]),
         .input-group select {
             border-radius: 12px;
             border: 1px solid var(--border);
@@ -168,9 +168,40 @@
             transition: border-color 0.2s ease;
         }
 
-        .input-group input:focus {
+        .input-group input:not([type="radio"]):not([type="checkbox"]):focus {
             border-color: var(--primary);
             outline: none;
+        }
+
+        .plate-format {
+            display: flex;
+            gap: 10px;
+            background: var(--card-muted);
+            border-radius: 18px;
+            padding: 6px;
+        }
+
+        .plate-format-option {
+            flex: 1;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            border-radius: 16px;
+            padding: 10px 12px;
+            font-weight: 600;
+            cursor: pointer;
+            color: var(--text-strong);
+            user-select: none;
+        }
+
+        .plate-format-option input {
+            margin: 0;
+        }
+
+        .plate-format-option.is-active {
+            background: var(--primary);
+            color: #fff;
         }
 
         .doc-selector {
@@ -447,7 +478,17 @@
                     <div class="form-grid">
                         <label class="input-group">
                             <span>Placa</span>
-                            <input type="text" id="plateInput" placeholder="ABC1D23" maxlength="7" inputmode="text" autocomplete="off" />
+                            <div class="plate-format" role="group" aria-label="Formato da placa">
+                                <label class="plate-format-option">
+                                    <input type="radio" name="atpvPlateFormat" value="antiga">
+                                    <span>Antiga (ABC-1234)</span>
+                                </label>
+                                <label class="plate-format-option">
+                                    <input type="radio" name="atpvPlateFormat" value="mercosul">
+                                    <span>Mercosul (ABC-1D23)</span>
+                                </label>
+                            </div>
+                            <input type="text" id="plateInput" placeholder="Selecione o padrão da placa" maxlength="8" inputmode="text" autocomplete="off" disabled />
                         </label>
                         <label class="input-group">
                             <span>Renavam</span>
@@ -631,11 +672,26 @@
         let submissionInProgress = false;
         let atpvRegistroId = null;
 
-        const oldPlatePattern = /^[A-Z]{3}\d{4}$/;
-        const mercosurPlatePattern = /^[A-Z]{3}\d[A-Z0-9]\d{2}$/;
+        function getStoredItem(key) {
+            return sessionStorage.getItem(key) || localStorage.getItem(key);
+        }
+
+        function clearStoredAuth() {
+            sessionStorage.removeItem('auth_token');
+            localStorage.removeItem('auth_token');
+            sessionStorage.removeItem('user');
+            localStorage.removeItem('user');
+        }
+
+        const PLATE_FORMAT_ANTIGA = 'antiga';
+        const PLATE_FORMAT_MERCOSUL = 'mercosul';
+
+        const oldPlatePattern = /^[A-Z]{3}-[0-9]{4}$/;
+        const mercosulPlatePattern = /^[A-Z]{3}-[0-9][A-Z0-9][0-9]{2}$/;
         const renavamPattern = /^\d{11}$/;
 
         const plateInput = document.getElementById('plateInput');
+        const plateFormatInputs = Array.from(document.querySelectorAll('input[name="atpvPlateFormat"]'));
         const renavamInput = document.getElementById('renavamInput');
         const chassiInput = document.getElementById('chassiInput');
         const ownerDocInput = document.getElementById('ownerDocInput');
@@ -700,8 +756,17 @@
             });
             saleValueInput.addEventListener('input', handleSaleValueInput);
             buyerCepInput.addEventListener('input', handleCepInput);
+            resetPlateFormatSelection();
+            plateFormatInputs.forEach((radio) => {
+                radio.addEventListener('change', () => applyPlateFormatSelection(radio.value));
+            });
             plateInput.addEventListener('input', () => {
-                plateInput.value = normalizePlate(plateInput.value);
+                const format = plateInput.dataset.plateFormat;
+                if (!format) {
+                    plateInput.value = '';
+                    return;
+                }
+                plateInput.value = formatPlate(plateInput.value, format);
             });
             renavamInput.addEventListener('input', () => {
                 renavamInput.value = normalizeRenavam(renavamInput.value);
@@ -731,7 +796,7 @@
         }
 
         function checkAuth() {
-            authToken = localStorage.getItem('auth_token');
+            authToken = getStoredItem('auth_token');
             if (!authToken) {
                 window.location.href = '/login';
                 return false;
@@ -877,11 +942,18 @@
             if (submissionInProgress) return;
             clearFormError();
 
-            const plate = normalizePlate(plateInput.value);
-            if (!isValidPlate(plate)) {
+            const plateFormat = plateInput.dataset.plateFormat || '';
+            if (!plateFormat) {
+                setFormError('Selecione o padrão da placa antes de digitar.');
+                return;
+            }
+            const plate = formatPlate(plateInput.value, plateFormat);
+            plateInput.value = plate;
+            if (!isValidPlate(plate, plateFormat)) {
                 setFormError('Informe uma placa válida.');
                 return;
             }
+            const plateSanitized = sanitizePlate(plate);
 
             const renavam = normalizeRenavam(renavamInput.value);
             if (!renavamPattern.test(renavam)) {
@@ -948,7 +1020,7 @@
             const ownerDigits = onlyDigits(ownerDocInput.value);
             const payload = {
                 renavam,
-                placa: plate,
+                placa: plateSanitized,
                 captcha,
                 uf: stateValue,
                 cpf_cnpj_comprador: buyerDigits,
@@ -1095,7 +1167,10 @@
             downloadPdfBtn.textContent = 'Baixando...';
             pdfStatusMessage.textContent = '';
             try {
-                const response = await fetchWithAuth(`${API_BASE_URL}/api/emissao-atpv/pdf?placa=${summaryPlate.textContent}&renavam=${summaryRenavam.textContent}&captcha=${lastCaptchaValue}`);
+                const plateParam = encodeURIComponent(sanitizePlate(summaryPlate.textContent));
+                const renavamParam = encodeURIComponent(summaryRenavam.textContent);
+                const captchaParam = encodeURIComponent(lastCaptchaValue);
+                const response = await fetchWithAuth(`${API_BASE_URL}/api/emissao-atpv/pdf?placa=${plateParam}&renavam=${renavamParam}&captcha=${captchaParam}`);
                 if (!response.ok) {
                     const message = await parseResponseError(response);
                     throw new Error(message || 'Não foi possível baixar o PDF.');
@@ -1176,8 +1251,7 @@
         }
 
         function handleUnauthorized() {
-            localStorage.removeItem('auth_token');
-            localStorage.removeItem('user');
+            clearStoredAuth();
             window.location.href = '/login';
         }
 
@@ -1219,30 +1293,135 @@
             return `Erro (HTTP ${response.status})`;
         }
 
-        function normalizePlate(value) {
-            const sanitized = value.replace(/[^A-Za-z0-9]/g, '').toUpperCase();
-            if (oldPlatePattern.test(sanitized)) {
-                const digits = sanitized.slice(3).split('');
-                const map = {
-                    '0': 'A',
-                    '1': 'B',
-                    '2': 'C',
-                    '3': 'D',
-                    '4': 'E',
-                    '5': 'F',
-                    '6': 'G',
-                    '7': 'H',
-                    '8': 'I',
-                    '9': 'J',
-                };
-                return `${sanitized.slice(0, 3)}${digits[0]}${map[digits[1]] || digits[1]}${digits[2]}${digits[3]}`;
-            }
-            return sanitized;
+        function normalizePlateChars(value) {
+            return (value || '').replace(/[^A-Za-z0-9]/g, '').toUpperCase();
         }
 
-        function isValidPlate(value) {
-            if (value.length !== 7) return false;
-            return oldPlatePattern.test(value) || mercosurPlatePattern.test(value);
+        function sanitizePlate(value) {
+            return normalizePlateChars(value);
+        }
+
+        function formatPlate(value, format) {
+            const cleaned = normalizePlateChars(value);
+
+            if (format === PLATE_FORMAT_ANTIGA) {
+                let letters = '';
+                let digits = '';
+                for (const char of cleaned) {
+                    if (letters.length < 3) {
+                        if (/[A-Z]/.test(char)) {
+                            letters += char;
+                        }
+                        continue;
+                    }
+                    if (digits.length < 4 && /[0-9]/.test(char)) {
+                        digits += char;
+                    }
+                }
+                return letters.length === 3 ? `${letters}-${digits}` : letters;
+            }
+
+            if (format === PLATE_FORMAT_MERCOSUL) {
+                let letters = '';
+                let digit = '';
+                let middle = '';
+                let lastDigits = '';
+
+                for (const char of cleaned) {
+                    if (letters.length < 3) {
+                        if (/[A-Z]/.test(char)) {
+                            letters += char;
+                        }
+                        continue;
+                    }
+                    if (digit === '') {
+                        if (/[0-9]/.test(char)) {
+                            digit = char;
+                        }
+                        continue;
+                    }
+                    if (middle === '') {
+                        if (/[A-Z0-9]/.test(char)) {
+                            middle = char;
+                        }
+                        continue;
+                    }
+                    if (lastDigits.length < 2 && /[0-9]/.test(char)) {
+                        lastDigits += char;
+                    }
+                }
+
+                return letters.length === 3 ? `${letters}-${digit}${middle}${lastDigits}` : letters;
+            }
+
+            return value || '';
+        }
+
+        function isValidPlate(value, format) {
+            const plate = (value || '').toUpperCase();
+            if (format === PLATE_FORMAT_ANTIGA) {
+                return oldPlatePattern.test(plate);
+            }
+            if (format === PLATE_FORMAT_MERCOSUL) {
+                return mercosulPlatePattern.test(plate);
+            }
+            return false;
+        }
+
+        function inferPlateFormat(value) {
+            const cleaned = normalizePlateChars(value);
+            if (/^[A-Z]{3}[0-9]{4}$/.test(cleaned)) {
+                return PLATE_FORMAT_ANTIGA;
+            }
+            if (/^[A-Z]{3}[0-9][A-Z0-9][0-9]{2}$/.test(cleaned)) {
+                return PLATE_FORMAT_MERCOSUL;
+            }
+            return '';
+        }
+
+        function updatePlateFormatActiveStyles(selectedValue) {
+            document.querySelectorAll('.plate-format-option').forEach((label) => {
+                const value = label.querySelector('input')?.value || '';
+                label.classList.toggle('is-active', value === selectedValue);
+            });
+        }
+
+        function resetPlateFormatSelection() {
+            plateFormatInputs.forEach((radio) => {
+                radio.checked = false;
+            });
+            updatePlateFormatActiveStyles('');
+            plateInput.disabled = true;
+            plateInput.dataset.plateFormat = '';
+            plateInput.value = '';
+            plateInput.maxLength = 8;
+            plateInput.placeholder = 'Selecione o padrão da placa';
+        }
+
+        function applyPlateFormatSelection(format) {
+            updatePlateFormatActiveStyles(format);
+            plateInput.dataset.plateFormat = format;
+            plateInput.disabled = !format;
+            plateInput.value = '';
+            plateInput.maxLength = 8;
+            plateInput.placeholder = format === PLATE_FORMAT_ANTIGA ? 'ABC-1234' : 'ABC-1D23';
+            if (!plateInput.disabled) {
+                setTimeout(() => plateInput.focus(), 0);
+            }
+        }
+
+        function setPlateFromValue(value) {
+            resetPlateFormatSelection();
+            const inferred = inferPlateFormat(value);
+            if (!inferred) {
+                return;
+            }
+            const target = plateFormatInputs.find((radio) => radio.value === inferred);
+            if (target) {
+                target.checked = true;
+            }
+            applyPlateFormatSelection(inferred);
+            plateInput.value = formatPlate(value, inferred);
         }
 
         function normalizeRenavam(value) {
@@ -1337,7 +1516,7 @@
 
             const veiculo = payload.veiculo || {};
             if (!plateInput.value.trim() && veiculo.placa) {
-                plateInput.value = normalizePlate(String(veiculo.placa));
+                setPlateFromValue(String(veiculo.placa));
             }
             if (!renavamInput.value.trim() && veiculo.renavam) {
                 renavamInput.value = normalizeRenavam(String(veiculo.renavam));

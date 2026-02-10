@@ -48,6 +48,18 @@ class AuthSession {
   }
 }
 
+class AuthLoginChallenge {
+  const AuthLoginChallenge({
+    required this.challengeId,
+    required this.expiresInSeconds,
+    required this.message,
+  });
+
+  final String challengeId;
+  final int expiresInSeconds;
+  final String message;
+}
+
 class AuthService {
   AuthService({http.Client? httpClient, String? baseUrl})
     : _client = httpClient ?? http.Client(),
@@ -147,7 +159,7 @@ class AuthService {
     return session;
   }
 
-  Future<AuthSession> login({
+  Future<AuthLoginChallenge> startLogin({
     required String identifier,
     required String password,
     bool rememberMe = false,
@@ -160,6 +172,70 @@ class AuthService {
         'identifier': identifier,
         'password': password,
         'remember_me': rememberMe,
+      }),
+    );
+
+    final payload = _decodeResponse(response);
+    if (response.statusCode == 200 &&
+        payload is Map<String, dynamic> &&
+        payload['status'] == 'two_factor_required') {
+      final challengeId = payload['challenge_id'];
+      if (challengeId is! String || challengeId.trim().isEmpty) {
+        throw AuthException('Não foi possível iniciar a verificação de login.');
+      }
+      final expiresIn = payload['expires_in'];
+      final expiresInSeconds = expiresIn is int ? expiresIn : 600;
+      return AuthLoginChallenge(
+        challengeId: challengeId,
+        expiresInSeconds: expiresInSeconds,
+        message:
+            payload['message']?.toString() ??
+            'Enviamos uma chave de segurança para o seu e-mail.',
+      );
+    }
+
+    if (response.statusCode == 200 &&
+        payload is Map<String, dynamic> &&
+        payload['status'] == 'success') {
+      throw AuthException(
+        'Este login exige uma chave de segurança. Atualize o aplicativo e tente novamente.',
+      );
+    }
+
+    throw AuthException(
+      payload is Map<String, dynamic> && payload['message'] != null
+          ? payload['message'].toString()
+          : 'Não foi possível iniciar o login. Tente novamente.',
+    );
+  }
+
+  @Deprecated('Use startLogin() then verifyLogin() (2-step login).')
+  Future<AuthSession> login({
+    required String identifier,
+    required String password,
+    bool rememberMe = false,
+  }) async {
+    final challenge = await startLogin(
+      identifier: identifier,
+      password: password,
+      rememberMe: rememberMe,
+    );
+
+    throw AuthException(challenge.message);
+  }
+
+  Future<AuthSession> verifyLogin({
+    required String challengeId,
+    required String securityKey,
+    bool rememberMe = false,
+  }) async {
+    final uri = _buildUri('/api/auth/login/verify');
+    final response = await _client.post(
+      uri,
+      headers: _jsonHeaders(),
+      body: jsonEncode({
+        'challenge_id': challengeId,
+        'security_key': securityKey,
       }),
     );
 
@@ -236,6 +312,15 @@ class AuthService {
     _cachedPermissions = [];
     if (clearPersisted) {
       unawaited(_clearPersistedSession());
+    }
+  }
+
+  dynamic _decodeResponse(http.Response response) {
+    if (response.body.isEmpty) return <String, dynamic>{};
+    try {
+      return jsonDecode(response.body);
+    } catch (_) {
+      return <String, dynamic>{};
     }
   }
 

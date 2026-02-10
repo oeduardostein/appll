@@ -72,7 +72,8 @@ class BinService {
     String? opcao,
     required String captcha,
   }) async {
-    final normalizedPlaca = placa?.trim().toUpperCase() ?? '';
+    final normalizedPlaca =
+        (placa ?? '').replaceAll(RegExp(r'[^A-Za-z0-9]'), '').toUpperCase();
     final normalizedRenavam = renavam?.trim() ?? '';
     final normalizedChassi = chassi?.trim().toUpperCase() ?? '';
     final normalizedCaptcha = captcha.trim().toUpperCase();

@@ -57,13 +57,17 @@ class AtpvService {
     return token;
   }
 
+  String _sanitizePlate(String value) {
+    return value.replaceAll(RegExp(r'[^A-Za-z0-9]'), '').toUpperCase();
+  }
+
   Future<Map<String, dynamic>> consultarIntencaoVenda({
     required String renavam,
     required String placa,
     required String captcha,
   }) async {
     final sanitizedRenavam = renavam.trim();
-    final sanitizedPlaca = placa.trim().toUpperCase();
+    final sanitizedPlaca = _sanitizePlate(placa);
     final sanitizedCaptcha = captcha.trim().toUpperCase();
 
     if (sanitizedRenavam.isEmpty ||
@@ -147,10 +151,11 @@ class AtpvService {
   }) async {
     final token = _ensureToken();
     final uri = _buildUri('/api/emissao-atpv');
+    final normalizedPlate = _sanitizePlate(placa);
 
     final payload = {
       'renavam': renavam,
-      'placa': placa,
+      'placa': normalizedPlate,
       'captcha': captcha,
       'uf': uf,
       'cpf_cnpj_comprador': cpfCnpjComprador,
@@ -222,10 +227,11 @@ class AtpvService {
     required String captcha,
   }) async {
     final token = _ensureToken();
+    final normalizedPlate = _sanitizePlate(placa);
 
     final uri = _buildUri('/api/emissao-atpv/pdf').replace(
       queryParameters: {
-        'placa': placa,
+        'placa': normalizedPlate,
         'renavam': renavam,
         'captcha': captcha,
       },

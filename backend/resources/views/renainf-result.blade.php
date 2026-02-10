@@ -182,7 +182,11 @@
     </main>
 
     <script>
-        const authToken = localStorage.getItem('auth_token');
+        function getAuthToken() {
+            return sessionStorage.getItem('auth_token') || localStorage.getItem('auth_token');
+        }
+
+        const authToken = getAuthToken();
         const csrfToken = document.querySelector('meta[name="csrf-token"]')?.content;
         const renainfHero = document.getElementById('renainfHero');
         const renainfConsulta = document.getElementById('renainfConsulta');

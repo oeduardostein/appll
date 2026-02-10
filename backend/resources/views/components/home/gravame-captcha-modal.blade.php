@@ -5,16 +5,52 @@
             <button class="be-dialog-close" type="button" id="gravameCaptchaClose" aria-label="Fechar">&times;</button>
         </div>
         <div class="be-dialog-body">
-            <p class="be-dialog-helper">Informe o captcha exibido para continuar.</p>
-            <input
-                class="be-input"
-                id="gravameCaptchaPlate"
-                type="text"
-                placeholder="Placa"
-                maxlength="7"
-                autocomplete="off"
-                disabled
-            >
+            <p class="be-dialog-helper">Informe placa ou chassi e o captcha exibido para continuar.</p>
+            <div class="be-radio-group">
+                <label class="be-radio-option">
+                    <input type="radio" name="gravameCaptchaSearchOption" value="placa" checked>
+                    <span class="be-radio-mark"></span>
+                    <span class="be-radio-text">Placa</span>
+                </label>
+                <label class="be-radio-option">
+                    <input type="radio" name="gravameCaptchaSearchOption" value="chassi">
+                    <span class="be-radio-mark"></span>
+                    <span class="be-radio-text">Chassi</span>
+                </label>
+            </div>
+            <div class="be-field-group" id="gravameCaptchaPlacaGroup">
+                <div class="be-radio-group">
+                    <label class="be-radio-option">
+                        <input type="radio" name="gravameCaptchaPlateFormat" value="antiga">
+                        <span class="be-radio-mark"></span>
+                        <span class="be-radio-text">Antiga (ABC-1234)</span>
+                    </label>
+                    <label class="be-radio-option">
+                        <input type="radio" name="gravameCaptchaPlateFormat" value="mercosul">
+                        <span class="be-radio-mark"></span>
+                        <span class="be-radio-text">Mercosul (ABC-1D23)</span>
+                    </label>
+                </div>
+                <input
+                    class="be-input"
+                    id="gravameCaptchaPlate"
+                    type="text"
+                    placeholder="Selecione o padrão da placa"
+                    maxlength="8"
+                    autocomplete="off"
+                    disabled
+                >
+            </div>
+            <div class="be-field-group hidden" id="gravameCaptchaChassiGroup">
+                <input
+                    class="be-input"
+                    id="gravameCaptchaChassiInput"
+                    type="text"
+                    placeholder="Chassi"
+                    maxlength="17"
+                    autocomplete="off"
+                >
+            </div>
             <div class="be-captcha-box">
                 <div class="be-captcha-header">
                     <span>Captcha</span>

@@ -35,6 +35,7 @@ use Illuminate\Support\Facades\Mail;
 Route::prefix('auth')->group(function (): void {
     Route::post('register', [AuthController::class, 'register']);
     Route::post('login', [AuthController::class, 'login']);
+    Route::post('login/verify', [AuthController::class, 'verifyLogin']);
     Route::get('user', [AuthController::class, 'current']);
     Route::post('logout', [AuthController::class, 'logout']);
     Route::delete('delete-account', [AccountDeletionController::class, 'destroyAuthenticated']);

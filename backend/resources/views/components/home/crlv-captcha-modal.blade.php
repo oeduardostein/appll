@@ -10,7 +10,7 @@
                 id="crlvCaptchaPlate"
                 type="text"
                 placeholder="Placa"
-                maxlength="7"
+                maxlength="8"
                 autocomplete="off"
                 disabled
             >

@@ -56,6 +56,8 @@ class User extends Authenticatable
             'credits' => 'integer',
             'last_login_at' => 'datetime',
             'privacy_policy_accepted_at' => 'datetime',
+            'login_security_key_expires_at' => 'datetime',
+            'login_security_key_sent_at' => 'datetime',
         ];
     }
 

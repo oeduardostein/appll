@@ -12,13 +12,15 @@ import 'package:frontend_app/ui/widgets/response_top_bar.dart';
 class GravamePage extends StatelessWidget {
   const GravamePage({
     super.key,
-    required this.placa,
+    this.placa,
+    this.chassi,
     required this.payload,
     this.renavam,
     this.uf,
   });
 
-  final String placa;
+  final String? placa;
+  final String? chassi;
   final String? renavam;
   final String? uf;
   final Map<String, dynamic> payload;
@@ -63,10 +65,16 @@ class GravamePage extends StatelessWidget {
 
     final formattedJson = const JsonEncoder.withIndent('  ').convert(payload);
 
+    final subtitle = (placa != null && placa!.trim().isNotEmpty)
+        ? 'Placa: ${placa!.trim()}'
+        : (chassi != null && chassi!.trim().isNotEmpty)
+            ? 'Chassi: ${chassi!.trim()}'
+            : '';
+
     return Scaffold(
       appBar: ResponseTopBar(
         title: 'Gravame',
-        subtitle: 'Placa: $placa',
+        subtitle: subtitle,
         onShare: () => _shareResult(context, structured),
       ),
       body: SafeArea(
@@ -77,6 +85,7 @@ class GravamePage extends StatelessWidget {
             children: [
               _GravameSummaryCard(
                 placa: placa,
+                chassi: chassi,
                 renavam: renavam,
                 uf: uf,
                 origin: origin,
@@ -139,6 +148,7 @@ class GravamePage extends StatelessWidget {
       final bytes = await generator.generate(
         data: structured,
         placa: placa,
+        chassi: chassi,
         renavam: renavam,
         uf: uf,
       );
@@ -148,7 +158,9 @@ class GravamePage extends StatelessWidget {
         dialogOpened = false;
       }
 
-      final sanitized = placa.replaceAll(RegExp(r'[^A-Za-z0-9]'), '');
+      final identifier =
+          (placa != null && placa!.trim().isNotEmpty) ? placa!.trim() : (chassi?.trim() ?? '');
+      final sanitized = identifier.replaceAll(RegExp(r'[^A-Za-z0-9]'), '');
       final filename =
           'pesquisa_gravame_${sanitized.isEmpty ? 'consulta' : sanitized}.pdf';
 
@@ -190,7 +202,8 @@ class GravamePage extends StatelessWidget {
 
 class _GravameSummaryCard extends StatelessWidget {
   const _GravameSummaryCard({
-    required this.placa,
+    this.placa,
+    this.chassi,
     this.origin,
     this.veiculo,
     this.fonte,
@@ -198,7 +211,8 @@ class _GravameSummaryCard extends StatelessWidget {
     this.uf,
   });
 
-  final String placa;
+  final String? placa;
+  final String? chassi;
   final String? uf;
   final String? renavam;
   final String? origin;
@@ -212,6 +226,17 @@ class _GravameSummaryCard extends StatelessWidget {
     final generatedAt = fonte != null ? fonte!['gerado_em']?.toString() : null;
     final procedencia =
         veiculo != null ? veiculo!['procedencia']?.toString() : null;
+    final placaValue = (placa != null && placa!.trim().isNotEmpty)
+        ? placa!.trim()
+        : (veiculo != null ? veiculo!['placa']?.toString().trim() : null) ?? '—';
+    final chassiValue = (chassi != null && chassi!.trim().isNotEmpty)
+        ? chassi!.trim()
+        : (veiculo != null ? veiculo!['chassi']?.toString().trim() : null) ??
+            '—';
+    final renavamValue = (renavam != null && renavam!.trim().isNotEmpty)
+        ? renavam!.trim()
+        : (veiculo != null ? veiculo!['renavam']?.toString().trim() : null) ??
+            '—';
 
     Widget buildTile(String label, String value) {
       return Expanded(
@@ -305,11 +330,15 @@ class _GravameSummaryCard extends StatelessWidget {
           const SizedBox(height: 16),
           Row(
             children: [
-              buildTile('Placa', placa),
-              if (renavam != null && renavam!.trim().isNotEmpty) ...[
-                const SizedBox(width: 12),
-                buildTile('Renavam', renavam!.trim()),
-              ],
+              buildTile('Placa', placaValue),
+              const SizedBox(width: 12),
+              buildTile('Chassi', chassiValue),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Row(
+            children: [
+              buildTile('Renavam', renavamValue),
             ],
           ),
           const SizedBox(height: 12),
@@ -376,11 +405,12 @@ class _GravamePdfSection {
 class _GravamePdfGenerator {
   Future<Uint8List> generate({
     required _GravameStructuredPayload data,
-    required String placa,
+    String? placa,
+    String? chassi,
     String? renavam,
     String? uf,
   }) async {
-    final sections = _buildSections(data, placa, renavam, uf);
+    final sections = _buildSections(data, placa, chassi, renavam, uf);
     final doc = pw.Document();
     final logo = await _loadLogo();
 
@@ -392,6 +422,7 @@ class _GravamePdfGenerator {
           _buildHeader(
             logo: logo,
             placa: placa,
+            chassi: chassi,
             renavam: renavam,
             uf: uf,
             origin: data.origin,
@@ -416,7 +447,8 @@ class _GravamePdfGenerator {
 
   pw.Widget _buildHeader({
     required pw.MemoryImage? logo,
-    required String placa,
+    String? placa,
+    String? chassi,
     String? renavam,
     String? uf,
     String? origin,
@@ -489,7 +521,10 @@ class _GravamePdfGenerator {
         ),
         pw.SizedBox(height: 10),
         pw.Text(
-          'Placa: ${placa.toUpperCase()}   |   Renavam: ${_formatDisplayValue(renavam)}   |   UF: ${_formatDisplayValue(uf)}',
+          'Placa: ${_formatDisplayValue(placa).toUpperCase()}   |   '
+          'Chassi: ${_formatDisplayValue(chassi).toUpperCase()}   |   '
+          'Renavam: ${_formatDisplayValue(renavam)}   |   '
+          'UF: ${_formatDisplayValue(uf)}',
           style: const pw.TextStyle(fontSize: 11),
         ),
       ],
@@ -576,7 +611,8 @@ class _GravamePdfGenerator {
 
   List<_GravamePdfSection> _buildSections(
     _GravameStructuredPayload data,
-    String placa,
+    String? placa,
+    String? chassi,
     String? renavam,
     String? uf,
   ) {
@@ -585,6 +621,7 @@ class _GravamePdfGenerator {
         'Dados da consulta',
         {
           'placa': placa,
+          'chassi': chassi,
           'renavam': renavam,
           'uf': uf,
           'origin': data.origin,
@@ -592,6 +629,7 @@ class _GravamePdfGenerator {
         },
         const {
           'placa': 'Placa',
+          'chassi': 'Chassi',
           'renavam': 'Renavam',
           'uf': 'UF',
           'origin': 'Origem',

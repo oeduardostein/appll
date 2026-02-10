@@ -712,8 +712,19 @@
         const userInfoEl = document.getElementById('userInfo');
         let authToken = null;
 
+        function getStoredItem(key) {
+            return sessionStorage.getItem(key) || localStorage.getItem(key);
+        }
+
+        function clearStoredAuth() {
+            sessionStorage.removeItem('auth_token');
+            localStorage.removeItem('auth_token');
+            sessionStorage.removeItem('user');
+            localStorage.removeItem('user');
+        }
+
         function parseUser() {
-            const raw = localStorage.getItem('user');
+            const raw = getStoredItem('user');
             if (!raw) return null;
             try {
                 return JSON.parse(raw);
@@ -740,8 +751,7 @@
         }
 
         function handleUnauthorized() {
-            localStorage.removeItem('auth_token');
-            localStorage.removeItem('user');
+            clearStoredAuth();
             window.location.href = '/login';
         }
 
@@ -796,8 +806,7 @@
                 } catch (_) {
                     // ignore
                 } finally {
-                    localStorage.removeItem('auth_token');
-                    localStorage.removeItem('user');
+                    clearStoredAuth();
                     window.location.href = '/login';
                 }
             });
@@ -808,7 +817,7 @@
         }
 
         function initAuth() {
-            authToken = localStorage.getItem('auth_token');
+            authToken = getStoredItem('auth_token');
             if (!authToken) {
                 window.location.href = '/login';
                 return false;

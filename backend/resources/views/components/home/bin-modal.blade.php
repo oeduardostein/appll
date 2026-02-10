@@ -18,13 +18,26 @@
                 </label>
             </div>
             <div class="be-field-group" id="binPlacaGroup">
+                <div class="be-radio-group">
+                    <label class="be-radio-option">
+                        <input type="radio" name="binPlateFormat" value="antiga">
+                        <span class="be-radio-mark"></span>
+                        <span class="be-radio-text">Antiga (ABC-1234)</span>
+                    </label>
+                    <label class="be-radio-option">
+                        <input type="radio" name="binPlateFormat" value="mercosul">
+                        <span class="be-radio-mark"></span>
+                        <span class="be-radio-text">Mercosul (ABC-1D23)</span>
+                    </label>
+                </div>
                 <input
                     class="be-input"
                     id="binPlacaInput"
                     type="text"
-                    placeholder="Placa"
-                    maxlength="7"
+                    placeholder="Selecione o padrão da placa"
+                    maxlength="8"
                     autocomplete="off"
+                    disabled
                 >
                 <input
                     class="be-input"
