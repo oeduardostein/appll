@@ -106,16 +106,31 @@ class BaseEstadualService {
   }
 
   Future<Map<String, dynamic>> consultar({
-    required String placa,
-    required String renavam,
+    String? placa,
+    String? renavam,
+    String? chassi,
     required String captcha,
   }) async {
+    final normalizedPlate = _sanitizePlate(placa ?? '');
+    final normalizedRenavam = (renavam ?? '').trim();
+    final normalizedChassi =
+        (chassi ?? '').replaceAll(RegExp(r'[^A-Za-z0-9]'), '').toUpperCase();
+
+    final query = <String, String>{
+      'captcha': captcha.trim().toUpperCase(),
+    };
+
+    if (normalizedPlate.isNotEmpty) {
+      query['placa'] = normalizedPlate;
+      query['renavam'] = normalizedRenavam;
+    } else if (normalizedChassi.isNotEmpty) {
+      query['chassi'] = normalizedChassi;
+    } else {
+      throw BaseEstadualException('Informe a placa ou o chassi para consultar.');
+    }
+
     final uri = _consultaBaseUri.replace(
-      queryParameters: {
-        'placa': _sanitizePlate(placa),
-        'renavam': renavam,
-        'captcha': captcha,
-      },
+      queryParameters: query,
     );
 
     final response = await _client.get(uri);

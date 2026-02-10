@@ -7,7 +7,7 @@
 ])
 
 @php
-    $navConfig = [
+    $primaryNavConfig = [
         [
             'label' => 'Clientes',
             'route_name' => 'admin.clients.index',
@@ -24,6 +24,14 @@
             'active_pattern' => 'admin.reports.*',
         ],
         [
+            'label' => 'Configurações',
+            'route_name' => 'admin.settings.index',
+            'active_pattern' => 'admin.settings.*',
+        ],
+    ];
+
+    $serviceNavConfig = [
+        [
             'label' => 'Teste Planilha',
             'route_name' => 'admin.teste-planilha.index',
             'active_pattern' => 'admin.teste-planilha.*',
@@ -39,13 +47,13 @@
             'active_pattern' => 'admin.placas-0km.*',
         ],
         [
-            'label' => 'Configurações',
-            'route_name' => 'admin.settings.index',
-            'active_pattern' => 'admin.settings.*',
+            'label' => 'Consultas Base Estadual',
+            'route_name' => 'admin.consultas-base-estadual.index',
+            'active_pattern' => 'admin.consultas-base-estadual.*',
         ],
     ];
 
-    $navItems = collect($navConfig)
+    $navItems = collect($primaryNavConfig)
         ->filter(fn ($item) => Route::has($item['route_name']))
         ->map(fn ($item) => [
             'label' => $item['label'],
@@ -53,6 +61,17 @@
             'active' => request()->routeIs($item['active_pattern']),
         ])
         ->values();
+
+    $serviceItems = collect($serviceNavConfig)
+        ->filter(fn ($item) => Route::has($item['route_name']))
+        ->map(fn ($item) => [
+            'label' => $item['label'],
+            'route' => route($item['route_name']),
+            'active' => request()->routeIs($item['active_pattern']),
+        ])
+        ->values();
+
+    $isServiceActive = $serviceItems->contains(fn ($item) => $item['active']);
 
     $initials = collect(explode(' ', trim($user['name'] ?? 'A')))
         ->filter()
@@ -95,6 +114,7 @@
             display: inline-flex;
             align-items: center;
             gap: 24px;
+            position: relative;
         }
 
         .admin-topbar__link {
@@ -125,6 +145,91 @@
             height: 3px;
             border-radius: 999px;
             background: #fff;
+        }
+
+        .admin-topbar__services {
+            position: relative;
+        }
+
+        .admin-topbar__services-toggle {
+            list-style: none;
+            cursor: pointer;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            color: rgba(255, 255, 255, 0.75);
+            font-size: 15px;
+            font-weight: 600;
+            padding: 10px 0;
+            transition: color 160ms ease;
+            position: relative;
+        }
+
+        .admin-topbar__services-toggle::-webkit-details-marker {
+            display: none;
+        }
+
+        .admin-topbar__services:hover .admin-topbar__services-toggle,
+        .admin-topbar__services:focus-within .admin-topbar__services-toggle,
+        .admin-topbar__services[open] .admin-topbar__services-toggle,
+        .admin-topbar__services.is-active .admin-topbar__services-toggle {
+            color: #fff;
+        }
+
+        .admin-topbar__services.is-active .admin-topbar__services-toggle::after {
+            content: '';
+            position: absolute;
+            left: 0;
+            bottom: -6px;
+            width: 100%;
+            height: 3px;
+            border-radius: 999px;
+            background: #fff;
+        }
+
+        .admin-topbar__services-caret {
+            transition: transform 160ms ease;
+        }
+
+        .admin-topbar__services[open] .admin-topbar__services-caret {
+            transform: rotate(180deg);
+        }
+
+        .admin-topbar__services-menu {
+            position: absolute;
+            top: calc(100% + 14px);
+            left: 0;
+            min-width: 250px;
+            background: #fff;
+            border-radius: 14px;
+            border: 1px solid rgba(11, 78, 162, 0.14);
+            box-shadow: 0 16px 32px rgba(15, 23, 42, 0.2);
+            padding: 10px;
+            display: grid;
+            gap: 4px;
+            z-index: 10;
+        }
+
+        .admin-topbar__services-item {
+            display: block;
+            text-decoration: none;
+            border-radius: 10px;
+            color: #334155;
+            font-size: 14px;
+            font-weight: 600;
+            padding: 10px 12px;
+            transition: background-color 160ms ease, color 160ms ease;
+        }
+
+        .admin-topbar__services-item:hover,
+        .admin-topbar__services-item:focus {
+            background: #eef4ff;
+            color: var(--brand-primary);
+        }
+
+        .admin-topbar__services-item.is-active {
+            background: #0b4ea2;
+            color: #fff;
         }
 
         .admin-topbar__user {
@@ -193,6 +298,28 @@
                     {{ $item['label'] }}
                 </a>
             @endforeach
+
+            @if ($serviceItems->isNotEmpty())
+                <details class="admin-topbar__services {{ $isServiceActive ? 'is-active' : '' }}">
+                    <summary class="admin-topbar__services-toggle">
+                        Outros serviços
+                        <svg class="admin-topbar__services-caret" width="14" height="14" viewBox="0 0 24 24" fill="none">
+                            <path d="M6 9l6 6 6-6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
+                        </svg>
+                    </summary>
+
+                    <div class="admin-topbar__services-menu">
+                        @foreach ($serviceItems as $item)
+                            <a
+                                href="{{ $item['route'] }}"
+                                class="admin-topbar__services-item {{ $item['active'] ? 'is-active' : '' }}"
+                            >
+                                {{ $item['label'] }}
+                            </a>
+                        @endforeach
+                    </div>
+                </details>
+            @endif
         </nav>
     </div>
 

@@ -7,7 +7,6 @@ import 'package:flutter/services.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:path_provider/path_provider.dart';
 import 'package:universal_io/io.dart' as io;
-import 'package:url_launcher/url_launcher.dart';
 
 import 'package:frontend_app/models/pesquisa_models.dart';
 import 'package:frontend_app/services/auth_service.dart';
@@ -246,6 +245,7 @@ class _HomePageState extends State<HomePage> {
     final autoCompleted = await _executeBaseEstadualQuery(
       placa: query.placa,
       renavam: query.renavam,
+      chassi: query.chassi,
       autoSolve: true,
     );
 
@@ -260,9 +260,12 @@ class _HomePageState extends State<HomePage> {
       fetchCaptcha: () => _baseEstadualService.fetchCaptcha(),
       captchaErrorResolver: _mapBaseEstadualCaptchaError,
       includeRenavam: false,
+      includeChassi: true,
+      chassiValidator: _isValidChassi,
       requireCaptcha: true,
       initialPlate: query.placa,
       initialRenavam: query.renavam,
+      initialChassi: query.chassi,
     );
 
     if (manualQuery == null || !mounted) {
@@ -272,6 +275,7 @@ class _HomePageState extends State<HomePage> {
     await _executeBaseEstadualQuery(
       placa: manualQuery.placa,
       renavam: manualQuery.renavam,
+      chassi: manualQuery.chassi,
       autoSolve: false,
       captchaOverride: manualQuery.captcha,
     );
@@ -283,6 +287,8 @@ class _HomePageState extends State<HomePage> {
       fetchCaptcha: () => _baseEstadualService.fetchCaptcha(),
       captchaErrorResolver: _mapBaseEstadualCaptchaError,
       includeRenavam: false,
+      includeChassi: true,
+      chassiValidator: _isValidChassi,
       requireCaptcha: false,
     );
   }
@@ -394,6 +400,7 @@ class _HomePageState extends State<HomePage> {
   Future<bool> _executeBaseEstadualQuery({
     required String placa,
     required String renavam,
+    String? chassi,
     required bool autoSolve,
     String? captchaOverride,
   }) async {
@@ -428,6 +435,7 @@ class _HomePageState extends State<HomePage> {
       final result = await _baseEstadualService.consultar(
         placa: PlateUtils.sanitize(placa),
         renavam: renavam,
+        chassi: chassi,
         captcha: captcha,
       );
 
@@ -441,12 +449,23 @@ class _HomePageState extends State<HomePage> {
         return true;
       }
 
-      _registerPesquisa(nome: 'Base estadual', placa: placa, renavam: renavam);
+      _registerPesquisa(
+        nome: 'Base estadual',
+        placa: placa,
+        renavam: renavam,
+        chassi: chassi,
+        opcaoPesquisa: (chassi != null && chassi.trim().isNotEmpty) ? 'chassi' : 'placa',
+      );
 
       Navigator.of(context).push(
         MaterialPageRoute(
           builder: (_) =>
-              BaseEstadualPage(placa: placa, renavam: renavam, payload: result),
+              BaseEstadualPage(
+                placa: placa,
+                renavam: renavam,
+                chassi: chassi,
+                payload: result,
+              ),
         ),
       );
 
@@ -3804,8 +3823,6 @@ class _HomePageState extends State<HomePage> {
                                 },
                               ),
                             ),
-                        const _HomeDisclaimerNotice(),
-                        const SizedBox(height: 8),
                         Text(
                           'Últimos veículos pesquisados',
                           style: theme.textTheme.titleMedium?.copyWith(
@@ -3863,78 +3880,7 @@ class _HomePageState extends State<HomePage> {
   }
 }
 
-class _HomeDisclaimerNotice extends StatelessWidget {
-  const _HomeDisclaimerNotice();
-
-  static final Uri _ecrvPortalUri = Uri.parse('https://www.e-crvsp.sp.gov.br/');
-
-  Future<void> _openPortal(BuildContext context) async {
-    final messenger = ScaffoldMessenger.maybeOf(context);
-    final launched = await launchUrl(
-      _ecrvPortalUri,
-      mode: LaunchMode.externalApplication,
-    );
-    if (!launched) {
-      messenger
-        ?..clearSnackBars()
-        ..showSnackBar(
-          const SnackBar(
-            content: Text('Não foi possível abrir o portal e-CRV SP.'),
-          ),
-        );
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final titleStyle = theme.textTheme.titleSmall?.copyWith(
-      fontWeight: FontWeight.w600,
-      color: const Color(0xFF1D1B20),
-    );
-    final bodyStyle = theme.textTheme.bodySmall?.copyWith(
-      color: const Color(0xFF1D1B20),
-    );
-
-    return Container(
-      margin: const EdgeInsets.fromLTRB(20, 16, 20, 0),
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: const Color(0xFFF0F4FF),
-        borderRadius: BorderRadius.circular(16),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text('Aviso importante', style: titleStyle),
-          const SizedBox(height: 8),
-          Text(
-            'Este aplicativo não é afiliado nem representa qualquer órgão governamental.',
-            style: bodyStyle,
-          ),
-          const SizedBox(height: 8),
-          Text(
-            'As consultas exibidas aqui acessam diretamente as informações do portal oficial e-CRV SP (www.e-crvsp.sp.gov.br).',
-            style: bodyStyle,
-          ),
-          const SizedBox(height: 12),
-          Align(
-            alignment: Alignment.centerLeft,
-            child: TextButton.icon(
-              onPressed: () => _openPortal(context),
-              icon: const Icon(Icons.open_in_new, size: 18),
-              label: const Text('Acessar e-CRV SP'),
-              style: TextButton.styleFrom(
-                padding: EdgeInsets.zero,
-                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
+ 
 
 enum _BinSearchOption { placaRenavam, chassi }
 
@@ -4178,7 +4124,9 @@ class _VehicleLookupDialogState extends State<_VehicleLookupDialog> {
                           groupValue: _binSearchOption,
                           contentPadding: EdgeInsets.zero,
                           dense: true,
-                          title: const Text('Placa + Renavam'),
+                          title: Text(
+                            widget.includeRenavam ? 'Placa + Renavam' : 'Placa',
+                          ),
                           onChanged: (value) {
                             if (value == null) return;
                             setState(() {

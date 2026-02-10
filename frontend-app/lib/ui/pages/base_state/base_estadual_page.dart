@@ -13,11 +13,13 @@ class BaseEstadualPage extends StatelessWidget {
     required this.placa,
     required this.renavam,
     required this.payload,
+    this.chassi,
     this.pageTitle = 'Base estadual',
   });
 
   final String placa;
   final String renavam;
+  final String? chassi;
   final Map<String, dynamic> payload;
   final String pageTitle;
 
@@ -46,6 +48,7 @@ class BaseEstadualPage extends StatelessWidget {
       title: pageTitle,
       placa: placa,
       renavam: renavam,
+      chassi: chassi,
       payload: payload,
       formattedPayload: _formattedPayload,
     );
@@ -57,11 +60,13 @@ class _VehicleQueryCard extends StatelessWidget {
     required this.colorScheme,
     required this.placa,
     required this.renavam,
+    this.chassi,
   });
 
   final ColorScheme colorScheme;
   final String placa;
   final String renavam;
+  final String? chassi;
 
   @override
   Widget build(BuildContext context) {
@@ -95,8 +100,12 @@ class _VehicleQueryCard extends StatelessWidget {
             children: [
               Expanded(
                 child: _QueryInfoTile(
-                  label: 'Placa',
-                  value: placa,
+                  label: (chassi != null && chassi!.trim().isNotEmpty)
+                      ? 'Chassi'
+                      : 'Placa',
+                  value: (chassi != null && chassi!.trim().isNotEmpty)
+                      ? chassi!
+                      : placa,
                 ),
               ),
               const SizedBox(width: 12),
@@ -125,6 +134,7 @@ class _QueryInfoTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final displayValue = value.trim().isEmpty ? '—' : value;
     return Container(
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
@@ -143,7 +153,7 @@ class _QueryInfoTile extends StatelessWidget {
           ),
           const SizedBox(height: 4),
           Text(
-            value,
+            displayValue,
             style: Theme.of(context).textTheme.titleMedium?.copyWith(
                   color: Colors.white,
                   fontWeight: FontWeight.w600,
@@ -237,6 +247,7 @@ class _BaseEstadualFallbackScreen extends StatelessWidget {
     required this.title,
     required this.placa,
     required this.renavam,
+    this.chassi,
     required this.payload,
     required this.formattedPayload,
   });
@@ -244,6 +255,7 @@ class _BaseEstadualFallbackScreen extends StatelessWidget {
   final String title;
   final String placa;
   final String renavam;
+  final String? chassi;
   final Map<String, dynamic> payload;
   final String formattedPayload;
 
@@ -289,6 +301,7 @@ class _BaseEstadualFallbackScreen extends StatelessWidget {
                 colorScheme: colorScheme,
                 placa: placa,
                 renavam: renavam,
+                chassi: chassi,
               ),
               const SizedBox(height: 16),
               Expanded(

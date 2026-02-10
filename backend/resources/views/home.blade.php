@@ -1373,8 +1373,12 @@
         const baseQueryOverlay = document.getElementById('baseQueryOverlay');
         const baseQueryClose = document.getElementById('baseQueryClose');
         const baseCancelBtn = document.getElementById('baseCancelBtn');
+        const baseOptionInputs = Array.from(document.querySelectorAll('input[name="baseSearchOption"]'));
+        const basePlacaGroup = document.getElementById('basePlacaGroup');
+        const baseChassiGroup = document.getElementById('baseChassiGroup');
         const basePlateInput = document.getElementById('basePlateInput');
         const basePlateFormatInputs = Array.from(document.querySelectorAll('input[name="basePlateFormat"]'));
+        const baseChassiInput = document.getElementById('baseChassiInput');
         const basePlateError = document.getElementById('basePlateError');
         const baseConsultBtn = document.getElementById('baseConsultBtn');
 
@@ -1382,7 +1386,10 @@
         const baseCaptchaClose = document.getElementById('baseCaptchaClose');
         const baseCaptchaCancel = document.getElementById('baseCaptchaCancel');
         const baseCaptchaRefresh = document.getElementById('baseCaptchaRefresh');
+        const baseCaptchaPlacaGroup = document.getElementById('baseCaptchaPlacaGroup');
+        const baseCaptchaChassiGroup = document.getElementById('baseCaptchaChassiGroup');
         const baseCaptchaPlate = document.getElementById('baseCaptchaPlate');
+        const baseCaptchaChassi = document.getElementById('baseCaptchaChassi');
         const baseCaptchaInput = document.getElementById('baseCaptchaInput');
         const baseCaptchaImage = document.getElementById('baseCaptchaImage');
         const baseCaptchaLoading = document.getElementById('baseCaptchaLoading');
@@ -1827,6 +1834,7 @@
         };
 
         let pendingRenainfRequest = null;
+        let baseCaptchaMeta = null;
 
         function formatDateForApi(value) {
             if (!value) return '';
@@ -1853,6 +1861,10 @@
         }
 
         function openBaseEstadualModal() {
+            basePlateError.textContent = '';
+            baseChassiInput.value = '';
+            setSelectedBinOption(baseOptionInputs, 'placa');
+            updateBinMode('placa', basePlacaGroup, baseChassiGroup);
             resetPlateFormatField({
                 formatInputs: basePlateFormatInputs,
                 inputEl: basePlateInput,
@@ -1862,7 +1874,7 @@
             baseQueryOverlay.classList.remove('hidden');
             baseQueryOverlay.classList.add('show');
             baseQueryOverlay.setAttribute('aria-hidden', 'false');
-            setTimeout(() => basePlateFormatInputs[0]?.focus(), 0);
+            setTimeout(() => baseOptionInputs[0]?.focus(), 0);
         }
 
         function closeBaseEstadualModal() {
@@ -1871,8 +1883,12 @@
             baseQueryOverlay.setAttribute('aria-hidden', 'true');
         }
 
-        function openBaseCaptchaModal(placa, message = '') {
-            baseCaptchaPlate.value = placa;
+        function openBaseCaptchaModal(values, message = '') {
+            baseCaptchaMeta = values || null;
+            const option = values?.option === 'chassi' ? 'chassi' : 'placa';
+            baseCaptchaPlate.value = values?.placa || '';
+            baseCaptchaChassi.value = values?.chassi || '';
+            updateBinMode(option, baseCaptchaPlacaGroup, baseCaptchaChassiGroup);
             baseCaptchaInput.value = '';
             baseCaptchaError.textContent = message;
             baseCaptchaOverlay.classList.remove('hidden');
@@ -1886,6 +1902,7 @@
             baseCaptchaOverlay.classList.remove('show');
             baseCaptchaOverlay.classList.add('hidden');
             baseCaptchaOverlay.setAttribute('aria-hidden', 'true');
+            baseCaptchaMeta = null;
             clearCaptchaImage();
         }
 
@@ -2544,12 +2561,16 @@
             errorOverlay.setAttribute('aria-hidden', 'true');
         }
 
-        async function fetchBaseEstadual(placa, captcha) {
-            const params = new URLSearchParams({
-                placa: placa,
-                renavam: '',
-                captcha: captcha,
-            });
+        async function fetchBaseEstadual(values, captcha) {
+            const paramsPayload = { captcha };
+            if (values?.chassi) {
+                paramsPayload.chassi = values.chassi;
+            } else if (values?.placa) {
+                paramsPayload.placa = sanitizePlate(values.placa);
+                paramsPayload.renavam = '';
+            }
+
+            const params = new URLSearchParams(paramsPayload);
 
             const response = await fetch(`${API_BASE_URL}/api/base-estadual?${params}`);
             if (!response.ok) {
@@ -2565,7 +2586,7 @@
             window.location.href = '/resultado-base-estadual';
         }
 
-        async function registerBaseEstadualPesquisa(placa) {
+        async function registerBaseEstadualPesquisa(values) {
             try {
                 await fetch(`${API_BASE_URL}/api/pesquisas`, {
                     method: 'POST',
@@ -2576,8 +2597,10 @@
                     },
                     body: JSON.stringify({
                         nome: 'Base estadual',
-                        placa: placa,
+                        placa: values?.placa || null,
                         renavam: null,
+                        chassi: values?.chassi || null,
+                        opcao_pesquisa: values?.option || null,
                     }),
                 });
             } catch (error) {
@@ -2586,11 +2609,28 @@
         }
 
         async function performBaseEstadualSearch() {
-            const placa = requireValidPlateFromInput(basePlateInput, basePlateError);
-            if (!placa) {
+            const option = getSelectedBinOption(baseOptionInputs, 'placa');
+            const placa = option === 'placa' ? requireValidPlateFromInput(basePlateInput, basePlateError) : '';
+            if (option === 'placa' && !placa) {
                 return;
             }
-            const placaSanitized = sanitizePlate(placa);
+            const chassi = normalizeChassi(baseChassiInput.value);
+            const values = {
+                option,
+                placa: option === 'placa' ? placa : '',
+                chassi: option === 'chassi' ? chassi : '',
+            };
+
+            if (option === 'chassi') {
+                if (!chassi) {
+                    basePlateError.textContent = 'Informe o chassi do veículo.';
+                    return;
+                }
+                if (!isValidChassi(chassi)) {
+                    basePlateError.textContent = 'Chassi inválido.';
+                    return;
+                }
+            }
 
             basePlateError.textContent = '';
             setBaseConsultLoading(true);
@@ -2601,19 +2641,19 @@
                     captcha = await solveBaseCaptcha();
                 } catch (captchaError) {
                     closeBaseEstadualModal();
-                    openBaseCaptchaModal(placa, 'Captcha automático indisponível. Digite o captcha manualmente.');
+                    openBaseCaptchaModal(values, 'Captcha automático indisponível. Digite o captcha manualmente.');
                     return;
                 }
 
-                const result = await fetchBaseEstadual(placaSanitized, captcha);
-                await registerBaseEstadualPesquisa(placa);
+                const result = await fetchBaseEstadual(values, captcha);
+                await registerBaseEstadualPesquisa(values);
                 closeBaseEstadualModal();
                 redirectToBaseEstadualResult(result);
             } catch (error) {
                 const message = error.message || 'Não foi possível consultar a base estadual.';
                 if (message.toLowerCase().includes('captcha')) {
                     closeBaseEstadualModal();
-                    openBaseCaptchaModal(placa, 'Captcha automático falhou. Digite o captcha manualmente.');
+                    openBaseCaptchaModal(values, 'Captcha automático falhou. Digite o captcha manualmente.');
                     return;
                 }
                 basePlateError.textContent = message;
@@ -2623,8 +2663,19 @@
         }
 
         async function performBaseCaptchaSearch() {
-            const placa = baseCaptchaPlate.value;
-            const placaSanitized = sanitizePlate(placa);
+            if (!baseCaptchaMeta) {
+                baseCaptchaError.textContent = 'Reabra a consulta para tentar novamente.';
+                return;
+            }
+
+            const option = baseCaptchaMeta.option === 'chassi' ? 'chassi' : 'placa';
+            const placa = option === 'placa' ? baseCaptchaPlate.value : '';
+            const chassi = option === 'chassi' ? baseCaptchaChassi.value : '';
+            const values = {
+                option,
+                placa: option === 'placa' ? placa : '',
+                chassi: option === 'chassi' ? chassi : '',
+            };
             const captcha = baseCaptchaInput.value.trim().toUpperCase();
 
             if (!captcha) {
@@ -2636,8 +2687,8 @@
             setBaseCaptchaLoading(true);
 
             try {
-                const result = await fetchBaseEstadual(placaSanitized, captcha);
-                await registerBaseEstadualPesquisa(placa);
+                const result = await fetchBaseEstadual(values, captcha);
+                await registerBaseEstadualPesquisa(values);
                 closeBaseCaptchaModal();
                 redirectToBaseEstadualResult(result);
             } catch (error) {
@@ -4535,10 +4586,46 @@
                 closeBaseEstadualModal();
             }
         });
+        baseOptionInputs.forEach((input) => {
+            input.addEventListener('change', () => {
+                const option = getSelectedBinOption(baseOptionInputs, 'placa');
+                updateBinMode(option, basePlacaGroup, baseChassiGroup);
+                basePlateError.textContent = '';
+                if (option === 'chassi') {
+                    baseChassiInput.value = '';
+                    resetPlateFormatField({
+                        formatInputs: basePlateFormatInputs,
+                        inputEl: basePlateInput,
+                        errorEl: basePlateError,
+                        helperText: 'Selecione o padrão da placa',
+                    });
+                    setTimeout(() => baseChassiInput.focus(), 0);
+                } else {
+                    baseChassiInput.value = '';
+                    resetPlateFormatField({
+                        formatInputs: basePlateFormatInputs,
+                        inputEl: basePlateInput,
+                        errorEl: basePlateError,
+                        helperText: 'Selecione o padrão da placa',
+                    });
+                    setTimeout(() => basePlateFormatInputs[0]?.focus(), 0);
+                }
+            });
+        });
         basePlateInput.addEventListener('input', () => {
             basePlateError.textContent = '';
         });
         basePlateInput.addEventListener('keydown', (event) => {
+            if (event.key === 'Enter') {
+                event.preventDefault();
+                performBaseEstadualSearch();
+            }
+        });
+        baseChassiInput.addEventListener('input', () => {
+            baseChassiInput.value = normalizeChassi(baseChassiInput.value);
+            basePlateError.textContent = '';
+        });
+        baseChassiInput.addEventListener('keydown', (event) => {
             if (event.key === 'Enter') {
                 event.preventDefault();
                 performBaseEstadualSearch();

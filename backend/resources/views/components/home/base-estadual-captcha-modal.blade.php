@@ -5,15 +5,28 @@
             <button class="be-dialog-close" type="button" id="baseCaptchaClose" aria-label="Fechar">&times;</button>
         </div>
         <div class="be-dialog-body">
-            <input
-                class="be-input"
-                id="baseCaptchaPlate"
-                type="text"
-                placeholder="Placa"
-                maxlength="8"
-                autocomplete="off"
-                disabled
-            >
+            <div class="be-field-group" id="baseCaptchaPlacaGroup">
+                <input
+                    class="be-input"
+                    id="baseCaptchaPlate"
+                    type="text"
+                    placeholder="Placa"
+                    maxlength="8"
+                    autocomplete="off"
+                    disabled
+                >
+            </div>
+            <div class="be-field-group hidden" id="baseCaptchaChassiGroup">
+                <input
+                    class="be-input"
+                    id="baseCaptchaChassi"
+                    type="text"
+                    placeholder="Chassi"
+                    maxlength="17"
+                    autocomplete="off"
+                    disabled
+                >
+            </div>
             <div class="be-captcha-box">
                 <div class="be-captcha-header">
                     <span>Captcha</span>
