@@ -37,6 +37,8 @@
         }
 
         .consulta-base__file-input {
+            display: block;
+            width: 100%;
             border: 2px dashed var(--border);
             border-radius: 12px;
             padding: 24px;
