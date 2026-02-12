@@ -34,6 +34,9 @@ Route::view('/resultado-atpv', 'atpv-result')->name('atpv-result');
 Route::view('/emissao-atpv/formulario', 'atpv-form')->name('atpv.form');
 Route::get('/excluir-conta', [AccountDeletionController::class, 'show'])->name('account-deletion.form');
 Route::post('/excluir-conta', [AccountDeletionController::class, 'destroy'])->name('account-deletion.submit');
+Route::get('/public/placas-0km/{batchId?}', function (?string $batchId = null) {
+    return view('public.placas-0km', ['batchId' => $batchId]);
+})->name('public.placas-0km');
 
 // Rotas de teste sem autenticação
 Route::get('/testeplanilha', [TestePlanilhaController::class, 'index'])->name('teste-planilha.index');

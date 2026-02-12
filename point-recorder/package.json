@@ -5,9 +5,17 @@
   "description": "Grava coordenadas (x,y) de cliques do mouse em um arquivo.",
   "main": "record.js",
   "scripts": {
-    "start": "node record.js"
+    "start": "node record.js",
+    "record:template": "node record-template.js",
+    "agent:poller": "node agent/poller.mjs",
+    "agent:worker": "node agent/worker.mjs"
   },
   "dependencies": {
+    "@nut-tree/nut-js": "^4.2.1",
+    "clipboardy": "^4.0.0",
+    "dotenv": "^16.4.5",
+    "mysql2": "^3.14.0",
+    "screenshot-desktop": "^1.15.0",
     "uiohook-napi": "^1.0.0"
   }
 }

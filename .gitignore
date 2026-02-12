@@ -1,0 +1,14 @@
+# Arquivos/binários do sistema externo (não versionar no Git)
+e-system/
+
+# Dumps/bancos e caches locais
+**/*.FDB
+**/*.fdb
+**/*.sqlite
+**/*.sqlite3
+**/CacheSH/
+**/Logs/
+
+# Artefatos locais do point-recorder
+point-recorder/session*.json
+point-recorder/screenshots/

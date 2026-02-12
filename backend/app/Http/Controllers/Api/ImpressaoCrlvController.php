@@ -6,24 +6,53 @@ use Illuminate\Http\Request;
 use Illuminate\Routing\Controller;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Log;
 use Symfony\Component\HttpFoundation\Response;
 
 class ImpressaoCrlvController extends Controller
 {
     public function __invoke(Request $request): Response
     {
+        $debugMode = filter_var($request->query('debug', false), FILTER_VALIDATE_BOOLEAN) && (bool) config('app.debug');
 
-        // Entradas
-        $placa         = $request->query('placa');
-        $renavam       = $request->query('renavam');
-        $cpf           = $request->query('cpf', '');
-        $cnpj          = $request->query('cnpj', '');
-        $captcha       = $request->query('captchaResponse');
-        $opcaoPesquisa = $request->query('opcaoPesquisa'); // 1 = CPF, 2 = CNPJ (ajuste se diferente)
+        $placa = strtoupper((string) $request->query('placa', ''));
+        $placa = preg_replace('/[^A-Za-z0-9]/', '', $placa) ?? '';
 
-        if (!$placa || !$renavam || !$captcha || !$opcaoPesquisa) {
+        $renavam = (string) $request->query('renavam', '');
+        $renavam = preg_replace('/\\D/', '', $renavam) ?? '';
+
+        $cpf = (string) $request->query('cpf', '');
+        $cpf = preg_replace('/\\D/', '', $cpf) ?? '';
+
+        $cnpj = (string) $request->query('cnpj', '');
+        $cnpj = preg_replace('/\\D/', '', $cnpj) ?? '';
+
+        $captcha = (string) $request->query('captchaResponse', '');
+        if ($captcha === '') {
+            $captcha = (string) $request->query('captcha', '');
+        }
+        $captcha = strtoupper(preg_replace('/[^A-Za-z0-9]/', '', $captcha) ?? '');
+
+        $opcaoPesquisa = (string) $request->query('opcaoPesquisa', '');
+        $opcaoPesquisa = preg_replace('/\\D/', '', $opcaoPesquisa) ?? '';
+
+        if ($placa === '' || $renavam === '' || $captcha === '' || $opcaoPesquisa === '') {
             return response()->json(
-                ['message' => 'Informe placa, renavam, captchaResponse e opcaoPesquisa.'],
+                ['message' => 'Informe placa, renavam, captchaResponse (ou captcha) e opcaoPesquisa.'],
+                Response::HTTP_UNPROCESSABLE_ENTITY
+            );
+        }
+
+        if ($opcaoPesquisa === '1' && $cpf === '') {
+            return response()->json(
+                ['message' => 'Informe cpf quando opcaoPesquisa=1.'],
+                Response::HTTP_UNPROCESSABLE_ENTITY
+            );
+        }
+
+        if ($opcaoPesquisa === '2' && $cnpj === '') {
+            return response()->json(
+                ['message' => 'Informe cnpj quando opcaoPesquisa=2.'],
                 Response::HTTP_UNPROCESSABLE_ENTITY
             );
         }
@@ -61,34 +90,81 @@ class ImpressaoCrlvController extends Controller
         // Form com envio condicional de CPF/CNPJ
         $form = [
             'method'          => 'pesquisar',
-            'placa'           => strtoupper($placa),
+            'placa'           => $placa,
             'renavam'         => $renavam,
             'opcaoPesquisa'   => (string) $opcaoPesquisa,
-            'captchaResponse' => strtoupper($captcha),
+            'captchaResponse' => $captcha,
             'cpf'             => '',
             'cnpj'            => '',
         ];
         if ((string) $opcaoPesquisa === '1') {
-            $form['cpf']  = trim((string) $cpf);
+            $form['cpf']  = $cpf;
         } elseif ((string) $opcaoPesquisa === '2') {
-            $form['cnpj'] = trim((string) $cnpj);
+            $form['cnpj'] = $cnpj;
         }
         // se a tela aceitar ambos sempre, pode remover esse condicional
 
-        $response = Http::withHeaders($headers)
-            ->withOptions(['verify' => false]) // REMOVER em produção
-            ->withCookies([
-                'naoExibirPublic' => 'sim',
-                'dataUsuarPublic' => 'Mon Mar 24 2025 08:14:44 GMT-0300 (Horário Padrão de Brasília)',
-                'JSESSIONID'      => $token,
-            ], $cookieDomain)
-            ->asForm()
-            ->post('https://www.e-crvsp.sp.gov.br/gever/GVR/emissao/impressaoCrlv.do', $form);
+        try {
+            $cookieTimestamp = now()->setTimezone('America/Sao_Paulo')->format('D M d Y H:i:s');
+            $response = Http::timeout(30)
+                ->withHeaders($headers)
+                ->withOptions(['verify' => false]) // REMOVER em produção
+                ->withCookies([
+                    'naoExibirPublic' => 'sim',
+                    'dataUsuarPublic' => $cookieTimestamp . ' GMT-0300 (Horário Padrão de Brasília)',
+                    'JSESSIONID'      => $token,
+                ], $cookieDomain)
+                ->asForm()
+                ->post('https://www.e-crvsp.sp.gov.br/gever/GVR/emissao/impressaoCrlv.do', $form);
 
-        if (!$response->successful()) {
+            if (!$response->successful()) {
+                $status = $response->status();
+                $bodyPreview = substr($response->body(), 0, 800);
+
+                Log::warning('CRLV: falha no POST de pesquisa', [
+                    'status' => $status,
+                    'placa' => $placa,
+                    'renavam' => $renavam,
+                    'opcaoPesquisa' => $opcaoPesquisa,
+                    'body_preview' => $bodyPreview,
+                ]);
+
+                $message = match (true) {
+                    $status >= 300 && $status < 400 => 'Sessão expirada ou redirecionada. Atualize o token e tente novamente.',
+                    $status === 401 || $status === 403 => 'Sessão expirada ou acesso negado. Atualize o token e tente novamente.',
+                    $status === 429 => 'Muitas tentativas. Aguarde e tente novamente.',
+                    $status >= 500 => 'O serviço do DETRAN está temporariamente indisponível. Tente novamente em alguns instantes.',
+                    default => 'Falha ao consultar a emissão/impressão do CRLV.',
+                };
+
+                $payload = ['message' => $message];
+                if ($debugMode) {
+                    $payload['upstream_status'] = $status;
+                }
+
+                return response()->json($payload, Response::HTTP_BAD_GATEWAY);
+            }
+        } catch (\Illuminate\Http\Client\ConnectionException $e) {
+            Log::error('CRLV: erro de conexão', [
+                'message' => $e->getMessage(),
+                'placa' => $placa,
+                'renavam' => $renavam,
+            ]);
+
             return response()->json(
-                ['message' => 'Falha ao consultar a emissão/impressão do CRLV.'],
+                ['message' => 'Não foi possível conectar ao serviço do DETRAN. Tente novamente mais tarde.'],
                 Response::HTTP_BAD_GATEWAY
+            );
+        } catch (\Throwable $e) {
+            Log::error('CRLV: erro inesperado', [
+                'message' => $e->getMessage(),
+                'placa' => $placa,
+                'renavam' => $renavam,
+            ]);
+
+            return response()->json(
+                ['message' => 'Erro inesperado ao consultar a emissão/impressão do CRLV.'],
+                Response::HTTP_INTERNAL_SERVER_ERROR
             );
         }
 
@@ -107,21 +183,54 @@ class ImpressaoCrlvController extends Controller
             return response()->json(['message' => $warnings[0], 'detalhes' => $warnings], Response::HTTP_UNPROCESSABLE_ENTITY);
         }
 
-        $pdfResponse = Http::withHeaders($headers)
-            ->withOptions(['verify' => false]) // REMOVER em produção
-            ->withCookies([
-                'naoExibirPublic' => 'sim',
-                'dataUsuarPublic' => 'Mon Mar 24 2025 08:14:44 GMT-0300 (Horário Padrão de Brasília)',
-                'JSESSIONID'      => $token,
-            ], $cookieDomain)
-            ->get('https://www.e-crvsp.sp.gov.br/gever/GVR/emissao/impressaoCrlv.do', [
-                'method' => 'openPdf',
+        try {
+            $cookieTimestamp = now()->setTimezone('America/Sao_Paulo')->format('D M d Y H:i:s');
+            $pdfResponse = Http::timeout(30)
+                ->withHeaders($headers)
+                ->withOptions(['verify' => false]) // REMOVER em produção
+                ->withCookies([
+                    'naoExibirPublic' => 'sim',
+                    'dataUsuarPublic' => $cookieTimestamp . ' GMT-0300 (Horário Padrão de Brasília)',
+                    'JSESSIONID'      => $token,
+                ], $cookieDomain)
+                ->get('https://www.e-crvsp.sp.gov.br/gever/GVR/emissao/impressaoCrlv.do', [
+                    'method' => 'openPdf',
+                ]);
+
+            if (!$pdfResponse->successful()) {
+                Log::warning('CRLV: falha ao acessar PDF', [
+                    'status' => $pdfResponse->status(),
+                    'placa' => $placa,
+                    'renavam' => $renavam,
+                    'body_preview' => substr($pdfResponse->body(), 0, 800),
+                ]);
+
+                return response()->json(
+                    ['message' => 'Falha ao acessar o PDF do CRLV.'],
+                    Response::HTTP_BAD_GATEWAY
+                );
+            }
+        } catch (\Illuminate\Http\Client\ConnectionException $e) {
+            Log::error('CRLV: erro de conexão ao acessar PDF', [
+                'message' => $e->getMessage(),
+                'placa' => $placa,
+                'renavam' => $renavam,
             ]);
 
-        if (!$pdfResponse->successful()) {
             return response()->json(
-                ['message' => 'Falha ao acessar o PDF do CRLV.'],
+                ['message' => 'Não foi possível conectar ao serviço do DETRAN para baixar o PDF.'],
                 Response::HTTP_BAD_GATEWAY
+            );
+        } catch (\Throwable $e) {
+            Log::error('CRLV: erro inesperado ao acessar PDF', [
+                'message' => $e->getMessage(),
+                'placa' => $placa,
+                'renavam' => $renavam,
+            ]);
+
+            return response()->json(
+                ['message' => 'Erro inesperado ao baixar o PDF do CRLV.'],
+                Response::HTTP_INTERNAL_SERVER_ERROR
             );
         }
 

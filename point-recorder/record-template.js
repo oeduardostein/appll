@@ -1,10 +1,20 @@
 /* eslint-disable no-console */
 
+// Gravador "template": igual ao record.js, mas permite marcar "slots" (CPF/NOME/CHASSI)
+// sem precisar regravar tudo depois. Na reprodução, os textos serão substituídos pelos
+// valores vindos do banco.
+//
+// Hotkeys:
+// - F6  => slot_begin cpf_cgc
+// - F7  => slot_begin nome
+// - F8  => slot_begin chassi
+// - F12 => screenshot (ponto onde o replay deve tirar print)
+
 const fs = require('node:fs');
 const path = require('node:path');
 
 function parseArgs(argv) {
-  const args = { out: 'recordings/session.json', format: 'json', help: false };
+  const args = { out: 'recordings/template.json', format: 'json', help: false };
 
   for (let i = 2; i < argv.length; i++) {
     const raw = argv[i];
@@ -56,15 +66,16 @@ function getHook() {
   return { hook };
 }
 
-function formatLine(format, record) {
-  if (format === 'jsonl') return JSON.stringify(record);
-  throw new Error(`formatLine não suporta formato: ${format}`);
-}
-
 function printHelp() {
-  console.log('Uso: node record.js [--out <arquivo>] [--format json|jsonl]');
-  console.log('Ex:  node record.js --out recordings/sessao.json --format json');
-  console.log('Ex:  node record.js --out recordings/sessao.jsonl --format jsonl');
+  console.log('Uso: node record-template.js [--out <arquivo>] [--format json|jsonl]');
+  console.log('Ex:  node record-template.js --out recordings/template.json --format json');
+  console.log('Ex:  node record-template.js --out recordings/template.jsonl --format jsonl');
+  console.log('');
+  console.log('Hotkeys durante a gravação:');
+  console.log('- F6  => marcar slot CPF/CNPJ');
+  console.log('- F7  => marcar slot Nome');
+  console.log('- F8  => marcar slot Chassi');
+  console.log('- F12 => marcar ponto de screenshot');
 }
 
 const { out, format, help } = parseArgs(process.argv);
@@ -108,9 +119,15 @@ if (format === 'json') {
 
 console.log('Gravando cliques do mouse...');
 console.log('Gravando teclado...');
+console.log('Modo TEMPLATE (slots + screenshot).');
 console.log(`Arquivo: ${outPath}`);
 console.log(`Formato: ${format}`);
 console.log('Parar: Ctrl+C');
+
+function formatLine(fmt, record) {
+  if (fmt === 'jsonl') return JSON.stringify(record);
+  throw new Error(`formatLine não suporta formato: ${fmt}`);
+}
 
 function writeRecord(record) {
   if (format === 'jsonl') {
@@ -118,7 +135,6 @@ function writeRecord(record) {
     return;
   }
 
-  // format === 'json' => grava como array JSON (streaming)
   const prefix = jsonArrayFirst ? '' : ',\n';
   jsonArrayFirst = false;
   stream.write(prefix + JSON.stringify(record));
@@ -133,37 +149,72 @@ function baseRecord(type) {
   };
 }
 
+let lastMouse = { x: null, y: null };
+
+function recordSlot(name) {
+  writeRecord({
+    ...baseRecord('slot_begin'),
+    name
+  });
+  console.log(`slot_begin: ${name}`);
+}
+
+function recordScreenshot() {
+  writeRecord({
+    ...baseRecord('screenshot'),
+    x: lastMouse.x,
+    y: lastMouse.y
+  });
+  console.log('screenshot: marcado');
+}
+
 hook.on('mousedown', (event) => {
+  lastMouse = { x: event.x, y: event.y };
   const record = {
     ...baseRecord('mouse_down'),
     x: event.x,
     y: event.y,
     button: event.button
   };
-
   writeRecord(record);
   console.log(`mouse_down: x=${record.x} y=${record.y} button=${record.button}`);
 });
 
 hook.on('mouseup', (event) => {
+  lastMouse = { x: event.x, y: event.y };
   const record = {
     ...baseRecord('mouse_up'),
     x: event.x,
     y: event.y,
     button: event.button
   };
-
   writeRecord(record);
 });
 
 hook.on('keydown', (event) => {
+  // uiohook keycodes (mais comuns)
+  // F6  = 64, F7  = 65, F8  = 66, F12 = 70
+  // Esses valores podem variar; por isso também tentamos rawcode quando existir.
+  const keycode = event.keycode;
+  const rawcode = event.rawcode ?? null;
+
+  const isF6 = keycode === 64 || rawcode === 0x75;
+  const isF7 = keycode === 65 || rawcode === 0x76;
+  const isF8 = keycode === 66 || rawcode === 0x77;
+  const isF12 = keycode === 70 || rawcode === 0x7b;
+
+  if (isF6) return recordSlot('cpf_cgc');
+  if (isF7) return recordSlot('nome');
+  if (isF8) return recordSlot('chassi');
+  if (isF12) return recordScreenshot();
+
   const char =
     typeof event.keychar === 'number' && event.keychar > 0 ? String.fromCharCode(event.keychar) : null;
 
   const record = {
     ...baseRecord('key_down'),
-    keycode: event.keycode,
-    rawcode: event.rawcode ?? null,
+    keycode,
+    rawcode,
     keychar: typeof event.keychar === 'number' ? event.keychar : null,
     char,
     shift: typeof event.shiftKey === 'boolean' ? event.shiftKey : null,
@@ -176,7 +227,6 @@ hook.on('keydown', (event) => {
   writeRecord(record);
 });
 
-// Em alguns layouts/OS o `keychar` pode vir somente no keypress.
 hook.on('keypress', (event) => {
   const char =
     typeof event.keychar === 'number' && event.keychar > 0 ? String.fromCharCode(event.keychar) : null;
@@ -245,3 +295,4 @@ process.on('beforeExit', () => {
 
 process.on('SIGINT', shutdown);
 process.on('SIGTERM', shutdown);
+

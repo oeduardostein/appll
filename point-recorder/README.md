@@ -25,6 +25,12 @@ Grava em JSON no arquivo padrão `point-recorder/recordings/session.json`:
 npm start
 ```
 
+Grava um **template** com slots (CPF/NOME/CHASSI) + ponto de screenshot:
+
+```bash
+npm run record:template
+```
+
 Escolher arquivo de saída e formato:
 
 ```bash

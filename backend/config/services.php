@@ -39,4 +39,8 @@ return [
         'key' => env('TWOCAPTCHA_API_KEY'),
     ],
 
+    'public_placas0km' => [
+        'key' => env('PUBLIC_PLACAS0KM_API_KEY'),
+    ],
+
 ];
