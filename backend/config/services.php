@@ -49,4 +49,8 @@ return [
         'tesseract' => env('PLACAS0KM_OCR_TESSERACT', 'tesseract'),
     ],
 
+    'placas0km' => [
+        'client_worker' => env('PLACAS0KM_CLIENT_WORKER', false),
+    ],
+
 ];

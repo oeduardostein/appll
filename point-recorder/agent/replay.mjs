@@ -1,9 +1,8 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
-
-import clipboard from 'clipboardy';
-import screenshot from 'screenshot-desktop';
-import { Button, Key, Point, keyboard, mouse } from '@nut-tree/nut-js';
+import os from 'node:os';
+import { spawn } from 'node:child_process';
+import { fileURLToPath } from 'node:url';
 
 function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
@@ -15,39 +14,6 @@ function toBool(value, defaultValue = false) {
   if (v === '1' || v === 'true' || v === 'yes' || v === 'y') return true;
   if (v === '0' || v === 'false' || v === 'no' || v === 'n') return false;
   return defaultValue;
-}
-
-function mapButton(buttonNumber) {
-  // uiohook: 1=left, 2=right, 3=middle
-  if (buttonNumber === 2) return Button.RIGHT;
-  if (buttonNumber === 3) return Button.MIDDLE;
-  return Button.LEFT;
-}
-
-function mapSpecialKey(keycode, rawcode) {
-  // Tabela “best-effort”. Dependendo do SO/layout, esses códigos variam.
-  const candidates = [keycode, rawcode].filter((x) => typeof x === 'number');
-  for (const code of candidates) {
-    if (code === 28 || code === 13) return Key.Enter;
-    if (code === 15 || code === 9) return Key.Tab;
-    if (code === 1 || code === 27) return Key.Escape;
-    if (code === 14 || code === 8) return Key.Backspace;
-    if (code === 57 || code === 32) return Key.Space;
-
-    // setas (uiohook e VK)
-    if (code === 57416 || code === 38) return Key.Up;
-    if (code === 57424 || code === 40) return Key.Down;
-    if (code === 57419 || code === 37) return Key.Left;
-    if (code === 57421 || code === 39) return Key.Right;
-  }
-
-  return null;
-}
-
-async function pasteText(text) {
-  await clipboard.write(String(text ?? ''));
-  await keyboard.pressKey(Key.LeftControl, Key.V);
-  await keyboard.releaseKey(Key.LeftControl, Key.V);
 }
 
 async function ensureDir(dir) {
@@ -62,111 +28,70 @@ export async function replayTemplate({
   speed = 1.0,
   replayText = false,
 }) {
-  const absTemplate = path.resolve(process.cwd(), templatePath);
-  const raw = await fs.readFile(absTemplate, 'utf8');
-  const events = JSON.parse(raw);
-
-  if (!Array.isArray(events)) {
-    throw new Error('Template inválido: esperado um array JSON.');
+  if (process.platform !== 'win32') {
+    throw new Error('Replay suportado somente no Windows (necessita powershell.exe).');
   }
 
+  const absTemplate = path.resolve(process.cwd(), templatePath);
   const outDir = path.resolve(process.cwd(), screenshotsDir || 'screenshots');
   await ensureDir(outDir);
 
-  let lastT = null;
-  let slotActive = null; // nome do slot: cpf_cgc|nome|chassi
+  const tmpDataPath = path.join(
+    os.tmpdir(),
+    `placas0km-data-${Date.now()}-${Math.random().toString(36).slice(2)}.json`
+  );
+  await fs.writeFile(tmpDataPath, JSON.stringify(data ?? {}), 'utf8');
 
-  for (const ev of events) {
-    const t = typeof ev?.t === 'number' ? ev.t : null;
-    if (t != null && lastT != null) {
-      const delta = Math.max(0, t - lastT);
-      const scaled = speed > 0 ? delta / speed : delta;
-      await sleep(Math.min(maxDelayMs, scaled));
-    }
-    if (t != null) lastT = t;
+  const __dirname = path.dirname(fileURLToPath(import.meta.url));
+  const psScript = path.join(__dirname, 'win-replay.ps1');
 
-    const type = String(ev?.type || '');
+  const args = [
+    '-NoProfile',
+    '-ExecutionPolicy',
+    'Bypass',
+    '-File',
+    psScript,
+    '-TemplatePath',
+    absTemplate,
+    '-DataPath',
+    tmpDataPath,
+    '-ScreenshotsDir',
+    outDir,
+    '-MaxDelayMs',
+    String(maxDelayMs),
+    '-Speed',
+    String(speed),
+    '-ReplayText',
+    replayText ? 'true' : 'false',
+  ];
 
-    if (type === 'slot_begin') {
-      const name = String(ev?.name || '');
-      if (!name) continue;
-
-      slotActive = name;
-      const value = data?.[name] ?? '';
-      await pasteText(value);
-      continue;
-    }
-
-    if (type === 'screenshot') {
-      const fileName = `shot_${Date.now()}.png`;
-      const filePath = path.join(outDir, fileName);
-      const img = await screenshot({ format: 'png' });
-      await fs.writeFile(filePath, img);
-      // guarda o último screenshot no payload, se quiser
-      data.__last_screenshot_path = filePath;
-      continue;
-    }
-
-    if (type === 'mouse_down') {
-      // ao clicar, encerramos slot ativo para não ficar “pulando” caracteres indevidos
-      slotActive = null;
-      const x = Number(ev?.x);
-      const y = Number(ev?.y);
-      if (Number.isFinite(x) && Number.isFinite(y)) {
-        await mouse.setPosition(new Point(x, y));
+  const result = await new Promise((resolve, reject) => {
+    const child = spawn('powershell.exe', args, { windowsHide: true });
+    let stdout = '';
+    let stderr = '';
+    child.stdout.on('data', (d) => (stdout += d.toString()));
+    child.stderr.on('data', (d) => (stderr += d.toString()));
+    child.on('error', reject);
+    child.on('close', (code) => {
+      if (code !== 0) {
+        reject(new Error(stderr || `powershell falhou (code ${code}).`));
+        return;
       }
-      await mouse.pressButton(mapButton(ev?.button));
-      continue;
-    }
+      resolve(stdout.trim());
+    });
+  });
 
-    if (type === 'mouse_up') {
-      const x = Number(ev?.x);
-      const y = Number(ev?.y);
-      if (Number.isFinite(x) && Number.isFinite(y)) {
-        await mouse.setPosition(new Point(x, y));
-      }
-      await mouse.releaseButton(mapButton(ev?.button));
-      continue;
-    }
+  await fs.unlink(tmpDataPath).catch(() => {});
 
-    if (type === 'key_down' || type === 'key_up') {
-      const key = mapSpecialKey(ev?.keycode, ev?.rawcode);
-      if (!key) continue;
-
-      // se estamos dentro de um slot, só deixamos passar teclas de navegação
-      if (slotActive) {
-        if (key !== Key.Tab && key !== Key.Enter && key !== Key.Escape) {
-          continue;
-        }
-      }
-
-      if (type === 'key_down') {
-        await keyboard.pressKey(key);
-      } else {
-        await keyboard.releaseKey(key);
-      }
-
-      // Tab/Enter/Escape normalmente finaliza input do campo
-      if (slotActive && (key === Key.Tab || key === Key.Enter || key === Key.Escape)) {
-        slotActive = null;
-      }
-      continue;
-    }
-
-    if (type === 'key_press' && replayText) {
-      if (slotActive) continue;
-      const char = typeof ev?.char === 'string' ? ev.char : null;
-      if (!char) continue;
-
-      // só caracteres “digitáveis”
-      if (char.length === 1) {
-        await keyboard.type(char);
-      }
-    }
+  let parsed = null;
+  try {
+    parsed = result ? JSON.parse(result) : null;
+  } catch {
+    parsed = null;
   }
 
   return {
-    lastScreenshotPath: data.__last_screenshot_path ?? null,
+    lastScreenshotPath: parsed?.lastScreenshotPath ?? null,
   };
 }
 

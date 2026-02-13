@@ -126,7 +126,9 @@ class PublicPlacasZeroKmQueueController extends Controller
             return $batch;
         });
 
-        ProcessPlacasZeroKmQueueJob::dispatch();
+        if (!config('services.placas0km.client_worker')) {
+            ProcessPlacasZeroKmQueueJob::dispatch();
+        }
 
         return response()->json([
             'success' => true,
