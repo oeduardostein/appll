@@ -68,6 +68,16 @@ Configuração no `.env`:
 
 Observação: na primeira execução o Tesseract pode baixar dados de idioma.
 
+## Upload para o backend (recomendado)
+
+Se você quer salvar a imagem no servidor e fazer o OCR no Laravel:
+
+- `AGENT_UPLOAD_ENABLED=true`
+- `AGENT_UPLOAD_URL=https://seu-dominio/api/public/placas-0km/screenshot`
+- `AGENT_UPLOAD_API_KEY=...` (se configurado no backend)
+
+Nesse modo, o agente envia o print e o backend processa o resto.
+
 ## Saída (prints)
 
 Os prints vão para `point-recorder/screenshots/` (por padrão).

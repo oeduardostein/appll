@@ -43,4 +43,10 @@ return [
         'key' => env('PUBLIC_PLACAS0KM_API_KEY'),
     ],
 
+    'placas0km_ocr' => [
+        'enabled' => env('PLACAS0KM_OCR_ENABLED', false),
+        'lang' => env('PLACAS0KM_OCR_LANG', 'por'),
+        'tesseract' => env('PLACAS0KM_OCR_TESSERACT', 'tesseract'),
+    ],
+
 ];

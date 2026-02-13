@@ -180,5 +180,8 @@ export function loadAgentConfigFromEnv(env) {
     replayText: toBool(env.AGENT_REPLAY_TEXT, false),
     ocrEnabled: toBool(env.AGENT_OCR_ENABLED, true),
     ocrLang: env.AGENT_OCR_LANG || 'por',
+    uploadEnabled: toBool(env.AGENT_UPLOAD_ENABLED, false),
+    uploadUrl: env.AGENT_UPLOAD_URL || '',
+    uploadApiKey: env.AGENT_UPLOAD_API_KEY || '',
   };
 }

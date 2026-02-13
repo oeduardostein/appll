@@ -5,6 +5,7 @@ import process from 'node:process';
 import { createPool } from './db.mjs';
 import { loadAgentConfigFromEnv, replayTemplate } from './replay.mjs';
 import { analyzeScreenshot } from './vision.mjs';
+import { uploadScreenshot } from './upload.mjs';
 
 async function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
@@ -138,6 +139,7 @@ async function processOne(pool, agentCfg) {
 
     let result;
     let analysis = null;
+    let uploadResult = null;
     try {
       startHeartbeat();
       result = await replayTemplate({
@@ -150,21 +152,33 @@ async function processOne(pool, agentCfg) {
       });
 
       const screenshotPath = result?.lastScreenshotPath ?? null;
+      if (agentCfg.uploadEnabled && agentCfg.uploadUrl && screenshotPath) {
+        uploadResult = await uploadScreenshot({
+          url: agentCfg.uploadUrl,
+          apiKey: agentCfg.uploadApiKey,
+          requestId: req.id,
+          filePath: screenshotPath,
+        });
+      }
+
       if (agentCfg.ocrEnabled && screenshotPath) {
         analysis = await analyzeScreenshot(screenshotPath, { lang: agentCfg.ocrLang });
       }
 
-      const outcome =
-        analysis?.errorMessage && (!analysis?.plates || analysis.plates.length === 0)
+      const outcome = analysis
+        ? (analysis?.errorMessage && (!analysis?.plates || analysis.plates.length === 0)
           ? 'error'
           : analysis?.plates && analysis.plates.length
             ? 'plates'
-            : 'unknown';
+            : 'unknown')
+        : (uploadResult ? 'uploaded' : 'unknown');
 
       const status =
         outcome === 'error'
           ? 'failed'
-          : 'succeeded';
+          : (uploadResult || analysis)
+            ? 'succeeded'
+            : 'failed';
 
       await connection.beginTransaction();
       await connection.query(
@@ -177,6 +191,7 @@ async function processOne(pool, agentCfg) {
             success: true,
             data: {
               screenshot_path: result?.lastScreenshotPath ?? null,
+              screenshot_url: uploadResult?.screenshot_url ?? null,
               ocr: analysis
                 ? {
                     text: analysis.rawText,

@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api;
 
 use App\Jobs\ProcessPlacasZeroKmQueueJob;
+use App\Jobs\ProcessPlacasZeroKmOcrJob;
 use App\Models\PlacasZeroKmBatch;
 use App\Models\PlacasZeroKmRequest;
 use App\Models\PlacasZeroKmRunnerState;
@@ -10,6 +11,8 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Routing\Controller;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Str;
 use Symfony\Component\HttpFoundation\Response;
 
 class PublicPlacasZeroKmQueueController extends Controller
@@ -172,6 +175,72 @@ class PublicPlacasZeroKmQueueController extends Controller
         ]);
     }
 
+    public function uploadScreenshot(Request $request): JsonResponse
+    {
+        $auth = $this->authorizePublicApi($request);
+        if ($auth) {
+            return $auth;
+        }
+
+        $requestId = (int) $request->input('request_id', 0);
+        if ($requestId <= 0) {
+            return response()->json([
+                'success' => false,
+                'error' => 'request_id inválido.',
+            ], Response::HTTP_UNPROCESSABLE_ENTITY);
+        }
+
+        $file = $request->file('file');
+        if (!$file || !$file->isValid()) {
+            return response()->json([
+                'success' => false,
+                'error' => 'Arquivo inválido.',
+            ], Response::HTTP_UNPROCESSABLE_ENTITY);
+        }
+
+        $req = PlacasZeroKmRequest::query()->find($requestId);
+        if (!$req) {
+            return response()->json([
+                'success' => false,
+                'error' => 'Request não encontrado.',
+            ], Response::HTTP_NOT_FOUND);
+        }
+
+        $disk = 'public';
+        $path = $file->storeAs(
+            'placas-0km/' . $requestId,
+            (string) Str::uuid() . '.png',
+            $disk
+        );
+
+        $url = Storage::disk($disk)->url($path);
+
+        $payload = $req->response_payload ?? [];
+        if (!is_array($payload)) {
+            $payload = [];
+        }
+        $data = $payload['data'] ?? [];
+        if (!is_array($data)) {
+            $data = [];
+        }
+        $data['screenshot_path'] = $path;
+        $data['screenshot_url'] = $url;
+        $payload['data'] = $data;
+        $req->response_payload = $payload;
+        $req->save();
+
+        ProcessPlacasZeroKmOcrJob::dispatch($requestId, $disk, $path);
+
+        return response()->json([
+            'success' => true,
+            'data' => [
+                'request_id' => $requestId,
+                'screenshot_path' => $path,
+                'screenshot_url' => $url,
+            ],
+        ]);
+    }
+
     private function authorizePublicApi(Request $request): ?JsonResponse
     {
         $apiKey = (string) config('services.public_placas0km.key', '');
@@ -190,4 +259,3 @@ class PublicPlacasZeroKmQueueController extends Controller
         ], Response::HTTP_UNAUTHORIZED);
     }
 }
-
