@@ -4,6 +4,7 @@ import process from 'node:process';
 
 import { createPool } from './db.mjs';
 import { loadAgentConfigFromEnv, replayTemplate } from './replay.mjs';
+import { analyzeScreenshot } from './vision.mjs';
 
 async function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
@@ -136,6 +137,7 @@ async function processOne(pool, agentCfg) {
     };
 
     let result;
+    let analysis = null;
     try {
       startHeartbeat();
       result = await replayTemplate({
@@ -147,15 +149,43 @@ async function processOne(pool, agentCfg) {
         replayText: agentCfg.replayText,
       });
 
+      const screenshotPath = result?.lastScreenshotPath ?? null;
+      if (agentCfg.ocrEnabled && screenshotPath) {
+        analysis = await analyzeScreenshot(screenshotPath, { lang: agentCfg.ocrLang });
+      }
+
+      const outcome =
+        analysis?.errorMessage && (!analysis?.plates || analysis.plates.length === 0)
+          ? 'error'
+          : analysis?.plates && analysis.plates.length
+            ? 'plates'
+            : 'unknown';
+
+      const status =
+        outcome === 'error'
+          ? 'failed'
+          : 'succeeded';
+
       await connection.beginTransaction();
       await connection.query(
-        "UPDATE placas_zero_km_requests SET status='succeeded', response_error=NULL, response_payload=:payload, finished_at=NOW(), updated_at=NOW() WHERE id=:id",
+        "UPDATE placas_zero_km_requests SET status=:status, response_error=:err, response_payload=:payload, finished_at=NOW(), updated_at=NOW() WHERE id=:id",
         {
           id: req.id,
+          status,
+          err: outcome === 'error' ? (analysis?.errorMessage || 'Erro detectado no modal') : null,
           payload: JSON.stringify({
             success: true,
             data: {
               screenshot_path: result?.lastScreenshotPath ?? null,
+              ocr: analysis
+                ? {
+                    text: analysis.rawText,
+                    normalized_text: analysis.normalizedText,
+                    plates: analysis.plates,
+                    error_message: analysis.errorMessage,
+                  }
+                : null,
+              outcome,
             },
           }),
         }

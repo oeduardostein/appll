@@ -56,7 +56,18 @@ Ele:
 - tenta “pegar” 1 pendência por vez;
 - quando não tem nada, espera e tenta de novo.
 
+## OCR (IA local)
+
+O agente tenta rodar OCR na imagem e extrair:
+- mensagem de erro (ex: “FICHA CADASTRAL JA EXISTENTE”)
+- placas visíveis no modal
+
+Configuração no `.env`:
+- `AGENT_OCR_ENABLED=true`
+- `AGENT_OCR_LANG=por`
+
+Observação: na primeira execução o Tesseract pode baixar dados de idioma.
+
 ## Saída (prints)
 
 Os prints vão para `point-recorder/screenshots/` (por padrão).
-

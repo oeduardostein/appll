@@ -178,6 +178,7 @@ export function loadAgentConfigFromEnv(env) {
     maxDelayMs: Number(env.AGENT_MAX_DELAY_MS || 5000),
     speed: Number(env.AGENT_SPEED || 1.0),
     replayText: toBool(env.AGENT_REPLAY_TEXT, false),
+    ocrEnabled: toBool(env.AGENT_OCR_ENABLED, true),
+    ocrLang: env.AGENT_OCR_LANG || 'por',
   };
 }
-
