@@ -5,9 +5,10 @@
 // valores vindos do banco.
 //
 // Hotkeys:
-// - F6  => slot_begin cpf_cgc
-// - F7  => slot_begin nome
-// - F8  => slot_begin chassi
+// - F6  => armar slot CPF/CNPJ (grava no próximo clique)
+// - F7  => armar slot Nome (grava no próximo clique)
+// - F8  => armar slot Chassi (grava no próximo clique)
+// - F9  => armar slot Senha (grava no próximo clique)
 // - F12 => screenshot (ponto onde o replay deve tirar print)
 
 const fs = require('node:fs');
@@ -72,9 +73,10 @@ function printHelp() {
   console.log('Ex:  node record-template.js --out recordings/template.jsonl --format jsonl');
   console.log('');
   console.log('Hotkeys durante a gravação:');
-  console.log('- F6  => marcar slot CPF/CNPJ');
-  console.log('- F7  => marcar slot Nome');
-  console.log('- F8  => marcar slot Chassi');
+  console.log('- F6  => armar slot CPF/CNPJ (grava no próximo clique)');
+  console.log('- F7  => armar slot Nome (grava no próximo clique)');
+  console.log('- F8  => armar slot Chassi (grava no próximo clique)');
+  console.log('- F9  => armar slot Senha (grava no próximo clique)');
   console.log('- F12 => marcar ponto de screenshot');
 }
 
@@ -150,13 +152,11 @@ function baseRecord(type) {
 }
 
 let lastMouse = { x: null, y: null };
+let pendingSlot = null;
 
-function recordSlot(name) {
-  writeRecord({
-    ...baseRecord('slot_begin'),
-    name
-  });
-  console.log(`slot_begin: ${name}`);
+function armSlot(name) {
+  pendingSlot = name;
+  console.log(`slot armado: ${name} (clique no campo para gravar)`);
 }
 
 function recordScreenshot() {
@@ -170,6 +170,16 @@ function recordScreenshot() {
 
 hook.on('mousedown', (event) => {
   lastMouse = { x: event.x, y: event.y };
+  if (pendingSlot) {
+    writeRecord({
+      ...baseRecord('slot_begin'),
+      name: pendingSlot,
+      x: event.x,
+      y: event.y
+    });
+    console.log(`slot_begin: ${pendingSlot} x=${event.x} y=${event.y}`);
+    pendingSlot = null;
+  }
   const record = {
     ...baseRecord('mouse_down'),
     x: event.x,
@@ -193,7 +203,7 @@ hook.on('mouseup', (event) => {
 
 hook.on('keydown', (event) => {
   // uiohook keycodes (mais comuns)
-  // F6  = 64, F7  = 65, F8  = 66, F12 = 70
+  // F6  = 64, F7  = 65, F8  = 66, F9 = 67, F12 = 70
   // Esses valores podem variar; por isso também tentamos rawcode quando existir.
   const keycode = event.keycode;
   const rawcode = event.rawcode ?? null;
@@ -201,11 +211,13 @@ hook.on('keydown', (event) => {
   const isF6 = keycode === 64 || rawcode === 0x75;
   const isF7 = keycode === 65 || rawcode === 0x76;
   const isF8 = keycode === 66 || rawcode === 0x77;
+  const isF9 = keycode === 67 || rawcode === 0x78;
   const isF12 = keycode === 70 || rawcode === 0x7b;
 
-  if (isF6) return recordSlot('cpf_cgc');
-  if (isF7) return recordSlot('nome');
-  if (isF8) return recordSlot('chassi');
+  if (isF6) return armSlot('cpf_cgc');
+  if (isF7) return armSlot('nome');
+  if (isF8) return armSlot('chassi');
+  if (isF9) return armSlot('senha');
   if (isF12) return recordScreenshot();
 
   const char =
@@ -295,4 +307,3 @@ process.on('beforeExit', () => {
 
 process.on('SIGINT', shutdown);
 process.on('SIGTERM', shutdown);
-

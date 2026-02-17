@@ -52,6 +52,8 @@ function detectError(text) {
 
 export async function analyzeScreenshot(imagePath, opts = {}) {
   const lang = opts.lang || 'por';
+  const logger = opts.logger || null;
+  logger?.info('ocr.start', { imagePath, lang });
   const worker = await createWorker(lang);
 
   try {
@@ -62,14 +64,19 @@ export async function analyzeScreenshot(imagePath, opts = {}) {
     const plates = extractPlates(normalized);
     const errorMessage = detectError(normalized);
 
-    return {
+    const result = {
       rawText,
       normalizedText: normalized,
       plates,
       errorMessage,
     };
+    logger?.info('ocr.done', {
+      imagePath,
+      platesCount: plates.length,
+      errorMessage: errorMessage || null,
+    });
+    return result;
   } finally {
     await worker.terminate();
   }
 }
-

@@ -1,0 +1,524 @@
+/* 
+#  $Date: 2013/07/22 16:11:24 $ Last Modified by $Author: afeltrin $
+#  MAGNA SISTEMAS CONSULTORIA S.A
+#  Description : Funcoes de Negocio comum a TODAS as paginas da aplicacao.
+				Usada no nivel do Frame. Carregada a Cada submit(), 
+				portanto suas variaveis NAO sao Constantes.
+				
+#  Author      : ANTONIO CARLOS SCHAAL
+
+#  Dependencia : /comum.js	
+*/
+
+/*=============================================================================================
+VARIAVEIS GLOBAIS
+*============================================================================================*/
+var CONTEXT = "/gever"; //Contexto Web do Projeto em Questao
+var idImgWaitToShow; //ID da Imagem a ser mostrada qnd do CallBack
+
+/*=============================================================================================
+Faz a chamda de uma servlet no iframe de CallBack chamado iframe_cb, que deve conter na pagina
+@param url: Url a ser chamada no Iframe
+@param idImgWait: O ID da imagem a ser mostrada com waitLoad - OPCIONAL
+*============================================================================================*/
+function callBack(url, idImgWait){
+	if(url == "undefined") url = "about:blank";
+	if(idImgWait == 'undefinded') {
+		this.idImgWaitToShow = null;
+	}else{
+		this.idImgWaitToShow = idImgWait;
+	}
+	
+	//Mostra o Wait Load - SE HOUVER
+	showWaitCallback(true);
+	
+	//CHAMDA DO CALLBACK NO I-FRAME		
+	if (isIE){ // detecta IE
+		document.all["iframe_cb"].src=url;
+	}
+	else{
+		document.getElementById('iframe_cb').src=url;
+	} 
+}
+
+/*=============================================================================================
+<!-- NAO COMMITAR -->
+Seleciona todos os checkbox
+*============================================================================================*/
+function selectAll(variavel,nomeCampo) {
+	var valor = document.getElementsByName(nomeCampo);
+	var i;
+	var isChecked = variavel.checked;
+			
+	for(i = 0; i < valor.length; i++){
+		valor[i].checked = isChecked;
+	}
+}
+
+/*=============================================================================================
+Mostra a Imagem de WAIT qnd do CallBack - Se houver
+*============================================================================================*/
+function showWaitCallback(flag){
+	//MOSTRA O WAIT
+	var imgWait = getById(this.idImgWaitToShow);
+	try{
+		if(flag){
+			//imgWait.style.display='block';
+			imgWait.style.visibility='visible';
+		}else{
+			//imgWait.style.display='none';
+			imgWait.style.visibility='hidden';
+		}
+	}
+	catch(e){}
+}
+
+/*=============================================================================================
+Qnd precisa usar o CalendarPopUp como Moth\Year precisa chamar por esta funcao, 
+pois ela controla se o formulario esta ou nao em modo de edicao, para poder exibir o Calendar
+*============================================================================================*/
+function showMonthCalendar(theForm, theCalendar, retFunc, anchorName){
+	
+	retFunc = new String(retFunc);
+	anchorName = new String(anchorName);
+	
+	if(isInEditMode(theForm)){
+		theCalendar.setReturnMonthFunction(retFunc);
+		theCalendar.showCalendar(anchorName);		
+	}
+	
+	return false;
+}
+
+/*=============================================================================================
+Funcao Generica que checa se o form esta em estado de edicao.
+	Se o campo novo eh true ou se o campo editando eh true --> TRUE
+	caso contrario --> FALSE
+*============================================================================================*/
+function isInEditMode(theForm){
+var editando = false;
+	if(theForm.novo){		
+		editando = theForm.novo.value=="true";
+	}
+	
+	if(theForm.editando){
+		if(!editando){		
+			editando = theForm.editando.value=="true";
+		}
+	}
+	
+	return editando;
+}
+
+/*=============================================================================================
+Caso o Form esteja em Modo Leitura desabilita os campos.
+Caso o Form esteja em Modo Edicao Habilita os Campos
+*============================================================================================*/
+function setEditing(theForm){	
+	enableForm(theForm,isInEditMode(theForm));
+}
+
+/**=============================================================================
+ Chama o Callback de onchange relacionado aos campos de CEP em browsers da 
+ família do Firefox. No código HTML original o campo de CEP tem o seguinte 
+ código:
+ 
+ <input name="cep" ... onblur="formatCamp(this,'cep')" onchange="callback();" />
+ 
+ Onde se espera que depois do cursor deixar o campo em questão, é chamado o 
+ formatador (formatCamp) e depois o callback. No IE isso funciona, mas no 
+ firefox não. Por algum motivo o formatCamp bloqueia chamada a callback. Por 
+ isso foi desenvolvida esta função.  
+ 
+ @param campoCep Campo de CEP. Se não existir é dispararado um Erro. 
+ @param callback função a ser chamada ao se alterar o CEP. Se não existir é 
+ dispararado um Erro. 
+================================================================================*/
+function AtualizadorCep(campoCep, callback) {
+	var browser = new Browser();
+	// TODO: Achar um modo de não deixar explicitamente dependente de Browser.
+	if(!(browser.isNetscape() || browser.isMozilla())) {
+		return;
+	}
+
+	// Validação
+	if(!campoCep) {
+		throw new Error("Campo de CEP não definido!");
+	}
+	if(!callback) {
+		throw new Error("Callback de CEP não definido!");
+	}
+
+	var cepAnterior = campoCep.value;
+	
+	campoCep.onblur = function() { 
+		var campoValido = formatCamp(campoCep, 'cep'); 
+		if(campoValido && (campoCep.value != cepAnterior)) {
+			callback();
+			cepAnterior = campoCep.value;
+		}
+	}
+}
+
+/**=============================================================================
+Dada uma tabela de Resultados gerada pelas tags displaytag, adciona aos
+links de ordenação e de navegação o evento de chamar top.showWait(true).
+
+@param idTable Id da Tabela, identificado pelo atributo "id" de <display:table>
+================================================================================*/
+function tratarTabelaResultados(idTable) {
+	var tabela = getById(idTable);
+	// Indica se há apenas uma linha de resultados na tabela  (tabela.rows.length 
+	//conta as linha de <th> + <tbody>)
+	var linhaUnica = ((tabela.rows.length - 1) == 1); 
+	var f1 = function() { top.showWait(true); };
+	var addLinkEvent = (document.attachEvent)? 
+		function(link) { link.attachEvent("onclick", f1); }:			//IE
+		function(link) { link.addEventListener("click", f1, false); };	// W3C
+	
+	// Tratamento do Cabeçalho
+	var headerHandler = function() {}
+	if(linhaUnica) {
+		// Se houver uma única linha removo os eventuais links de reordenação 
+		//para evitar a reordenação desnecessária.
+		headerHandler = function(cabecalho) {
+			var links = cabecalho.getElementsByTagName("a");
+			if(links && links.length) {
+				cabecalho.insertBefore(links[0].childNodes[0], links[0]);
+				cabecalho.removeChild(links[0]);
+			}
+		}
+	} else {
+		headerHandler = function(cabecalho) {
+			var links = cabecalho.getElementsByTagName("a");
+			if(links && links.length) {
+				var link = links[0];
+				// Cross browsing - IE: innerText, outros: textContent
+				var texto = link.innerText? link.innerText: link.textContent;
+				var classe = cabecalho.attributes["class"].value;
+				if(classe.indexOf("list_titulo_asc") >= 0) {
+					link.title = "Ordena por " + texto + " em ordem decrescente.";
+				} else if(classe.indexOf("list_titulo_desc") >= 0) {
+					link.title = "Ordena por " + texto + " em ordem crescente.";
+				} else {
+					link.title = "Ordena por " + texto + " em ordem crescente.";
+				}
+				addLinkEvent(link);
+			}
+		}
+	}
+	var linhaCabecalho = tabela.rows[0];
+	for(var i = 0; i < linhaCabecalho.cells.length; i ++) {
+		headerHandler(linhaCabecalho.cells[i]);
+	}
+	
+	// Tratamento dos links de paginação
+	var areaNavegacao;
+	var spans = tabela.parentNode.getElementsByTagName("span");
+	for(var i = 0; i < spans.length; i ++) {
+		var classe = spans[i].attributes["class"]
+		if(classe && (classe.value.indexOf("pagelinks") >= 0)) {
+			areaNavegacao = spans[i];
+			break;
+		}
+	}
+	if(areaNavegacao) {
+		var links = areaNavegacao.getElementsByTagName("a");
+		for(var j = 0; j < links.length; j ++) {
+			addLinkEvent(links[j]);
+		}
+	}
+}
+
+/**============================================================================= 
+ * Abre um dialog e imprime o conteudo da pagina de abertura na TAG
+ * identificada pelo id="printableContent"
+ *=============================================================================*/
+function openPrintDialog(){
+	var url = CONTEXT + "/comum/printDialog.jsp";
+	var printingWindow = window.open(url, "printingWindow", 
+	"width=800,height=600,top=0,toolbars=no,scrollbars=yes,status=no,resizable=no,location=no,menubar=no");
+	top.setChildWindow(printingWindow);
+	printingWindow.focus();
+}
+
+/**============================================================================= 
+ * Abre um dialog e imprime o conteudo da pagina de abertura na TAG
+ * identificada pelo id="printableContent"
+ *=============================================================================*/
+function openPrintBasicDialog(){
+	var url = CONTEXT + "/comum/printBasicDialog.jsp";
+	var printingWindow = window.open(url, "printingWindow", 
+	"width=800,height=600,top=0,toolbars=no,scrollbars=yes,status=no,resizable=no,location=no,menubar=no");
+	top.setChildWindow(printingWindow);
+	printingWindow.focus();
+}
+
+/**=============================================================================
+ *   Exibe o conteúdo de um elemento HTML num popup para que possa ser impresso.
+ * Fonte inicial: http://www.daniweb.com/forums/thread108117.html
+ *
+ * @param obj Elemento a ser exibido. Se for um String então pega-se o 
+ * elemento com este id via getById().
+ ===============================================================================*/
+function printElement(obj) {
+	htmlElement = (typeof obj == "string")? getById(obj): obj;
+
+	var printingWindow = window.open("", "printingWindow", 
+		"width=800,height=600,top=250,toolbars=no,scrollbars=yes,status=no,resizable=no");
+
+	printingWindow.document.writeln('<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN" "http://www.w3.org/TR/html4/loose.dtd">');
+	printingWindow.document.writeln("<html>");
+
+	printingWindow.document.writeln("<head>");
+	printingWindow.document.writeln("<title>IMPRESSÃO</title>");
+	// Pega os eventuais estilos CSS (tag <style>) que existam na página original.
+	var styles = document.getElementsByTagName("style");
+	for(var i = 0; i < styles.length; i ++) {
+		printingWindow.document.writeln('<style type="text/css">');
+		printingWindow.document.writeln(styles[i].innerHTML);
+		printingWindow.document.writeln('</style>');
+	}
+	// Pega as eventuais tags <link> relacionadas a estilos CSS que existam na página original.
+	var links = document.getElementsByTagName("link");
+	for(var i = 0; i < links.length; i ++) {
+		var rel = links[i].attributes["rel"];
+		var type = links[i].attributes["type"];
+		if((rel && (rel.value == "stylesheet")) || (type && (type.value == "text/css"))) {
+			printingWindow.document.writeln('<link rel="stylesheet" type="text/css" href="' + links[i].attributes["href"].value + '">');
+		}
+	}
+	printingWindow.document.writeln("</head>");
+
+	printingWindow.document.writeln("<body>");
+	printingWindow.document.writeln(htmlElement.innerHTML);
+	printingWindow.document.writeln("</body>");
+
+	printingWindow.document.writeln("</html>");
+
+	printingWindow.document.close();
+	printingWindow.focus();
+	printingWindow.print();
+//	printingWindow.close();
+}
+
+/**=============================================================================
+Exibe o conteúdo de determinado elemento HTML e - em caso de ocultamento - 
+limpa os inputs dentro deste Elemento.
+
+@param obj Se for uma String representa o nome do elemento HTML, senão é o 
+próprio elemento a ser manipulado.
+@param show Se é para exibir ou não.
+@param callback (opcional) Função a ser chamada depois das alterações.
+================================================================================*/
+function showOrCleanElementContent(obj, show, callback) {
+	showElementContent(obj, show);
+	if(!show) {
+		cleanInputs(obj);
+	}
+	if(callback) {
+		callback();
+	}
+}
+
+/**=============================================================================
+Exibe determinado elemento HTML e - em caso de ocultamento - 
+limpa os inputs dentro deste Elemento.
+Utiliza-se a propriedade "display" de style. Se for para exibir usa-se uma 
+string vazia, caso contrário "none".
+
+@param obj Se for uma String representa o nome do elemento HTML, senão é o 
+próprio elemento a ser manipulado.
+@param show Se é para exibir ou não.
+@param callback (opcional) função a ser chamada depois de se alterar a 
+visibilidade. 
+================================================================================*/
+function showOrCleanElement(obj, show, callback) {
+	showElement(obj, show);
+	if(!show) {
+		cleanInputs(obj);
+	}
+	if(callback) {
+		callback();
+	}
+}
+
+
+/**=============================================================================
+Limpa os valores dos elementos input dentro de determinado div. (Por enquanto 
+só funciona com radios, checkboxes e texts).
+
+@param obj Objeto a ter seus elementos input limpos. Se for uma String 
+procura-se por um elemento com id equivalente. Se não usa-se este mesmo obj como
+se fosse o elemento.
+================================================================================*/
+function cleanInputs(obj) {
+	var el = (typeof obj == "string")? getById(obj): obj;
+
+	var inputs = el.getElementsByTagName("input");
+	for(i = 0; i < inputs.length; i ++) {
+		switch(inputs[i].type) {
+			case "radio":
+			case "checkbox":
+				inputs[i].checked = false;
+				break;
+			case "text":
+				inputs[i].value = "";
+				break;
+			default:
+				// Não faz nada (por enquanto);
+		}
+	}
+
+	var selects = el.getElementsByTagName("select");
+	for(var i = 0; i < selects.length; i ++) {
+		selects[i].selectedIndex = 0;
+	}
+
+	var textareas = el.getElementsByTagName("textarea");
+	for(var i = 0; i < textareas.length; i ++) {
+		textareas[i].value = "";
+	}
+}
+
+/**=============================================================================
+Exibe ou oculta *o conteúdo* de um elemento HTML. 
+Utiliza-se a propriedade visibility de style. Se for para exibir usa-se uma 
+string vazia, caso contrário "hidden".
+
+@param obj Se for uma String representa o nome do elemento HTML, senão é o 
+próprio elemento a ser manipulado.
+@param show Se é para exibir ou não.
+@param callback (opcional) função a ser chamada depois de se alterar a visibilidade. 
+================================================================================*/
+function showElementContent(obj, show, callback) {
+	var el = (typeof obj == "string")? getById(obj): obj;
+	if(!el || el == null) return;
+	el.style.visibility = show? "": "hidden";
+	if(callback) {
+		callback();
+	}
+}
+
+/**=============================================================================
+Exibe ou oculta um elemento HTML. 
+Utiliza-se a propriedade "display" de style. Se for para exibir usa-se uma 
+string vazia, caso contrário "none".
+
+@param obj Se for uma String representa o nome do elemento HTML, senão é o 
+próprio elemento a ser manipulado.
+@param show Se é para exibir ou não.
+@param callback (opcional) função a ser chamada depois de se alterar a 
+visibilidade. 
+================================================================================*/
+function showElement(obj, show, callback) {
+	var el = (typeof obj == "string")? getById(obj): obj;
+	if(!el || el == null) return;
+	el.style.display = show? "": "none";	
+	if(callback) {
+		callback();
+	}
+}
+
+/*==============================================================================
+Valida determinado o valor de campo e, em caso negativo, emite uma mensagem de 
+erro e transfere o foco para este campo.
+
+@param field Campo a ser avaliado
+@param validateFunction função validadora
+@param msgErro Mensagem de erro caso validateFunction retorne false.
+================================================================================*/
+function validarCampo(field, validateFunction, msgErro) {
+	if(!validateFunction(field.value)) {
+		top.showWait(false);
+		alert(msgErro); 
+		field.focus();
+		return false;
+	}
+	
+	return true;
+}
+
+/*==============================================================================
+Evita um CTRL+V (Paste) no Campo
+Uso: onkeydown="noPaste(event);"
+================================================================================*/
+function noPaste(e) {
+ var evt = typeof window.event != 'undefined' ? window.event : e;
+ var val = evt.keyCode == 86; //LETRA V
+ if (evt.ctrlKey && val) {
+ 	if (evt.stopPropagation) {
+ 		evt.preventDefault();
+ 		evt.stopPropagation();
+ 	} else {
+ 		evt.cancleBubble = true;
+ 		evt.returnValue = false;
+ 	}
+ }
+}
+
+/*==============================================================================
+FAZ UM SWAP DE IMAGENS
+================================================================================*/
+function roll(img_name, img_src) {
+   document[img_name].src = img_src;
+}
+
+/*==============================================================================
+FUNCOES DE STYLE
+================================================================================*/
+function move_i(what) { 
+	what.style.background='#cccccc'; 
+}
+
+/*==============================================================================
+move_o
+================================================================================*/
+function move_o(what) { 
+	what.style.background=''; 
+}
+
+/*==============================================================================
+retirarAcento
+================================================================================*/
+function retirarAcento(objResp) {
+	var varString = new String(objResp.value);
+	var stringAcentos = new String('àâêôûãõáéíóúçüÀÂÊÔÛÃÕÁÉÍÓÚÇÜ');
+	var stringSemAcento = new String('aaeouaoaeioucuAAEOUAOAEIOUCU');
+
+	var i = new Number();
+	var j = new Number();
+	var cString = new String();
+	var varRes = '';
+
+	for (i = 0; i < varString.length; i++) {
+		cString = varString.substring(i, i + 1);
+		for (j = 0; j < stringAcentos.length; j++) {
+			if (stringAcentos.substring(j, j + 1) == cString){
+				cString = stringSemAcento.substring(j, j + 1);
+			}
+		}
+		varRes += cString;
+	}
+	objResp.value = varRes;
+}
+/*====================================================================================
+seta o municipio do proprietario igual ao municipio da placa  
+======================================================================================*/
+
+function selecionaMunicipioProprietario(){
+	
+	var municipioSelecionado = $("#municipio2 option:selected").val();
+		
+	if (municipioSelecionado != 0){		
+		$("#municipio").val(municipioSelecionado);
+	}	
+
+}
+
+function clearValor(){
+	var myForm = document.forms[0];
+	myForm.valor.value = "";
+	myForm.valor.focus();
+	document.getElementById("valor").maxLength = getMax();	
+}
