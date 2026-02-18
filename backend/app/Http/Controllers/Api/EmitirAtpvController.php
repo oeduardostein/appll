@@ -294,8 +294,28 @@ class EmitirAtpvController extends BaseAtpvController
         ]);
 
         $municipioAttempts = [$municipioCode];
-        if ($this->shouldRetryMunicipioCode($errors, $messages) && count($municipioCandidates) > 1) {
-            foreach ($municipioCandidates as $candidate) {
+        if ($this->shouldRetryMunicipioCode($errors, $messages)) {
+            $retryCandidates = $municipioCandidates;
+            $htmlMunicipioCode = $this->extractMunicipioCodeFromHtml(
+                $body,
+                $record->municipio_comprador
+            );
+
+            if ($htmlMunicipioCode !== null && ! in_array($htmlMunicipioCode, $retryCandidates, true)) {
+                // Prioriza o código que o próprio DETRAN expõe no HTML retornado.
+                array_splice($retryCandidates, 1, 0, [$htmlMunicipioCode]);
+            }
+
+            Log::info('ATPV: fila retry municipio2', [
+                'trace_id' => $traceId,
+                'atpv_request_id' => $record->id,
+                'initial' => $municipioCode,
+                'retry_candidates' => $retryCandidates,
+                'html_candidate' => $htmlMunicipioCode,
+                'municipio_comprador' => $record->municipio_comprador,
+            ]);
+
+            foreach ($retryCandidates as $candidate) {
                 if (in_array($candidate, $municipioAttempts, true)) {
                     continue;
                 }
@@ -334,6 +354,12 @@ class EmitirAtpvController extends BaseAtpvController
                 }
 
                 if (! $this->shouldRetryMunicipioCode($errors, $messages)) {
+                    Log::info('ATPV: retry municipio2 interrompido por mensagem nao relacionada', [
+                        'trace_id' => $traceId,
+                        'atpv_request_id' => $record->id,
+                        'last_municipio2' => $candidate,
+                        'messages' => $messages,
+                    ]);
                     break;
                 }
             }
@@ -663,9 +689,76 @@ class EmitirAtpvController extends BaseAtpvController
             if (str_contains($normalized, '406-') && str_contains($normalized, 'mensagem') && str_contains($normalized, 'cadastrada')) {
                 return true;
             }
+            if (str_contains($normalized, 'codigomunicipio') && str_contains($normalized, 'inválido')) {
+                return true;
+            }
+            if (str_contains($normalized, 'codigomunicipio') && str_contains($normalized, 'invalido')) {
+                return true;
+            }
+            if (str_contains($normalized, 'comprador.codigomunicipio')) {
+                return true;
+            }
         }
 
         return false;
+    }
+
+    private function extractMunicipioCodeFromHtml(string $body, ?string $municipioNome): ?string
+    {
+        $target = $this->normalizeMunicipioName($municipioNome);
+        if ($target === '') {
+            return null;
+        }
+
+        $html = $this->normalizeEncoding($body);
+        if ($html === '') {
+            return null;
+        }
+
+        $dom = new \DOMDocument();
+        libxml_use_internal_errors(true);
+        @$dom->loadHTML($html);
+        libxml_clear_errors();
+
+        $xpath = new \DOMXPath($dom);
+        $nodes = $xpath->query('//select[@name="municipio2"]//option[@value]');
+        if (! $nodes || $nodes->length === 0) {
+            return null;
+        }
+
+        foreach ($nodes as $node) {
+            $label = trim((string) $node->textContent);
+            $value = $this->stripNonDigits((string) $node->attributes?->getNamedItem('value')?->nodeValue);
+
+            if ($label === '' || $value === '') {
+                continue;
+            }
+
+            if ($this->normalizeMunicipioName($label) === $target) {
+                return $value;
+            }
+        }
+
+        return null;
+    }
+
+    private function normalizeMunicipioName(?string $value): string
+    {
+        if ($value === null) {
+            return '';
+        }
+
+        $normalized = mb_strtoupper(trim($value));
+        if ($normalized === '') {
+            return '';
+        }
+
+        $normalized = $this->stripAccents($normalized);
+        $normalized = mb_strtoupper($normalized);
+        $normalized = preg_replace('/[^A-Z0-9\s]/', ' ', $normalized) ?? $normalized;
+        $normalized = preg_replace('/\s+/', ' ', $normalized) ?? $normalized;
+
+        return trim($normalized);
     }
 
     private function buildMunicipioCodeCandidates(array $data): array
