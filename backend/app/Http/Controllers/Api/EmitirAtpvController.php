@@ -686,9 +686,6 @@ class EmitirAtpvController extends BaseAtpvController
                 continue;
             }
 
-            if (str_contains($normalized, '406-') && str_contains($normalized, 'mensagem') && str_contains($normalized, 'cadastrada')) {
-                return true;
-            }
             if (str_contains($normalized, 'codigomunicipio') && str_contains($normalized, 'inválido')) {
                 return true;
             }
@@ -830,8 +827,11 @@ class EmitirAtpvController extends BaseAtpvController
         $startedAt = microtime(true);
         $response = $this->postDetranForm($headers, $token, $form);
         $body = $response->body();
-        $errors = $this->extractErrors($body);
-        $messages = $this->extractMessages($body);
+        $rawErrors = $this->extractErrors($body);
+        $rawMessages = $this->extractMessages($body);
+        $mapped = $this->applyKnownDetranMessageMappings($rawErrors, $rawMessages, $body);
+        $errors = $mapped['errors'];
+        $messages = $mapped['messages'];
         $elapsedMs = (int) round((microtime(true) - $startedAt) * 1000);
 
         $stats = $response->handlerStats();
@@ -845,10 +845,13 @@ class EmitirAtpvController extends BaseAtpvController
             'elapsed_ms' => $elapsedMs,
             'content_type' => $response->header('Content-Type'),
             'effective_url' => $effectiveUrl,
+            'raw_errors' => $rawErrors,
+            'raw_messages' => $rawMessages,
             'errors_count' => count($errors),
             'messages_count' => count($messages),
             'errors' => $errors,
             'messages' => $messages,
+            'message_mapping_applied' => $mapped['applied'],
             'response_preview' => $this->buildDetranResponsePreview($body),
         ]);
 
@@ -868,8 +871,11 @@ class EmitirAtpvController extends BaseAtpvController
                 $form['nomeComprador'] = $nomeSemAcento;
                 $response = $this->postDetranForm($headers, $token, $form);
                 $body = $response->body();
-                $errors = $this->extractErrors($body);
-                $messages = $this->extractMessages($body);
+                $rawErrors = $this->extractErrors($body);
+                $rawMessages = $this->extractMessages($body);
+                $mapped = $this->applyKnownDetranMessageMappings($rawErrors, $rawMessages, $body);
+                $errors = $mapped['errors'];
+                $messages = $mapped['messages'];
                 $retryElapsedMs = (int) round((microtime(true) - $retryStartedAt) * 1000);
                 $retryStats = $response->handlerStats();
                 $retryEffectiveUrl = is_array($retryStats) ? ($retryStats['url'] ?? null) : null;
@@ -882,10 +888,13 @@ class EmitirAtpvController extends BaseAtpvController
                     'elapsed_ms' => $retryElapsedMs,
                     'content_type' => $response->header('Content-Type'),
                     'effective_url' => $retryEffectiveUrl,
+                    'raw_errors' => $rawErrors,
+                    'raw_messages' => $rawMessages,
                     'errors_count' => count($errors),
                     'messages_count' => count($messages),
                     'errors' => $errors,
                     'messages' => $messages,
+                    'message_mapping_applied' => $mapped['applied'],
                     'response_preview' => $this->buildDetranResponsePreview($body),
                 ]);
             }
@@ -911,6 +920,70 @@ class EmitirAtpvController extends BaseAtpvController
         }
 
         return mb_substr($text, 0, 280);
+    }
+
+    /**
+     * @param array<int,string> $errors
+     * @param array<int,string> $messages
+     * @return array{errors:array<int,string>,messages:array<int,string>,applied:bool}
+     */
+    private function applyKnownDetranMessageMappings(array $errors, array $messages, string $body): array
+    {
+        $normalizedBody = $this->normalizeEncoding($body);
+        $knownCrvFisico = '406-INTENÇÃO DE VENDA NÃO PODE SER REGISTRADA PARA VEÍCULO COM CRV FÍSICO';
+        $applied = false;
+
+        $hasGeneric406 = false;
+        foreach (array_merge($errors, $messages) as $msg) {
+            $normalized = mb_strtolower((string) $msg);
+            if (str_contains($normalized, '406-mensagem') && str_contains($normalized, 'não cadastrada')) {
+                $hasGeneric406 = true;
+                break;
+            }
+            if (str_contains($normalized, '406-mensagem') && str_contains($normalized, 'nao cadastrada')) {
+                $hasGeneric406 = true;
+                break;
+            }
+        }
+
+        if (! $hasGeneric406) {
+            return [
+                'errors' => $errors,
+                'messages' => $messages,
+                'applied' => false,
+            ];
+        }
+
+        if (preg_match(
+            '/406-INTEN[ÇC][ÃA]O DE VENDA N[ÃA]O PODE SER REGISTRADA PARA VE[ÍI]CULO COM CRV F[ÍI]SICO/u',
+            $normalizedBody,
+            $match
+        )) {
+            $knownCrvFisico = trim($match[0]);
+        }
+
+        $replaceGeneric = static function (array $list) use ($knownCrvFisico, &$applied): array {
+            foreach ($list as $index => $item) {
+                $normalized = mb_strtolower((string) $item);
+                if (
+                    str_contains($normalized, '406-mensagem')
+                    && (str_contains($normalized, 'não cadastrada') || str_contains($normalized, 'nao cadastrada'))
+                ) {
+                    $list[$index] = $knownCrvFisico;
+                    $applied = true;
+                }
+            }
+            return $list;
+        };
+
+        $mappedErrors = $replaceGeneric($errors);
+        $mappedMessages = $replaceGeneric($messages);
+
+        return [
+            'errors' => $mappedErrors,
+            'messages' => $mappedMessages,
+            'applied' => $applied,
+        ];
     }
 
     private function postDetranForm(array $headers, string $token, array $form): \Illuminate\Http\Client\Response
