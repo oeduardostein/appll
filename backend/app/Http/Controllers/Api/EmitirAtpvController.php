@@ -10,6 +10,7 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Schema;
+use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
 use Symfony\Component\HttpFoundation\Response;
 
@@ -18,6 +19,7 @@ class EmitirAtpvController extends BaseAtpvController
     public function __invoke(Request $request): Response
     {
         $user = $this->findUserFromRequest($request);
+        $traceId = (string) Str::uuid();
 
         if (!$user) {
             return $this->unauthorizedResponse();
@@ -52,12 +54,19 @@ class EmitirAtpvController extends BaseAtpvController
             $fields = $this->buildAtpvFieldLog($this->collectAtpvFieldValues($request->all()));
             $fields = $this->addFieldIssues($fields, $e->errors());
             Log::warning('ATPV: validacao falhou', [
+                'trace_id' => $traceId,
                 'user_id' => $user->id ?? null,
                 'fields' => $fields,
                 'errors' => $e->errors(),
             ]);
             throw $e;
         }
+
+        Log::info('ATPV: inicio emissao', [
+            'trace_id' => $traceId,
+            'user_id' => $user->id ?? null,
+            'fields' => $this->buildAtpvFieldLog($this->collectAtpvFieldValues($data)),
+        ]);
 
         $ownerOption = $data['opcao_pesquisa_proprietario'] ?? null;
         $buyerOption = $data['opcao_pesquisa_comprador'];
@@ -70,6 +79,7 @@ class EmitirAtpvController extends BaseAtpvController
                 $fields = $this->buildAtpvFieldLog($this->collectAtpvFieldValues($data));
                 $fields = $this->addFieldIssue($fields, 'cpf_cnpj_proprietario', 'cpf_invalido');
                 Log::warning('ATPV: cpf proprietario invalido', [
+                    'trace_id' => $traceId,
                     'user_id' => $user->id ?? null,
                     'fields' => $fields,
                 ]);
@@ -81,6 +91,7 @@ class EmitirAtpvController extends BaseAtpvController
                 $fields = $this->buildAtpvFieldLog($this->collectAtpvFieldValues($data));
                 $fields = $this->addFieldIssue($fields, 'cpf_cnpj_proprietario', 'cnpj_invalido');
                 Log::warning('ATPV: cnpj proprietario invalido', [
+                    'trace_id' => $traceId,
                     'user_id' => $user->id ?? null,
                     'fields' => $fields,
                 ]);
@@ -96,6 +107,7 @@ class EmitirAtpvController extends BaseAtpvController
                 $fields = $this->buildAtpvFieldLog($this->collectAtpvFieldValues($data));
                 $fields = $this->addFieldIssue($fields, 'cpf_cnpj_comprador', 'cpf_invalido');
                 Log::warning('ATPV: cpf comprador invalido', [
+                    'trace_id' => $traceId,
                     'user_id' => $user->id ?? null,
                     'fields' => $fields,
                 ]);
@@ -107,6 +119,7 @@ class EmitirAtpvController extends BaseAtpvController
                 $fields = $this->buildAtpvFieldLog($this->collectAtpvFieldValues($data));
                 $fields = $this->addFieldIssue($fields, 'cpf_cnpj_comprador', 'cnpj_invalido');
                 Log::warning('ATPV: cnpj comprador invalido', [
+                    'trace_id' => $traceId,
                     'user_id' => $user->id ?? null,
                     'fields' => $fields,
                 ]);
@@ -119,6 +132,7 @@ class EmitirAtpvController extends BaseAtpvController
         if (! $token) {
             $fields = $this->buildAtpvFieldLog($this->collectAtpvFieldValues($data));
             Log::error('ATPV: token ausente para emissao', [
+                'trace_id' => $traceId,
                 'user_id' => $user->id ?? null,
                 'fields' => $fields,
             ]);
@@ -134,8 +148,8 @@ class EmitirAtpvController extends BaseAtpvController
             'user_id' => $user->id,
             'renavam' => $data['renavam'],
             'placa' => $data['placa'],
-            'chassi' => $data['chassi'] ?? null,
-            'hodometro' => $data['hodometro'] ?? null,
+            'chassi' => $this->normalizeChassi($data['chassi'] ?? null),
+            'hodometro' => $this->normalizeHodometro($data['hodometro'] ?? null),
             'email_proprietario' => $data['email_proprietario'] ?? null,
             'cpf_cnpj_proprietario' => $this->stripNonDigits($data['cpf_cnpj_proprietario'] ?? '') ?: null,
             'cpf_cnpj_comprador' => $this->stripNonDigits($data['cpf_cnpj_comprador']) ?: null,
@@ -163,6 +177,17 @@ class EmitirAtpvController extends BaseAtpvController
 
         $record = AtpvRequest::create($attributes);
 
+        Log::info('ATPV: registro criado', [
+            'trace_id' => $traceId,
+            'atpv_request_id' => $record->id,
+            'user_id' => $user->id ?? null,
+            'credit_value' => $attributes['credit_value'] ?? null,
+            'normalization' => [
+                'chassi_changed' => ($data['chassi'] ?? null) !== ($attributes['chassi'] ?? null),
+                'hodometro_changed' => ($data['hodometro'] ?? null) !== ($attributes['hodometro'] ?? null),
+            ],
+        ]);
+
         $headers = [
             'Accept' => 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7',
             'Accept-Language' => 'pt-BR,pt;q=0.9,en-US;q=0.8,en;q=0.7',
@@ -182,27 +207,17 @@ class EmitirAtpvController extends BaseAtpvController
             'sec-ch-ua-platform' => '"macOS"',
         ];
 
-        $municipioCode = null;
-        if (filled($data['cep_comprador'])) {
-            $cepDigits = $this->stripNonDigits($data['cep_comprador']);
-            if (strlen($cepDigits) === 8) {
-                try {
-                    $cepResponse = Http::timeout(5)->get("https://viacep.com.br/ws/{$cepDigits}/json/");
-                    if ($cepResponse->ok()) {
-                        $cepData = $cepResponse->json();
-                        if (is_array($cepData) && !($cepData['erro'] ?? false)) {
-                            $municipioCode = $this->stripNonDigits($cepData['siafi'] ?? '');
-                        }
-                    }
-                } catch (\Throwable $e) {
-                    report($e);
-                }
-            }
-        }
+        $municipioCandidates = $this->buildMunicipioCodeCandidates($data);
+        $municipioCode = $municipioCandidates[0] ?? '0';
 
-        if ($municipioCode === null || $municipioCode === '') {
-            $municipioCode = $this->stripNonDigits($data['municipio2'] ?? '') ?: '0';
-        }
+        Log::info('ATPV: municipio2 candidatos', [
+            'trace_id' => $traceId,
+            'atpv_request_id' => $record->id,
+            'candidates' => $municipioCandidates,
+            'selected' => $municipioCode,
+            'municipio2_payload' => $this->stripNonDigits($data['municipio2'] ?? '') ?: null,
+            'cep_comprador' => $this->maskLogValue('cep_comprador', $data['cep_comprador'] ?? null),
+        ]);
 
         $nomeComprador = $this->sanitizeNomeComprador($record->nome_comprador ?? '');
 
@@ -237,6 +252,8 @@ class EmitirAtpvController extends BaseAtpvController
             'municipio2' => $municipioCode,
             'renavam' => $record->renavam,
             'placa' => $record->placa,
+            'chassi' => $record->chassi,
+            'hodometro' => $record->hodometro,
             'cpf_cnpj_proprietario' => $ownerOption === '1' ? $ownerCpf : $ownerCnpj,
             'cpf_cnpj_comprador' => $buyerOption === '1' ? $buyerCpf : $buyerCnpj,
             'nome_comprador' => $nomeComprador,
@@ -244,42 +261,96 @@ class EmitirAtpvController extends BaseAtpvController
         ]));
 
         Log::info('ATPV: campos preparados para emissao', [
+            'trace_id' => $traceId,
             'atpv_request_id' => $record->id,
             'user_id' => $user->id ?? null,
             'fields' => $fields,
         ]);
 
-        $response = $this->postDetranForm($headers, $token, $form);
-
-        $body = $response->body();
-        $errors = $this->extractErrors($body);
-        $messages = $this->extractMessages($body);
-        $responseFields = $this->mapRemoteIssues($fields, array_merge($errors, $messages));
+        $attempt = $this->submitDetranForm(
+            $headers,
+            $token,
+            $form,
+            $record->id,
+            $traceId,
+            [
+                'reason' => 'initial',
+                'municipio2' => $municipioCode,
+            ]
+        );
+        $response = $attempt['response'];
+        $body = $attempt['body'];
+        $errors = $attempt['errors'];
+        $messages = $attempt['messages'];
 
         Log::info('ATPV: resposta detran recebida', [
+            'trace_id' => $traceId,
             'atpv_request_id' => $record->id,
             'status' => $response->status(),
             'body_len' => strlen($body),
             'errors' => $errors,
             'messages' => $messages,
-            'fields' => $responseFields,
+            'municipio_attempts' => [$municipioCode],
         ]);
 
-        if ($this->shouldRetryNomeComprador($errors, $messages)) {
-            $nomeSemAcento = $this->stripAccents($nomeComprador);
-            if ($nomeSemAcento !== '' && $nomeSemAcento !== $nomeComprador) {
-                Log::warning('ATPV: retry sem acento no nome do comprador', [
+        $municipioAttempts = [$municipioCode];
+        if ($this->shouldRetryMunicipioCode($errors, $messages) && count($municipioCandidates) > 1) {
+            foreach ($municipioCandidates as $candidate) {
+                if (in_array($candidate, $municipioAttempts, true)) {
+                    continue;
+                }
+
+                $municipioAttempts[] = $candidate;
+                $form['municipio2'] = $candidate;
+
+                Log::warning('ATPV: retry com municipio2 alternativo', [
+                    'trace_id' => $traceId,
                     'atpv_request_id' => $record->id,
-                    'nome_original' => $nomeComprador,
-                    'nome_sem_acento' => $nomeSemAcento,
+                    'municipio2' => $candidate,
+                    'errors' => $errors,
+                    'messages' => $messages,
                 ]);
-                $form['nomeComprador'] = $nomeSemAcento;
-                $response = $this->postDetranForm($headers, $token, $form);
-                $body = $response->body();
-                $errors = $this->extractErrors($body);
-                $messages = $this->extractMessages($body);
+
+                $attempt = $this->submitDetranForm(
+                    $headers,
+                    $token,
+                    $form,
+                    $record->id,
+                    $traceId,
+                    [
+                        'reason' => 'municipio2_retry',
+                        'municipio2' => $candidate,
+                        'attempt' => count($municipioAttempts),
+                    ]
+                );
+                $response = $attempt['response'];
+                $body = $attempt['body'];
+                $errors = $attempt['errors'];
+                $messages = $attempt['messages'];
+                $municipioCode = $candidate;
+
+                if (empty($errors) && ! $this->messagesIndicateFailure($messages)) {
+                    break;
+                }
+
+                if (! $this->shouldRetryMunicipioCode($errors, $messages)) {
+                    break;
+                }
             }
         }
+
+        $fields = $this->buildAtpvFieldLog($this->collectAtpvFieldValues($data, [
+            'municipio2' => $municipioCode,
+            'renavam' => $record->renavam,
+            'placa' => $record->placa,
+            'chassi' => $record->chassi,
+            'hodometro' => $record->hodometro,
+            'cpf_cnpj_proprietario' => $ownerOption === '1' ? $ownerCpf : $ownerCnpj,
+            'cpf_cnpj_comprador' => $buyerOption === '1' ? $buyerCpf : $buyerCnpj,
+            'nome_comprador' => $form['nomeComprador'] ?? $nomeComprador,
+            'uf' => $record->uf,
+        ]));
+        $responseFields = $this->mapRemoteIssues($fields, array_merge($errors, $messages));
 
         if (! empty($errors)) {
             $record->update([
@@ -288,9 +359,11 @@ class EmitirAtpvController extends BaseAtpvController
             ]);
 
             Log::warning('ATPV: detran retornou erros', [
+                'trace_id' => $traceId,
                 'atpv_request_id' => $record->id,
                 'errors' => $errors,
                 'messages' => $messages,
+                'municipio_attempts' => $municipioAttempts,
                 'fields' => $responseFields,
             ]);
 
@@ -311,9 +384,11 @@ class EmitirAtpvController extends BaseAtpvController
             ]);
 
             Log::warning('ATPV: detran indicou falha', [
+                'trace_id' => $traceId,
                 'atpv_request_id' => $record->id,
                 'messages' => $messages,
                 'errors' => $errors,
+                'municipio_attempts' => $municipioAttempts,
                 'fields' => $responseFields,
             ]);
 
@@ -343,6 +418,7 @@ class EmitirAtpvController extends BaseAtpvController
         ]);
 
         Log::info('ATPV: emissao concluida', [
+            'trace_id' => $traceId,
             'atpv_request_id' => $record->id,
             'numero_atpv' => $numeroAtpv,
             'fields' => $responseFields,
@@ -481,6 +557,29 @@ class EmitirAtpvController extends BaseAtpvController
         return number_format($number, 2, ',', '.');
     }
 
+    private function normalizeChassi(?string $value): ?string
+    {
+        if ($value === null) {
+            return null;
+        }
+
+        $normalized = strtoupper(trim($value));
+        $normalized = preg_replace('/[^A-Z0-9]/', '', $normalized) ?? $normalized;
+
+        return $normalized !== '' ? $normalized : null;
+    }
+
+    private function normalizeHodometro(?string $value): ?string
+    {
+        if ($value === null) {
+            return null;
+        }
+
+        $digits = $this->stripNonDigits($value);
+
+        return $digits !== '' ? $digits : null;
+    }
+
     /**
      * @param array<int, string> $messages
      */
@@ -550,6 +649,175 @@ class EmitirAtpvController extends BaseAtpvController
         }
 
         return false;
+    }
+
+    private function shouldRetryMunicipioCode(array $errors, array $messages): bool
+    {
+        $candidates = array_merge($errors, $messages);
+        foreach ($candidates as $message) {
+            $normalized = mb_strtolower(trim((string) $message));
+            if ($normalized === '') {
+                continue;
+            }
+
+            if (str_contains($normalized, '406-') && str_contains($normalized, 'mensagem') && str_contains($normalized, 'cadastrada')) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private function buildMunicipioCodeCandidates(array $data): array
+    {
+        $candidates = [];
+
+        $payloadCode = $this->stripNonDigits($data['municipio2'] ?? '');
+        if ($payloadCode !== '') {
+            $candidates[] = $payloadCode;
+        }
+
+        if (filled($data['cep_comprador'])) {
+            $cepDigits = $this->stripNonDigits($data['cep_comprador']);
+            if (strlen($cepDigits) === 8) {
+                try {
+                    $cepResponse = Http::timeout(5)->get("https://viacep.com.br/ws/{$cepDigits}/json/");
+                    if ($cepResponse->ok()) {
+                        $cepData = $cepResponse->json();
+                        if (is_array($cepData) && !($cepData['erro'] ?? false)) {
+                            $ibge = $this->stripNonDigits($cepData['ibge'] ?? '');
+                            $siafi = $this->stripNonDigits($cepData['siafi'] ?? '');
+
+                            if ($ibge !== '') {
+                                $candidates[] = $ibge;
+                            }
+                            if ($siafi !== '') {
+                                $candidates[] = $siafi;
+                            }
+                        }
+                    }
+                } catch (\Throwable $e) {
+                    report($e);
+                }
+            }
+        }
+
+        $candidates[] = '0';
+
+        $unique = [];
+        foreach ($candidates as $candidate) {
+            if ($candidate === '') {
+                continue;
+            }
+            if (! in_array($candidate, $unique, true)) {
+                $unique[] = $candidate;
+            }
+        }
+
+        return ! empty($unique) ? $unique : ['0'];
+    }
+
+    /**
+     * @return array{
+     *   response:\Illuminate\Http\Client\Response,
+     *   body:string,
+     *   errors:array<int,string>,
+     *   messages:array<int,string>
+     * }
+     */
+    private function submitDetranForm(
+        array $headers,
+        string $token,
+        array $form,
+        ?int $atpvRequestId = null,
+        ?string $traceId = null,
+        array $context = []
+    ): array
+    {
+        $startedAt = microtime(true);
+        $response = $this->postDetranForm($headers, $token, $form);
+        $body = $response->body();
+        $errors = $this->extractErrors($body);
+        $messages = $this->extractMessages($body);
+        $elapsedMs = (int) round((microtime(true) - $startedAt) * 1000);
+
+        $stats = $response->handlerStats();
+        $effectiveUrl = is_array($stats) ? ($stats['url'] ?? null) : null;
+
+        Log::info('ATPV: retorno bruto detran', [
+            'trace_id' => $traceId,
+            'atpv_request_id' => $atpvRequestId,
+            'context' => $context,
+            'status' => $response->status(),
+            'elapsed_ms' => $elapsedMs,
+            'content_type' => $response->header('Content-Type'),
+            'effective_url' => $effectiveUrl,
+            'errors_count' => count($errors),
+            'messages_count' => count($messages),
+            'errors' => $errors,
+            'messages' => $messages,
+            'response_preview' => $this->buildDetranResponsePreview($body),
+        ]);
+
+        if ($this->shouldRetryNomeComprador($errors, $messages)) {
+            $nomeOriginal = trim((string) ($form['nomeComprador'] ?? ''));
+            $nomeSemAcento = $this->stripAccents($nomeOriginal);
+
+            if ($nomeSemAcento !== '' && $nomeSemAcento !== $nomeOriginal) {
+                Log::warning('ATPV: retry sem acento no nome do comprador', [
+                    'trace_id' => $traceId,
+                    'atpv_request_id' => $atpvRequestId,
+                    'nome_original' => $nomeOriginal,
+                    'nome_sem_acento' => $nomeSemAcento,
+                ]);
+
+                $retryStartedAt = microtime(true);
+                $form['nomeComprador'] = $nomeSemAcento;
+                $response = $this->postDetranForm($headers, $token, $form);
+                $body = $response->body();
+                $errors = $this->extractErrors($body);
+                $messages = $this->extractMessages($body);
+                $retryElapsedMs = (int) round((microtime(true) - $retryStartedAt) * 1000);
+                $retryStats = $response->handlerStats();
+                $retryEffectiveUrl = is_array($retryStats) ? ($retryStats['url'] ?? null) : null;
+
+                Log::info('ATPV: retorno bruto detran apos retry nome', [
+                    'trace_id' => $traceId,
+                    'atpv_request_id' => $atpvRequestId,
+                    'context' => $context,
+                    'status' => $response->status(),
+                    'elapsed_ms' => $retryElapsedMs,
+                    'content_type' => $response->header('Content-Type'),
+                    'effective_url' => $retryEffectiveUrl,
+                    'errors_count' => count($errors),
+                    'messages_count' => count($messages),
+                    'errors' => $errors,
+                    'messages' => $messages,
+                    'response_preview' => $this->buildDetranResponsePreview($body),
+                ]);
+            }
+        }
+
+        return [
+            'response' => $response,
+            'body' => $body,
+            'errors' => $errors,
+            'messages' => $messages,
+        ];
+    }
+
+    private function buildDetranResponsePreview(string $body): string
+    {
+        $normalized = $this->normalizeEncoding($body);
+        $text = strip_tags($normalized);
+        $text = preg_replace('/\s+/u', ' ', $text) ?? $text;
+        $text = trim($text);
+
+        if ($text === '') {
+            return '';
+        }
+
+        return mb_substr($text, 0, 280);
     }
 
     private function postDetranForm(array $headers, string $token, array $form): \Illuminate\Http\Client\Response

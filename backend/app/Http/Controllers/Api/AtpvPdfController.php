@@ -3,10 +3,13 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Api\Traits\FindsUserFromApiToken;
+use GuzzleHttp\Cookie\CookieJar;
 use Illuminate\Http\Request;
 use Illuminate\Routing\Controller;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Str;
 use Symfony\Component\HttpFoundation\Response;
 
 class AtpvPdfController extends Controller
@@ -16,6 +19,7 @@ class AtpvPdfController extends Controller
     public function __invoke(Request $request): Response
     {
         $user = $this->findUserFromRequest($request);
+        $traceId = (string) Str::uuid();
 
         if (!$user) {
             return $this->unauthorizedResponse();
@@ -27,9 +31,23 @@ class AtpvPdfController extends Controller
             'captcha' => ['required', 'string', 'max:12'],
         ]);
 
+        Log::info('ATPV PDF: inicio', [
+            'trace_id' => $traceId,
+            'user_id' => $user->id ?? null,
+            'fields' => [
+                'placa' => strtoupper(trim($data['placa'])),
+                'renavam' => $this->maskKeepLast($this->onlyDigits($data['renavam']), 4),
+                'captcha' => $this->maskCaptcha($data['captcha']),
+            ],
+        ]);
+
         $token = DB::table('admin_settings')->where('id', 1)->value('value');
 
         if (! $token) {
+            Log::error('ATPV PDF: token ausente', [
+                'trace_id' => $traceId,
+                'user_id' => $user->id ?? null,
+            ]);
             return response()->json(
                 ['message' => 'Nenhum token encontrado para realizar a impressão.'],
                 Response::HTTP_INTERNAL_SERVER_ERROR
@@ -56,6 +74,11 @@ class AtpvPdfController extends Controller
         ];
 
         $cookieDomain = 'www.e-crvsp.sp.gov.br';
+        $cookieJar = CookieJar::fromArray([
+            'naoExibirPublic' => 'sim',
+            'dataUsuarPublic' => 'Mon Mar 24 2025 08:14:44 GMT-0300 (Horário Padrão de Brasília)',
+            'JSESSIONID' => $token,
+        ], $cookieDomain);
 
         $form = [
             'method' => 'pesquisarSEV',
@@ -65,17 +88,28 @@ class AtpvPdfController extends Controller
         ];
 
         $initialResponse = Http::withHeaders($headers)
-            ->withOptions(['verify' => false])
-            ->withCookies([
-                'naoExibirPublic' => 'sim',
-                'dataUsuarPublic' => 'Mon Mar 24 2025 08:14:44 GMT-0300 (Horário Padrão de Brasília)',
-                'JSESSIONID' => $token,
-            ], $cookieDomain)
+            ->withOptions([
+                'verify' => false,
+                'cookies' => $cookieJar,
+                'allow_redirects' => true,
+            ])
             ->asForm()
             ->post('https://www.e-crvsp.sp.gov.br/gever/GVR/emissao/impressaoAtpv.do', $form);
 
         $initialBody = $initialResponse->body();
         $errors = $this->extractErrors($initialBody);
+        $initialStats = $initialResponse->handlerStats();
+        $initialUrl = is_array($initialStats) ? ($initialStats['url'] ?? null) : null;
+
+        Log::info('ATPV PDF: retorno pesquisarSEV', [
+            'trace_id' => $traceId,
+            'status' => $initialResponse->status(),
+            'content_type' => $initialResponse->header('Content-Type'),
+            'effective_url' => $initialUrl,
+            'errors' => $errors,
+            'preview' => $this->buildHtmlPreview($initialBody),
+        ]);
+
         if (! empty($errors)) {
             return response()->json(
                 ['message' => $errors[0], 'detalhes' => $errors],
@@ -84,27 +118,57 @@ class AtpvPdfController extends Controller
         }
 
         $pdfResponse = Http::withHeaders($headers)
-            ->withOptions(['verify' => false])
-            ->withCookies([
-                'naoExibirPublic' => 'sim',
-                'dataUsuarPublic' => 'Mon Mar 24 2025 08:14:44 GMT-0300 (Horário Padrão de Brasília)',
-                'JSESSIONID' => $token,
-            ], $cookieDomain)
+            ->withOptions([
+                'verify' => false,
+                'cookies' => $cookieJar,
+                'allow_redirects' => true,
+            ])
             ->get('https://www.e-crvsp.sp.gov.br/gever/GVR/emissao/impressaoAtpv.do', [
                 'method' => 'openPdf',
             ]);
 
+        $pdfStats = $pdfResponse->handlerStats();
+        $pdfUrl = is_array($pdfStats) ? ($pdfStats['url'] ?? null) : null;
+        Log::info('ATPV PDF: retorno openPdf', [
+            'trace_id' => $traceId,
+            'status' => $pdfResponse->status(),
+            'content_type' => $pdfResponse->header('Content-Type'),
+            'effective_url' => $pdfUrl,
+            'body_len' => strlen($pdfResponse->body()),
+            'preview' => $this->buildHtmlPreview($pdfResponse->body()),
+        ]);
+
         if (! $pdfResponse->successful()) {
+            $pdfErrors = $this->extractErrors($pdfResponse->body());
+            Log::warning('ATPV PDF: falha openPdf', [
+                'trace_id' => $traceId,
+                'status' => $pdfResponse->status(),
+                'errors' => $pdfErrors,
+                'preview' => $this->buildHtmlPreview($pdfResponse->body()),
+            ]);
             return response()->json(
-                ['message' => 'Falha ao acessar o PDF da ATPV-e.'],
+                [
+                    'message' => $pdfErrors[0] ?? 'Falha ao acessar o PDF da ATPV-e.',
+                    'detalhes' => $pdfErrors,
+                ],
                 Response::HTTP_BAD_GATEWAY
             );
         }
 
         $contentType = $pdfResponse->header('Content-Type', '');
         if (stripos((string) $contentType, 'pdf') === false) {
+            $pdfErrors = $this->extractErrors($pdfResponse->body());
+            Log::warning('ATPV PDF: content-type inesperado', [
+                'trace_id' => $traceId,
+                'content_type' => $contentType,
+                'errors' => $pdfErrors,
+                'preview' => $this->buildHtmlPreview($pdfResponse->body()),
+            ]);
             return response()->json(
-                ['message' => 'Resposta inesperada ao tentar gerar o PDF da ATPV-e.'],
+                [
+                    'message' => $pdfErrors[0] ?? 'Resposta inesperada ao tentar gerar o PDF da ATPV-e.',
+                    'detalhes' => $pdfErrors,
+                ],
                 Response::HTTP_BAD_GATEWAY
             );
         }
@@ -114,6 +178,13 @@ class AtpvPdfController extends Controller
             preg_replace('/[^A-Z0-9]/', '', strtoupper($form['placa'])),
             now('America/Sao_Paulo')->format('YmdHis')
         );
+
+        Log::info('ATPV PDF: sucesso', [
+            'trace_id' => $traceId,
+            'filename' => $filename,
+            'bytes' => strlen($pdfResponse->body()),
+            'content_type' => $contentType,
+        ]);
 
         return response($pdfResponse->body(), Response::HTTP_OK, [
             'Content-Type' => 'application/pdf',
@@ -147,5 +218,55 @@ class AtpvPdfController extends Controller
         }
 
         return $errors;
+    }
+
+    private function buildHtmlPreview(string $body): string
+    {
+        if ($body === '') {
+            return '';
+        }
+
+        $normalized = $body;
+        if (stripos($normalized, 'charset=iso-8859-1') !== false || stripos($normalized, 'charset=iso8859-1') !== false) {
+            $normalized = @mb_convert_encoding($normalized, 'UTF-8', 'ISO-8859-1');
+        }
+
+        $text = strip_tags($normalized);
+        $text = preg_replace('/\s+/u', ' ', $text) ?? $text;
+        $text = trim($text);
+
+        if ($text === '') {
+            return '';
+        }
+
+        return mb_substr($text, 0, 280);
+    }
+
+    private function onlyDigits(?string $value): string
+    {
+        return $value ? preg_replace('/\D/', '', $value) ?? '' : '';
+    }
+
+    private function maskCaptcha(string $captcha): string
+    {
+        $captcha = trim($captcha);
+        if ($captcha === '') {
+            return '';
+        }
+
+        return str_repeat('*', max(0, strlen($captcha) - 2)) . substr($captcha, -2);
+    }
+
+    private function maskKeepLast(string $value, int $keepLast = 4): string
+    {
+        if ($value === '') {
+            return '';
+        }
+
+        if (strlen($value) <= $keepLast) {
+            return $value;
+        }
+
+        return str_repeat('*', strlen($value) - $keepLast) . substr($value, -$keepLast);
     }
 }
