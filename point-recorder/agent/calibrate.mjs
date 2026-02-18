@@ -86,14 +86,14 @@ async function runPowerShell(scriptPath, templatePath, outputPath) {
 }
 
 async function main() {
-  if (process.platform !== 'win32') {
-    throw new Error('Calibracao visual suportada apenas no Windows.');
-  }
-
   const parsedArgs = parseArgs(process.argv.slice(2));
   if (parsedArgs.help) {
     usage();
     return;
+  }
+
+  if (process.platform !== 'win32') {
+    throw new Error('Calibracao visual suportada apenas no Windows.');
   }
 
   const templateAbs = path.resolve(process.cwd(), parsedArgs.templatePath);
@@ -118,7 +118,20 @@ async function main() {
   try {
     parsedResult = JSON.parse(resultRaw);
   } catch {
-    parsedResult = null;
+    const lines = String(resultRaw || '')
+      .split(/\r?\n/)
+      .map((line) => line.trim())
+      .filter(Boolean);
+    const lastJsonLine = [...lines].reverse().find(
+      (line) => line.startsWith('{') && line.endsWith('}')
+    );
+    if (lastJsonLine) {
+      try {
+        parsedResult = JSON.parse(lastJsonLine);
+      } catch {
+        parsedResult = null;
+      }
+    }
   }
 
   if (parsedResult) {
@@ -135,4 +148,3 @@ main().catch((err) => {
   console.error(`Erro: ${err.message}`);
   process.exit(1);
 });
-

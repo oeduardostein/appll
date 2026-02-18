@@ -31,11 +31,20 @@ Grava um **template** com slots (CPF/NOME/CHASSI) + ponto de screenshot:
 npm run record:template
 ```
 
+Calibrar visualmente os pontos de um template (Windows, UI topmost arrastável):
+
+```bash
+npm run calibrate:template
+```
+
+Isso gera `recordings/template.calibrated.json` por padrão.
+
 Escolher arquivo de saída e formato:
 
 ```bash
 node record.js --out recordings/minha-sessao.json --format json
 node record.js --out recordings/minha-sessao.jsonl --format jsonl
+node agent/calibrate.mjs --template recordings/template.json --out recordings/template.calibrated.json
 ```
 
 ## Como parar

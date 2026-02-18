@@ -62,6 +62,25 @@ Durante a gravação:
 
 Pare com `Ctrl+C`. O arquivo padrão sai em `point-recorder/recordings/template.json`.
 
+### Calibração visual dos pontos (TopMost arrastável)
+
+Se a tela mudou de posição/resolução e você precisa ajustar os pontos sem regravar tudo:
+
+```bash
+npm run calibrate:template
+```
+
+Ou com arquivo customizado:
+
+```bash
+node agent/calibrate.mjs --template recordings/template.json --out recordings/template.calibrated.json
+```
+
+Atalhos durante a calibração:
+- `Enter`: confirma novo ponto.
+- `S`: mantém o ponto original.
+- `Esc`: cancela a calibração.
+
 ## 4) Rodar o agente (fica em loop)
 
 ```bash
