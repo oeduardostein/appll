@@ -305,7 +305,6 @@ async function runStartupLogin(agentCfg) {
   const bootstrapData = {
     // replayTemplate exige cpf_cgc válido, mesmo sem slot no template de login.
     cpf_cgc: '00000000000',
-    nome: '',
     chassi: '',
     senha: agentCfg.loginPassword ?? '',
   };
@@ -404,7 +403,6 @@ async function processOne(pool, agentCfg) {
 
     const data = {
       cpf_cgc: req.cpf_cgc ?? '',
-      nome: req.nome ?? '',
       chassi: req.chassi,
       senha: agentCfg.loginPassword ?? '',
     };

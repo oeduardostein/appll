@@ -263,23 +263,16 @@
                         <input id="cpfCgc" name="cpf_cgc" type="text" placeholder="Somente números">
                     </div>
                     <div class="placa-zero-km__field">
-                        <label for="nome">Nome (opcional)</label>
-                        <input id="nome" name="nome" type="text" placeholder="Nome do proprietário">
+                        <label for="chassi">Chassi</label>
+                        <input id="chassi" name="chassi" type="text" placeholder="Ex.: 94DFAAP16TB015294" required>
                     </div>
                 </div>
 
                 <div class="placa-zero-km__row">
-                    <div class="placa-zero-km__field">
-                        <label for="chassi">Chassi</label>
-                        <input id="chassi" name="chassi" type="text" placeholder="Ex.: 94DFAAP16TB015294" required>
-                    </div>
                     <div class="placa-zero-km__field">
                         <label for="numeroTentativa">Número de tentativas</label>
                         <input id="numeroTentativa" name="numero_tentativa" type="number" min="1" max="3" value="3">
                     </div>
-                </div>
-
-                <div class="placa-zero-km__row">
                     <div class="placa-zero-km__field">
                         <label for="numeros">Complemento (opcional)</label>
                         <input id="numeros" name="numeros" type="text" maxlength="4" placeholder="Ex.: 1A23">
@@ -585,7 +578,6 @@
                 const payload = {
                     items: [{
                         cpf_cgc: normalizeDigits(document.getElementById('cpfCgc').value),
-                        nome: (document.getElementById('nome').value || '').trim(),
                         chassi: normalizeUpper(document.getElementById('chassi').value),
                         numeros: normalizeUpper(document.getElementById('numeros').value),
                     }],
