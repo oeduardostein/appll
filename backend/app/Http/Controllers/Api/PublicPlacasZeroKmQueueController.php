@@ -168,8 +168,12 @@ class PublicPlacasZeroKmQueueController extends Controller
 
         if ($requests->isNotEmpty()) {
             $maxRequestId = (int) $requests->max('id');
-            $activeIds = PlacasZeroKmRequest::query()
-                ->whereIn('status', ['pending', 'running'])
+            $latestRunningId = (int) (PlacasZeroKmRequest::query()
+                ->where('status', 'running')
+                ->max('id') ?? 0);
+
+            $pendingIds = PlacasZeroKmRequest::query()
+                ->where('status', 'pending')
                 ->where('id', '<=', $maxRequestId)
                 ->orderBy('id')
                 ->pluck('id')
@@ -177,15 +181,24 @@ class PublicPlacasZeroKmQueueController extends Controller
                 ->values()
                 ->all();
 
-            $activeIdx = 0;
-            $activeCount = count($activeIds);
+            $pendingIdx = 0;
+            $pendingCount = count($pendingIds);
 
             foreach ($requests as $reqItem) {
                 $requestId = (int) $reqItem->id;
-                while ($activeIdx < $activeCount && $activeIds[$activeIdx] < $requestId) {
-                    $activeIdx += 1;
+                $ahead = 0;
+
+                if ($latestRunningId > 0 && $latestRunningId < $requestId) {
+                    $ahead += 1;
                 }
-                $reqItem->setAttribute('queue_ahead', $activeIdx);
+
+                while ($pendingIdx < $pendingCount && $pendingIds[$pendingIdx] < $requestId) {
+                    $ahead += 1;
+                    $pendingIdx += 1;
+                }
+
+                $reqItem->setAttribute('queue_ahead', $ahead);
+                $reqItem->setAttribute('queue_latest_running_id', $latestRunningId > 0 ? $latestRunningId : null);
             }
         }
 
