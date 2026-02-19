@@ -29,6 +29,12 @@ const SDK_MONITOR_PIN = process.env.SDK_MONITOR_PIN || '1234';
 const SDK_MONITOR_POLL_MS = parsePositiveInt(process.env.SDK_MONITOR_POLL_MS, 1000);
 const SDK_MONITOR_TYPE_DELAY_MS = parsePositiveInt(process.env.SDK_MONITOR_TYPE_DELAY_MS, 2000);
 const SDK_MONITOR_COOLDOWN_MS = parsePositiveInt(process.env.SDK_MONITOR_COOLDOWN_MS, 10000);
+const TEMPO_RESTANTE_REFRESH_MS = parsePositiveInt(process.env.TEMPO_RESTANTE_REFRESH_MS, 10000);
+const TEMPO_RESTANTE_INITIAL_WAIT_MS = parsePositiveInt(
+  process.env.TEMPO_RESTANTE_INITIAL_WAIT_MS,
+  20000
+);
+const TEMPO_RESTANTE_POLL_MS = parsePositiveInt(process.env.TEMPO_RESTANTE_POLL_MS, 1000);
 const CHROME_LAUNCH_OPTS = {
   headless: false,
   chromiumSandbox: false,
@@ -954,8 +960,18 @@ async function contemTempoRestanteEmFrames(page) {
   for (const frame of frames) {
     try {
       const found = await frame.evaluate(() => {
+        function normalizeText(value) {
+          return String(value || '')
+            .normalize('NFD')
+            .replace(/[\u0300-\u036f]/g, '')
+            .toLowerCase();
+        }
         const body = document.body;
-        return Boolean(body && body.innerText && body.innerText.includes('Tempo restante'));
+        const rawText = body && body.innerText ? body.innerText : '';
+        const text = normalizeText(rawText);
+        const hasTempoRestanteText = text.includes('tempo restante');
+        const hasSessaoElement = Boolean(document.querySelector('#sessao'));
+        return hasTempoRestanteText || hasSessaoElement;
       });
       if (found) return true;
     } catch (err) {
@@ -965,20 +981,47 @@ async function contemTempoRestanteEmFrames(page) {
   return false;
 }
 
+async function aguardarTempoRestante(page, timeoutMs, pollMs) {
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() < deadline) {
+    const found = await contemTempoRestanteEmFrames(page);
+    if (found) return true;
+    await delay(pollMs);
+  }
+  return false;
+}
+
 async function monitorarTempoRestante(page) {
-  const intervalMs = 10000;
+  const foundInitially = await aguardarTempoRestante(
+    page,
+    TEMPO_RESTANTE_INITIAL_WAIT_MS,
+    TEMPO_RESTANTE_POLL_MS
+  );
+  if (!foundInitially) {
+    console.log(
+      `Texto "Tempo restante" nao encontrado apos ${Math.round(
+        TEMPO_RESTANTE_INITIAL_WAIT_MS / 1000
+      )}s. Seguindo para o proximo ciclo.`
+    );
+    return false;
+  }
+
   while (true) {
     const found = await contemTempoRestanteEmFrames(page);
     if (!found) {
       console.log('Texto "Tempo restante" nao encontrado. Seguindo para o proximo ciclo.');
       return false;
     }
-    console.log('Texto "Tempo restante" encontrado. Atualizando pagina em 10s...');
-    await delay(intervalMs);
+    console.log(
+      `Texto "Tempo restante" encontrado. Atualizando pagina em ${Math.round(
+        TEMPO_RESTANTE_REFRESH_MS / 1000
+      )}s...`
+    );
+    await delay(TEMPO_RESTANTE_REFRESH_MS);
     try {
       await page.reload({ waitUntil: 'domcontentloaded' });
       await startAutoClickNotification(page, CALIBRATION_FRAME_SELECTOR);
-      await delay(5000);
+      await delay(1500);
     } catch (err) {
       console.warn(`Falha ao atualizar pagina: ${err.message}`);
     }

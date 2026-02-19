@@ -32,6 +32,7 @@ Route::view('/resultado-bloqueios-ativos', 'bloqueios-result')->name('bloqueios-
 Route::view('/resultado-ecrv', 'ecrv-result')->name('ecrv-result');
 Route::view('/resultado-atpv', 'atpv-result')->name('atpv-result');
 Route::view('/emissao-atpv/formulario', 'atpv-form')->name('atpv.form');
+Route::view('/consulta-placas-0km', 'placas-0km-consulta')->name('placas-0km-consulta');
 Route::get('/excluir-conta', [AccountDeletionController::class, 'show'])->name('account-deletion.form');
 Route::post('/excluir-conta', [AccountDeletionController::class, 'destroy'])->name('account-deletion.submit');
 Route::get('/public/placas-0km/{batchId?}', function (?string $batchId = null) {

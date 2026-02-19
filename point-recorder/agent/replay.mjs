@@ -24,6 +24,54 @@ function parseCsvList(value) {
     .filter(Boolean);
 }
 
+function parseClickPoints(value) {
+  if (value == null) return [];
+  const raw = String(value).trim();
+  if (!raw) return [];
+
+  // Formato esperado: "1012:203,1134:132" (pares separados por vírgula/;).
+  const points = [];
+  const matches = raw.matchAll(/(-?\d+)\s*(?::|x)\s*(-?\d+)/gi);
+  for (const match of matches) {
+    const x = Number(match?.[1]);
+    const y = Number(match?.[2]);
+    if (!Number.isFinite(x) || !Number.isFinite(y)) continue;
+    points.push({ x: Math.round(x), y: Math.round(y) });
+  }
+  return points;
+}
+
+function parseClickActions(value) {
+  if (value == null) return [];
+  const raw = String(value).trim();
+  if (!raw) return [];
+
+  // Formato esperado:
+  // - "1530:837x1,114:129x2"
+  // - "1530:837,114:129" (clicks=1 padrão)
+  const actions = [];
+  const chunks = raw
+    .split(/[;,]+/)
+    .map((part) => part.trim())
+    .filter(Boolean);
+
+  for (const chunk of chunks) {
+    const match = chunk.match(/^(-?\d+)\s*:\s*(-?\d+)(?:\s*[xX]\s*(\d+))?$/);
+    if (!match) continue;
+    const x = Number(match[1]);
+    const y = Number(match[2]);
+    const clicks = Number(match[3] || 1);
+    if (!Number.isFinite(x) || !Number.isFinite(y) || !Number.isFinite(clicks)) continue;
+    actions.push({
+      x: Math.round(x),
+      y: Math.round(y),
+      clicks: Math.max(1, Math.round(clicks)),
+    });
+  }
+
+  return actions;
+}
+
 function digitsOnly(value) {
   return String(value ?? '').replace(/\D+/g, '');
 }
@@ -436,5 +484,12 @@ export function loadAgentConfigFromEnv(env) {
     autoEnterWaitBeforeMs: Number(env.AGENT_AUTO_ENTER_WAIT_BEFORE_MS || 2000),
     autoEnterWaitAfterMs: Number(env.AGENT_AUTO_ENTER_WAIT_AFTER_MS || 2000),
     appKillAfterScreenshot: toBool(env.AGENT_APP_KILL_AFTER_SCREENSHOT, true),
+    postResultCleanupEnabled: toBool(env.AGENT_POST_RESULT_CLEANUP_ENABLED, false),
+    postResultClickPoints: parseClickPoints(env.AGENT_POST_RESULT_CLICK_POINTS),
+    postResultClickDelayMs: Number(env.AGENT_POST_RESULT_CLICK_DELAY_MS || 140),
+    transientPersistenceEnabled: toBool(env.AGENT_TRANSIENT_PERSISTENCE_ENABLED, false),
+    transientPersistenceActions: parseClickActions(env.AGENT_TRANSIENT_PERSISTENCE_ACTIONS),
+    transientPersistenceWaitMs: Number(env.AGENT_TRANSIENT_PERSISTENCE_WAIT_MS || 1000),
+    transientPersistenceClickDelayMs: Number(env.AGENT_TRANSIENT_PERSISTENCE_CLICK_DELAY_MS || 120),
   };
 }

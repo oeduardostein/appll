@@ -16,5 +16,13 @@ class PermissionSeeder extends Seeder
                 'default_credit_value' => 0,
             ]
         );
+
+        Permission::query()->updateOrCreate(
+            ['slug' => 'consulta_placas_0km'],
+            [
+                'name' => 'Consulta Placas 0KM',
+                'default_credit_value' => 0,
+            ]
+        );
     }
 }

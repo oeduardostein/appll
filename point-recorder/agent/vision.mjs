@@ -1,5 +1,9 @@
 import { createWorker } from 'tesseract.js';
 
+let sharedWorker = null;
+let sharedWorkerLang = null;
+let sharedWorkerInitPromise = null;
+
 function normalizeText(text) {
   return (text || '')
     .normalize('NFD')
@@ -81,37 +85,76 @@ function detectTransient(text, customKeywords = []) {
   return null;
 }
 
+async function getSharedWorker(lang, logger = null) {
+  const normalizedLang = String(lang || 'por').trim() || 'por';
+
+  if (sharedWorker && sharedWorkerLang === normalizedLang) {
+    return sharedWorker;
+  }
+
+  if (sharedWorkerInitPromise && sharedWorkerLang === normalizedLang) {
+    return sharedWorkerInitPromise;
+  }
+
+  // Se trocar idioma, reinicia o worker compartilhado.
+  if (sharedWorker && sharedWorkerLang !== normalizedLang) {
+    try {
+      await sharedWorker.terminate();
+    } catch {
+      // ignore
+    }
+    sharedWorker = null;
+  }
+
+  sharedWorkerLang = normalizedLang;
+  sharedWorkerInitPromise = (async () => {
+    logger?.info?.('ocr.worker.init', { lang: normalizedLang });
+    const worker = await createWorker(normalizedLang);
+    sharedWorker = worker;
+    logger?.info?.('ocr.worker.ready', { lang: normalizedLang });
+    return worker;
+  })();
+
+  try {
+    return await sharedWorkerInitPromise;
+  } finally {
+    sharedWorkerInitPromise = null;
+  }
+}
+
 export async function analyzeScreenshot(imagePath, opts = {}) {
   const lang = opts.lang || 'por';
   const logger = opts.logger || null;
   const transientKeywords = Array.isArray(opts.transientKeywords) ? opts.transientKeywords : [];
   logger?.info('ocr.start', { imagePath, lang });
-  const worker = await createWorker(lang);
+  const worker = await getSharedWorker(lang, logger);
 
-  try {
-    const { data } = await worker.recognize(imagePath);
-    const rawText = data?.text || '';
-    const normalized = normalizeText(rawText);
+  const { data } = await worker.recognize(imagePath);
+  const rawText = data?.text || '';
+  const normalized = normalizeText(rawText);
 
-    const plates = extractPlates(normalized);
-    const errorMessage = detectError(normalized);
-    const transientMessage = detectTransient(normalized, transientKeywords);
+  const plates = extractPlates(normalized);
+  const errorMessage = detectError(normalized);
+  const transientMessage = detectTransient(normalized, transientKeywords);
 
-    const result = {
-      rawText,
-      normalizedText: normalized,
-      plates,
-      errorMessage,
-      transientMessage,
-    };
-    logger?.info('ocr.done', {
-      imagePath,
-      platesCount: plates.length,
-      errorMessage: errorMessage || null,
-      transientMessage: transientMessage || null,
-    });
-    return result;
-  } finally {
-    await worker.terminate();
-  }
+  const result = {
+    rawText,
+    normalizedText: normalized,
+    plates,
+    errorMessage,
+    transientMessage,
+  };
+  logger?.info('ocr.done', {
+    imagePath,
+    platesCount: plates.length,
+    errorMessage: errorMessage || null,
+    transientMessage: transientMessage || null,
+  });
+  return result;
+}
+
+export async function warmupOcrWorker(opts = {}) {
+  const lang = opts.lang || 'por';
+  const logger = opts.logger || null;
+  await getSharedWorker(lang, logger);
 }

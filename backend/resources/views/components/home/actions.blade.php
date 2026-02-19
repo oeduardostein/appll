@@ -185,5 +185,24 @@
                 </div>
             </button>
         </div>
+
+        <div class="action-card" data-permission="consulta_placas_0km">
+            <button class="action-card__main" type="button" data-action="consulta-placas-0km">
+                <div class="action-card__icon">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <rect x="3" y="5" width="18" height="14" rx="2"></rect>
+                        <path d="M7 9h10"></path>
+                        <path d="M7 13h6"></path>
+                        <circle cx="17" cy="13" r="1"></circle>
+                    </svg>
+                </div>
+                <div>
+                    <div class="action-card__title">Consulta Placas 0KM</div>
+                    <div class="action-card__description">
+                        Consulta de placas disponíveis por CPF/CNPJ e chassi.
+                    </div>
+                </div>
+            </button>
+        </div>
     </div>
 </section>

@@ -4464,6 +4464,11 @@
                     window.location.href = '/testeplanilha-gravame';
                 });
             });
+            document.querySelectorAll('[data-action="consulta-placas-0km"]').forEach((item) => {
+                item.addEventListener('click', () => {
+                    window.location.href = '/consulta-placas-0km';
+                });
+            });
             document.querySelectorAll('[data-action="crlv"]').forEach((item) => {
                 item.addEventListener('click', () => {
                     openCrlvModal();

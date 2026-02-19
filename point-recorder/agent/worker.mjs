@@ -8,7 +8,7 @@ import { spawn } from 'node:child_process';
 import { createPool, getMysqlConfigFromEnv } from './db.mjs';
 import { createLogger } from './logger.mjs';
 import { loadAgentConfigFromEnv, replayTemplate } from './replay.mjs';
-import { analyzeScreenshot } from './vision.mjs';
+import { analyzeScreenshot, warmupOcrWorker } from './vision.mjs';
 import { uploadScreenshot } from './upload.mjs';
 
 const logger = createLogger(process.env);
@@ -291,6 +291,122 @@ async function killAppProcessByExePath(appExePath, localLogger) {
   localLogger?.info?.('app.killed', { exe: exeName });
 }
 
+function normalizeClickActions(actions) {
+  if (!Array.isArray(actions)) return [];
+  return actions
+    .map((action) => ({
+      x: Number(action?.x),
+      y: Number(action?.y),
+      clicks: Number(action?.clicks ?? 1),
+    }))
+    .filter((action) => Number.isFinite(action.x) && Number.isFinite(action.y))
+    .map((action) => ({
+      x: Math.round(action.x),
+      y: Math.round(action.y),
+      clicks: Math.max(1, Math.round(Number.isFinite(action.clicks) ? action.clicks : 1)),
+    }));
+}
+
+async function runGlobalClickActions({
+  actions,
+  delayMs,
+  requestId,
+  logger: localLogger,
+  doneEventName,
+  errorLabel,
+}) {
+  if (process.platform !== 'win32') return;
+  const normalizedActions = normalizeClickActions(actions);
+  if (normalizedActions.length === 0) return;
+
+  const clickDelayMs = toNonNegativeInt(delayMs, 140);
+  const scriptParts = [
+    `Add-Type -TypeDefinition 'using System; using System.Runtime.InteropServices; public static class WinInput { [DllImport("user32.dll")] public static extern bool SetCursorPos(int X, int Y); [DllImport("user32.dll")] public static extern void mouse_event(uint dwFlags, uint dx, uint dy, uint dwData, UIntPtr dwExtraInfo); public const uint MOUSEEVENTF_LEFTDOWN = 0x0002; public const uint MOUSEEVENTF_LEFTUP = 0x0004; }';`,
+  ];
+
+  for (const action of normalizedActions) {
+    for (let i = 0; i < action.clicks; i += 1) {
+      scriptParts.push(`[WinInput]::SetCursorPos(${action.x}, ${action.y}) | Out-Null;`);
+      scriptParts.push('Start-Sleep -Milliseconds 45;');
+      scriptParts.push('[WinInput]::mouse_event([WinInput]::MOUSEEVENTF_LEFTDOWN,0,0,0,[UIntPtr]::Zero);');
+      scriptParts.push('Start-Sleep -Milliseconds 22;');
+      scriptParts.push('[WinInput]::mouse_event([WinInput]::MOUSEEVENTF_LEFTUP,0,0,0,[UIntPtr]::Zero);');
+      scriptParts.push(`Start-Sleep -Milliseconds ${clickDelayMs};`);
+    }
+  }
+
+  const psScript = scriptParts.join(' ');
+
+  await new Promise((resolve, reject) => {
+    const child = spawn('powershell.exe', [
+      '-NoProfile',
+      '-ExecutionPolicy',
+      'Bypass',
+      '-Command',
+      psScript,
+    ], {
+      windowsHide: true,
+    });
+
+    let stderr = '';
+    child.stderr.on('data', (chunk) => {
+      stderr += String(chunk || '');
+    });
+    child.on('error', reject);
+    child.on('close', (code) => {
+      if (code !== 0) {
+        reject(new Error(stderr || `Falha ao executar ${errorLabel || 'ações de clique'} (code ${code}).`));
+        return;
+      }
+      resolve();
+    });
+  });
+
+  localLogger?.info?.(doneEventName || 'click.actions.done', {
+    request_id: requestId,
+    actions: normalizedActions,
+    delay_ms: clickDelayMs,
+  });
+}
+
+async function runPostResultModalCleanup({
+  points,
+  delayMs,
+  requestId,
+  logger: localLogger,
+}) {
+  await runGlobalClickActions({
+    actions: points,
+    delayMs,
+    requestId,
+    logger: localLogger,
+    doneEventName: 'modal.cleanup.done',
+    errorLabel: 'limpeza de modal',
+  });
+}
+
+async function runTransientPersistenceRecovery({
+  actions,
+  delayMs,
+  waitMs,
+  requestId,
+  logger: localLogger,
+}) {
+  await runGlobalClickActions({
+    actions,
+    delayMs,
+    requestId,
+    logger: localLogger,
+    doneEventName: 'transient.persistence.done',
+    errorLabel: 'persistência de modal',
+  });
+
+  const safeWaitMs = toNonNegativeInt(waitMs, 1000);
+  if (safeWaitMs > 0) {
+    await sleep(safeWaitMs);
+  }
+}
+
 async function runStartupLogin(agentCfg) {
   if (!agentCfg.loginTemplatePath) return;
   if (!agentCfg.loginBootstrapOnStart) return;
@@ -412,6 +528,7 @@ async function processOne(pool, agentCfg) {
     let uploadResult = null;
     let deferAppKillEnabled = false;
     let deferredAppExePath = '';
+    let latestScreenshotPath = null;
     try {
       logger?.info?.('replay.begin', { request_id: req.id });
       startHeartbeat();
@@ -476,11 +593,58 @@ async function processOne(pool, agentCfg) {
       const transientRetryWaitMs = toPositiveInt(agentCfg.transientRetryWaitMs, 8000);
       const transientRetryMaxRetries = toNonNegativeInt(agentCfg.transientRetryMaxRetries, 6);
       const transientRetryEnabled = Boolean(agentCfg.transientRetryEnabled) && transientRetryMaxRetries > 0;
+      const transientPersistenceEnabled = Boolean(agentCfg.transientPersistenceEnabled);
+      const transientPersistenceActions = normalizeClickActions(agentCfg.transientPersistenceActions);
+      const transientPersistenceWaitMs = toNonNegativeInt(agentCfg.transientPersistenceWaitMs, 1000);
+      const transientPersistenceClickDelayMs = toNonNegativeInt(
+        agentCfg.transientPersistenceClickDelayMs,
+        120
+      );
       const deferAppKillUntilAfterRetries = transientRetryEnabled && appKillAfterRequest;
       deferAppKillEnabled = deferAppKillUntilAfterRetries;
       deferredAppExePath = agentCfg.appExePath || '';
       const transientRetryChecks = [];
       let transientRetryTriggered = false;
+      let transientPersistenceRuns = 0;
+      const runTransientPersistenceIfNeeded = async ({
+        currentAnalysis,
+        stage = 'unknown',
+        retryIndex = 0,
+      } = {}) => {
+        if (!transientPersistenceEnabled) return false;
+        if (!currentAnalysis?.transientMessage) return false;
+        if (!transientPersistenceActions.length) return false;
+
+        transientPersistenceRuns += 1;
+        logger?.info?.('ocr.transient.persistence.begin', {
+          request_id: req.id,
+          stage,
+          retry: retryIndex,
+          run: transientPersistenceRuns,
+          message: currentAnalysis.transientMessage || null,
+          wait_ms: transientPersistenceWaitMs,
+          actions: transientPersistenceActions,
+        });
+
+        try {
+          await runTransientPersistenceRecovery({
+            actions: transientPersistenceActions,
+            delayMs: transientPersistenceClickDelayMs,
+            waitMs: transientPersistenceWaitMs,
+            requestId: req.id,
+            logger,
+          });
+          return true;
+        } catch (persistenceErr) {
+          logger?.warn?.('ocr.transient.persistence.error', {
+            request_id: req.id,
+            stage,
+            retry: retryIndex,
+            error: String(persistenceErr?.message || persistenceErr),
+          });
+          return false;
+        }
+      };
       const buildRunningPayload = (currentScreenshotPath, currentAnalysis, currentOutcome = 'running') => ({
         success: true,
         data: {
@@ -501,6 +665,11 @@ async function processOne(pool, agentCfg) {
             wait_ms: transientRetryWaitMs,
             max_retries: transientRetryMaxRetries,
             attempts: transientRetryChecks.length,
+            persistence: {
+              enabled: transientPersistenceEnabled,
+              runs: transientPersistenceRuns,
+              wait_ms: transientPersistenceWaitMs,
+            },
             resolved: null,
             checks: transientRetryChecks,
           },
@@ -590,6 +759,7 @@ async function processOne(pool, agentCfg) {
       }
 
       let screenshotPath = result?.lastScreenshotPath ?? null;
+      latestScreenshotPath = screenshotPath;
       logger?.info?.('replay.screenshot', { request_id: req.id, screenshotPath });
 
       if (agentCfg.ocrEnabled && screenshotPath) {
@@ -616,10 +786,19 @@ async function processOne(pool, agentCfg) {
             max_retries: transientRetryMaxRetries,
             wait_ms: transientRetryWaitMs,
           });
+          let skipNextRetryDelay = await runTransientPersistenceIfNeeded({
+            currentAnalysis: analysis,
+            stage: 'initial',
+            retryIndex: 0,
+          });
           await persistRunningProgress(screenshotPath, analysis, 'waiting_retry');
 
           for (let retryIndex = 1; retryIndex <= transientRetryMaxRetries; retryIndex += 1) {
-            await sleep(transientRetryWaitMs);
+            if (skipNextRetryDelay) {
+              skipNextRetryDelay = false;
+            } else {
+              await sleep(transientRetryWaitMs);
+            }
 
             try {
               const retryScreenshotPath = await captureDesktopScreenshot({
@@ -631,6 +810,7 @@ async function processOne(pool, agentCfg) {
 
               if (retryScreenshotPath) {
                 screenshotPath = retryScreenshotPath;
+                latestScreenshotPath = screenshotPath;
               }
 
               analysis = await analyzeScreenshot(screenshotPath, {
@@ -668,6 +848,12 @@ async function processOne(pool, agentCfg) {
               if (!stillPending) {
                 break;
               }
+
+              skipNextRetryDelay = await runTransientPersistenceIfNeeded({
+                currentAnalysis: analysis,
+                stage: 'retry',
+                retryIndex,
+              });
             } catch (retryErr) {
               const retryErrorMessage = String(retryErr?.message || retryErr);
               transientRetryChecks.push({
@@ -683,6 +869,7 @@ async function processOne(pool, agentCfg) {
                 error: retryErrorMessage,
               });
               await persistRunningProgress(screenshotPath, analysis, 'waiting_retry');
+              skipNextRetryDelay = false;
             }
           }
         }
@@ -754,6 +941,11 @@ async function processOne(pool, agentCfg) {
                 wait_ms: transientRetryWaitMs,
                 max_retries: transientRetryMaxRetries,
                 attempts: transientRetryChecks.length,
+                persistence: {
+                  enabled: transientPersistenceEnabled,
+                  runs: transientPersistenceRuns,
+                  wait_ms: transientPersistenceWaitMs,
+                },
                 resolved: transientRetryTriggered
                   ? Boolean(analysis?.errorMessage) || (Array.isArray(analysis?.plates) && analysis.plates.length > 0)
                   : null,
@@ -796,6 +988,21 @@ async function processOne(pool, agentCfg) {
       });
     } finally {
       stopHeartbeat();
+      if (agentCfg.postResultCleanupEnabled && latestScreenshotPath) {
+        try {
+          await runPostResultModalCleanup({
+            points: agentCfg.postResultClickPoints,
+            delayMs: agentCfg.postResultClickDelayMs,
+            requestId: req.id,
+            logger,
+          });
+        } catch (cleanupErr) {
+          logger?.warn?.('modal.cleanup.error', {
+            request_id: req.id,
+            error: String(cleanupErr?.message || cleanupErr),
+          });
+        }
+      }
       if (deferAppKillEnabled && deferredAppExePath) {
         await killAppProcessByExePath(deferredAppExePath, logger);
       }
@@ -829,6 +1036,20 @@ async function main() {
   });
 
   await runStartupLogin(agentCfg);
+
+  if (agentCfg.ocrEnabled) {
+    try {
+      await warmupOcrWorker({
+        lang: agentCfg.ocrLang,
+        logger,
+      });
+      logger?.info?.('ocr.warmup.ready', { lang: agentCfg.ocrLang });
+    } catch (warmupErr) {
+      logger?.warn?.('ocr.warmup.error', {
+        error: String(warmupErr?.message || warmupErr),
+      });
+    }
+  }
 
   // Loop: tenta processar 1 por vez; se não tiver, dorme e tenta de novo.
   for (;;) {
