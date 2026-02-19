@@ -203,6 +203,10 @@
             color: var(--text-muted);
         }
 
+        .placa-zero-km__result-status--multiline {
+            white-space: pre-wrap;
+        }
+
         .placa-zero-km__link {
             color: var(--brand-primary);
             font-weight: 600;
@@ -304,7 +308,7 @@
                     <span id="processingText">Processando consulta...</span>
                 </div>
                 <div class="placa-zero-km__list" id="platesList"></div>
-                <div class="placa-zero-km__result-status" id="resultText"></div>
+                <div class="placa-zero-km__result-status placa-zero-km__result-status--multiline" id="resultText"></div>
             </div>
         </section>
     </div>
@@ -402,6 +406,15 @@
                 return mergeUniquePlates(ocrPlates, detectedPlates);
             }
 
+            function extractModalErrorText(requestRow) {
+                const payload = requestRow?.response_payload;
+                const ocrText = payload?.data?.ocr?.text;
+                const responseError = requestRow?.response_error;
+                const normalizedOcrText = typeof ocrText === 'string' ? ocrText.trim() : '';
+                const normalizedResponseError = typeof responseError === 'string' ? responseError.trim() : '';
+                return normalizedResponseError || normalizedOcrText || '';
+            }
+
             function renderPlateItems(plates) {
                 platesList.innerHTML = '';
                 for (const plate of plates) {
@@ -464,11 +477,26 @@
                 const requestStatus = String(requestRow?.status || '');
                 const batchStatus = String(batch?.status || '');
                 const isDone = requestStatus === 'succeeded' || requestStatus === 'failed';
+                const retryInfo = requestRow?.response_payload?.data?.transient_retry || null;
+                const transientMessage = requestRow?.response_payload?.data?.ocr?.transient_message || '';
 
                 if (requestStatus === 'running' || requestStatus === 'pending') {
-                    queueStatusText.textContent = `Processando requisição #${activeRequestId} no batch #${activeBatchId}...`;
-                    setProcessingState(true, 'Executando script e analisando resultado...');
-                    resultText.textContent = '';
+                    if (retryInfo?.triggered) {
+                        const attempts = toSafeNumber(retryInfo?.attempts);
+                        const maxRetries = toSafeNumber(retryInfo?.max_retries);
+                        const waitMs = toSafeNumber(retryInfo?.wait_ms);
+                        const waitSeconds = waitMs > 0 ? Math.max(1, Math.round(waitMs / 1000)) : 20;
+                        const progressLabel = maxRetries > 0 ? `${attempts}/${maxRetries}` : `${attempts}`;
+                        queueStatusText.textContent = 'O servidor está mais lento do que o normal. Estamos fazendo uma nova tentativa.';
+                        setProcessingState(true, `Nova tentativa ${progressLabel}. Aguardando ${waitSeconds}s para reprocessar...`);
+                        resultText.textContent = transientMessage
+                            ? `Mensagem detectada na tela: ${transientMessage}`
+                            : '';
+                    } else {
+                        queueStatusText.textContent = `Processando requisição #${activeRequestId} no batch #${activeBatchId}...`;
+                        setProcessingState(true, 'Executando script e analisando resultado...');
+                        resultText.textContent = '';
+                    }
                     renderPlateItems([]);
                     return false;
                 }
@@ -478,7 +506,8 @@
 
                     if (requestStatus === 'failed') {
                         queueStatusText.textContent = `Falha na requisição #${activeRequestId}.`;
-                        resultText.textContent = requestRow?.response_error || 'Consulta finalizada com falha.';
+                        const exactErrorText = extractModalErrorText(requestRow);
+                        resultText.textContent = exactErrorText || 'Consulta finalizada com falha.';
                         renderPlateItems([]);
                         return true;
                     }

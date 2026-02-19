@@ -210,6 +210,22 @@ Configuração no `.env`:
 - `AGENT_OCR_ENABLED=true`
 - `AGENT_OCR_LANG=por`
 
+### Repetir OCR quando detectar tela sem resposta
+
+Se o OCR encontrar textos como “não está respondendo”, o agente pode aguardar e capturar novos prints automaticamente.
+
+Configuração no `.env`:
+- `AGENT_TRANSIENT_RETRY_ENABLED=true`
+- `AGENT_TRANSIENT_RETRY_WAIT_MS=20000` (20 segundos)
+- `AGENT_TRANSIENT_RETRY_MAX_RETRIES=6`
+- `AGENT_TRANSIENT_KEYWORDS=` (opcional, lista separada por vírgula)
+
+Com isso, quando detectar estado transitório, o agente:
+- espera o tempo configurado;
+- tira um novo screenshot;
+- roda OCR novamente;
+- repete até aparecer placas/erro real ou estourar o limite.
+
 Observação: na primeira execução o Tesseract pode baixar dados de idioma.
 
 ## Upload para o backend (recomendado)

@@ -3,6 +3,7 @@ import 'dotenv/config';
 import process from 'node:process';
 import fs from 'node:fs/promises';
 import path from 'node:path';
+import { spawn } from 'node:child_process';
 
 import { createPool, getMysqlConfigFromEnv } from './db.mjs';
 import { createLogger } from './logger.mjs';
@@ -27,6 +28,75 @@ function toPositiveInt(value, fallback) {
   const parsed = Number(value);
   if (!Number.isFinite(parsed) || parsed <= 0) return fallback;
   return Math.floor(parsed);
+}
+
+function toNonNegativeInt(value, fallback) {
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed) || parsed < 0) return fallback;
+  return Math.floor(parsed);
+}
+
+function psQuote(value) {
+  return String(value ?? '').replace(/'/g, "''");
+}
+
+async function captureDesktopScreenshot({
+  screenshotsDir,
+  requestId,
+  retryIndex,
+  logger: localLogger,
+}) {
+  if (process.platform !== 'win32') {
+    localLogger?.warn?.('ocr.transient.capture_skipped_non_windows', { request_id: requestId });
+    return null;
+  }
+
+  const outDir = path.resolve(process.cwd(), screenshotsDir || 'screenshots');
+  await fs.mkdir(outDir, { recursive: true });
+  const filePath = path.join(
+    outDir,
+    `shot_retry_${requestId}_${String(retryIndex).padStart(2, '0')}_${Date.now()}.png`
+  );
+  const quotedPath = psQuote(filePath);
+
+  const psScript = [
+    'Add-Type -AssemblyName System.Windows.Forms;',
+    'Add-Type -AssemblyName System.Drawing;',
+    '$bounds=[System.Windows.Forms.Screen]::PrimaryScreen.Bounds;',
+    '$bmp=New-Object System.Drawing.Bitmap $bounds.Width, $bounds.Height;',
+    '$g=[System.Drawing.Graphics]::FromImage($bmp);',
+    '$g.CopyFromScreen($bounds.X, $bounds.Y, 0, 0, $bounds.Size);',
+    '$g.Dispose();',
+    `$bmp.Save('${quotedPath}', [System.Drawing.Imaging.ImageFormat]::Png);`,
+    '$bmp.Dispose();',
+  ].join(' ');
+
+  await new Promise((resolve, reject) => {
+    const child = spawn('powershell.exe', [
+      '-NoProfile',
+      '-ExecutionPolicy',
+      'Bypass',
+      '-Command',
+      psScript,
+    ], {
+      windowsHide: true,
+    });
+
+    let stderr = '';
+    child.stderr.on('data', (chunk) => {
+      stderr += String(chunk || '');
+    });
+    child.on('error', reject);
+    child.on('close', (code) => {
+      if (code !== 0) {
+        reject(new Error(stderr || `Falha ao capturar screenshot (code ${code}).`));
+        return;
+      }
+      resolve();
+    });
+  });
+
+  return filePath;
 }
 
 function isDbConnectionOrAuthError(err) {
@@ -185,6 +255,32 @@ async function refreshBatchCounters(connection, batchId) {
   );
 }
 
+async function killAppProcessByExePath(appExePath, localLogger) {
+  if (process.platform !== 'win32') return;
+  if (!appExePath) return;
+
+  const exeName = path.parse(String(appExePath)).name;
+  if (!exeName) return;
+  const safeName = psQuote(exeName);
+  const psScript = `Get-Process -Name '${safeName}' -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue`;
+
+  await new Promise((resolve) => {
+    const child = spawn('powershell.exe', [
+      '-NoProfile',
+      '-ExecutionPolicy',
+      'Bypass',
+      '-Command',
+      psScript,
+    ], {
+      windowsHide: true,
+    });
+    child.on('error', () => resolve());
+    child.on('close', () => resolve());
+  });
+
+  localLogger?.info?.('app.killed', { exe: exeName });
+}
+
 async function processOne(pool, agentCfg) {
   const connection = await pool.getConnection();
   const finalizeFailure = async (reqId, batchId, errorMessage) => {
@@ -242,6 +338,8 @@ async function processOne(pool, agentCfg) {
     let result;
     let analysis = null;
     let uploadResult = null;
+    let deferAppKillEnabled = false;
+    let deferredAppExePath = '';
     try {
       logger?.info?.('replay.begin', { request_id: req.id });
       startHeartbeat();
@@ -300,6 +398,57 @@ async function processOne(pool, agentCfg) {
         }
       }
 
+      const transientRetryWaitMs = toPositiveInt(agentCfg.transientRetryWaitMs, 20000);
+      const transientRetryMaxRetries = toNonNegativeInt(agentCfg.transientRetryMaxRetries, 6);
+      const transientRetryEnabled = Boolean(agentCfg.transientRetryEnabled) && transientRetryMaxRetries > 0;
+      const deferAppKillUntilAfterRetries = transientRetryEnabled && Boolean(agentCfg.appKillAfterScreenshot);
+      deferAppKillEnabled = deferAppKillUntilAfterRetries;
+      deferredAppExePath = agentCfg.appExePath || '';
+      const transientRetryChecks = [];
+      let transientRetryTriggered = false;
+      const buildRunningPayload = (currentScreenshotPath, currentAnalysis, currentOutcome = 'running') => ({
+        success: true,
+        data: {
+          screenshot_path: currentScreenshotPath ?? null,
+          screenshot_url: null,
+          ocr: currentAnalysis
+            ? {
+                text: currentAnalysis.rawText,
+                normalized_text: currentAnalysis.normalizedText,
+                plates: currentAnalysis.plates,
+                error_message: currentAnalysis.errorMessage,
+                transient_message: currentAnalysis.transientMessage || null,
+              }
+            : null,
+          transient_retry: {
+            enabled: transientRetryEnabled,
+            triggered: transientRetryTriggered,
+            wait_ms: transientRetryWaitMs,
+            max_retries: transientRetryMaxRetries,
+            attempts: transientRetryChecks.length,
+            resolved: null,
+            checks: transientRetryChecks,
+          },
+          outcome: currentOutcome,
+        },
+      });
+      const persistRunningProgress = async (currentScreenshotPath, currentAnalysis, currentOutcome = 'running') => {
+        try {
+          await connection.query(
+            "UPDATE placas_zero_km_requests SET response_payload=:payload, updated_at=NOW() WHERE id=:id AND status='running'",
+            {
+              id: req.id,
+              payload: JSON.stringify(buildRunningPayload(currentScreenshotPath, currentAnalysis, currentOutcome)),
+            }
+          );
+        } catch (persistErr) {
+          logger?.warn?.('ocr.transient.persist_progress_error', {
+            request_id: req.id,
+            error: String(persistErr?.message || persistErr),
+          });
+        }
+      };
+
       result = { lastScreenshotPath: null };
       for (let i = 0; i < templatePaths.length; i += 1) {
         const templatePath = templatePaths[i];
@@ -354,7 +503,9 @@ async function processOne(pool, agentCfg) {
           autoEnterClickTolerance: agentCfg.autoEnterClickTolerance,
           autoEnterWaitBeforeMs: agentCfg.autoEnterWaitBeforeMs,
           autoEnterWaitAfterMs: agentCfg.autoEnterWaitAfterMs,
-          appKillAfterScreenshot: isLastTemplate ? agentCfg.appKillAfterScreenshot : false,
+          appKillAfterScreenshot: isLastTemplate
+            ? (deferAppKillUntilAfterRetries ? false : agentCfg.appKillAfterScreenshot)
+            : false,
           logger,
         });
 
@@ -363,8 +514,88 @@ async function processOne(pool, agentCfg) {
         }
       }
 
-      const screenshotPath = result?.lastScreenshotPath ?? null;
+      let screenshotPath = result?.lastScreenshotPath ?? null;
       logger?.info?.('replay.screenshot', { request_id: req.id, screenshotPath });
+
+      if (agentCfg.ocrEnabled && screenshotPath) {
+        analysis = await analyzeScreenshot(screenshotPath, {
+          lang: agentCfg.ocrLang,
+          transientKeywords: agentCfg.transientKeywords,
+          logger,
+        });
+
+        if (transientRetryEnabled && analysis?.transientMessage) {
+          transientRetryTriggered = true;
+          logger?.warn?.('ocr.transient.detected', {
+            request_id: req.id,
+            message: analysis.transientMessage,
+            max_retries: transientRetryMaxRetries,
+            wait_ms: transientRetryWaitMs,
+          });
+          await persistRunningProgress(screenshotPath, analysis, 'waiting_retry');
+
+          for (let retryIndex = 1; retryIndex <= transientRetryMaxRetries; retryIndex += 1) {
+            await sleep(transientRetryWaitMs);
+
+            try {
+              const retryScreenshotPath = await captureDesktopScreenshot({
+                screenshotsDir: agentCfg.screenshotsDir,
+                requestId: req.id,
+                retryIndex,
+                logger,
+              });
+
+              if (retryScreenshotPath) {
+                screenshotPath = retryScreenshotPath;
+              }
+
+              analysis = await analyzeScreenshot(screenshotPath, {
+                lang: agentCfg.ocrLang,
+                transientKeywords: agentCfg.transientKeywords,
+                logger,
+              });
+
+              const check = {
+                retry: retryIndex,
+                screenshot_path: screenshotPath,
+                transient_message: analysis?.transientMessage || null,
+                error_message: analysis?.errorMessage || null,
+                plates: Array.isArray(analysis?.plates) ? analysis.plates : [],
+              };
+              transientRetryChecks.push(check);
+
+              logger?.info?.('ocr.transient.retry_result', {
+                request_id: req.id,
+                retry: retryIndex,
+                transient_message: check.transient_message,
+                plates_count: check.plates.length,
+                error_message: check.error_message,
+              });
+              await persistRunningProgress(screenshotPath, analysis, analysis?.transientMessage ? 'waiting_retry' : 'running');
+
+              if (!analysis?.transientMessage) {
+                break;
+              }
+            } catch (retryErr) {
+              const retryErrorMessage = String(retryErr?.message || retryErr);
+              transientRetryChecks.push({
+                retry: retryIndex,
+                screenshot_path: screenshotPath,
+                transient_message: analysis?.transientMessage || null,
+                error_message: retryErrorMessage,
+                plates: [],
+              });
+              logger?.warn?.('ocr.transient.retry_error', {
+                request_id: req.id,
+                retry: retryIndex,
+                error: retryErrorMessage,
+              });
+              await persistRunningProgress(screenshotPath, analysis, 'waiting_retry');
+            }
+          }
+        }
+      }
+
       if (agentCfg.uploadEnabled && agentCfg.uploadUrl && screenshotPath) {
         uploadResult = await uploadScreenshot({
           url: agentCfg.uploadUrl,
@@ -375,20 +606,18 @@ async function processOne(pool, agentCfg) {
         });
       }
 
-      if (agentCfg.ocrEnabled && screenshotPath) {
-        analysis = await analyzeScreenshot(screenshotPath, { lang: agentCfg.ocrLang, logger });
-      }
-
       const outcome = analysis
-        ? (analysis?.errorMessage && (!analysis?.plates || analysis.plates.length === 0)
-          ? 'error'
-          : analysis?.plates && analysis.plates.length
-            ? 'plates'
-            : 'unknown')
+        ? (analysis?.transientMessage
+          ? 'transient_timeout'
+          : analysis?.errorMessage && (!analysis?.plates || analysis.plates.length === 0)
+            ? 'error'
+            : analysis?.plates && analysis.plates.length
+              ? 'plates'
+              : 'unknown')
         : (uploadResult ? 'uploaded' : 'unknown');
 
       const status =
-        outcome === 'error'
+        outcome === 'error' || outcome === 'transient_timeout'
           ? 'failed'
           : (uploadResult || analysis)
             ? 'succeeded'
@@ -400,11 +629,16 @@ async function processOne(pool, agentCfg) {
         {
           id: req.id,
           status,
-          err: outcome === 'error' ? (analysis?.errorMessage || 'Erro detectado no modal') : null,
+          err:
+            outcome === 'error'
+              ? (String(analysis?.rawText || '').trim() || analysis?.errorMessage || 'Erro detectado no modal')
+              : outcome === 'transient_timeout'
+                ? `Tela sem resposta após ${transientRetryMaxRetries} tentativa(s): ${analysis?.transientMessage || 'não está respondendo'}`
+                : null,
           payload: JSON.stringify({
             success: true,
             data: {
-              screenshot_path: result?.lastScreenshotPath ?? null,
+              screenshot_path: screenshotPath ?? null,
               screenshot_url: uploadResult?.screenshot_url ?? null,
               ocr: analysis
                 ? {
@@ -412,8 +646,18 @@ async function processOne(pool, agentCfg) {
                     normalized_text: analysis.normalizedText,
                     plates: analysis.plates,
                     error_message: analysis.errorMessage,
+                    transient_message: analysis.transientMessage || null,
                   }
                 : null,
+              transient_retry: {
+                enabled: transientRetryEnabled,
+                triggered: transientRetryTriggered,
+                wait_ms: transientRetryWaitMs,
+                max_retries: transientRetryMaxRetries,
+                attempts: transientRetryChecks.length,
+                resolved: transientRetryTriggered ? !analysis?.transientMessage : null,
+                checks: transientRetryChecks,
+              },
               outcome,
             },
           }),
@@ -451,6 +695,9 @@ async function processOne(pool, agentCfg) {
       });
     } finally {
       stopHeartbeat();
+      if (deferAppKillEnabled && deferredAppExePath) {
+        await killAppProcessByExePath(deferredAppExePath, logger);
+      }
     }
 
     return true;
