@@ -143,6 +143,12 @@
             display: none;
         }
 
+        .placa-zero-km__card[hidden],
+        .placa-zero-km__loader[hidden],
+        .placa-zero-km__link[hidden] {
+            display: none !important;
+        }
+
         .placa-zero-km__result {
             display: grid;
             gap: 16px;
