@@ -64,6 +64,7 @@ Route::prefix('admin')->name('admin.')->group(function () {
         Route::post('/testeplanilha-gravame/exportar', [TestePlanilhaGravameController::class, 'exportar'])->name('teste-planilha-gravame.exportar');
         Route::get('/placas-0km', [PlacasZeroKmController::class, 'index'])->name('placas-0km.index');
         Route::post('/placas-0km/consultar', [PlacasZeroKmController::class, 'consultar'])->name('placas-0km.consultar');
+        Route::post('/placas-0km/enqueue', [PlacasZeroKmController::class, 'enqueue'])->name('placas-0km.enqueue');
         Route::get('/placas-0km/fila', [PlacasZeroKmController::class, 'queue'])->name('placas-0km.queue');
         Route::get('/placas-0km/fila/batches', [PlacasZeroKmController::class, 'queueBatches'])->name('placas-0km.queue.batches');
         Route::get('/placas-0km/fila/batches/{batchId}', [PlacasZeroKmController::class, 'queueShow'])->name('placas-0km.queue.show');

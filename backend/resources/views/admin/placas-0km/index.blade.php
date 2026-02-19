@@ -225,8 +225,8 @@
                 </div>
 
                 <div class="placa-zero-km__actions">
-                    <button class="placa-zero-km__button" id="consultarButton" type="submit">Consultar</button>
-                    <span class="placa-zero-km__status" id="statusText">Preencha os campos para consultar.</span>
+                    <button class="placa-zero-km__button" id="consultarButton" type="submit">Enfileirar</button>
+                    <span class="placa-zero-km__status" id="statusText">Preencha os campos para enfileirar.</span>
                 </div>
                 <div class="placa-zero-km__error" id="errorBox"></div>
             </form>
@@ -235,7 +235,7 @@
         <section class="admin-card placa-zero-km__card placa-zero-km__result" id="resultCard" hidden>
             <span class="placa-zero-km__pill">Resultado</span>
             <div>
-                <strong>Placas disponíveis</strong>
+                <strong>Status da fila</strong>
                 <div class="placa-zero-km__list" id="platesList"></div>
             </div>
         </section>
@@ -244,7 +244,8 @@
     <script>
         (function() {
             const CSRF_TOKEN = document.querySelector('meta[name="csrf-token"]')?.content ?? '';
-            const CONSULTAR_URL = '{{ route('admin.placas-0km.consultar') }}';
+            const ENQUEUE_URL = '{{ route('admin.placas-0km.enqueue') }}';
+            const QUEUE_URL_BASE = '{{ route('admin.placas-0km.queue') }}';
 
             const form = document.getElementById('placaZeroKmForm');
             const statusText = document.getElementById('statusText');
@@ -263,7 +264,7 @@
 
             function setLoading(loading) {
                 button.disabled = loading;
-                statusText.textContent = loading ? 'Consultando, aguarde...' : 'Preencha os campos para consultar.';
+                statusText.textContent = loading ? 'Enfileirando, aguarde...' : 'Preencha os campos para enfileirar.';
             }
 
             function setError(message) {
@@ -277,18 +278,18 @@
             }
 
             function renderResult(payload) {
-                const plates = payload?.data?.placas ?? [];
+                const batchId = payload?.data?.batch_id;
+                const requestId = payload?.data?.request_id;
                 platesList.innerHTML = '';
-                if (plates.length === 0) {
-                    platesList.innerHTML = '<div class="placa-zero-km__plate">Nenhuma placa listada</div>';
-                } else {
-                    plates.forEach((plate) => {
-                        const item = document.createElement('div');
-                        item.className = 'placa-zero-km__plate';
-                        item.textContent = plate;
-                        platesList.appendChild(item);
-                    });
-                }
+                const item = document.createElement('div');
+                item.className = 'placa-zero-km__plate';
+                item.textContent = `Item enfileirado no batch #${batchId} (req #${requestId}).`;
+                platesList.appendChild(item);
+
+                const linkWrap = document.createElement('div');
+                linkWrap.style.marginTop = '8px';
+                linkWrap.innerHTML = `<a href="${QUEUE_URL_BASE}?batch_id=${batchId}" style="color: var(--brand-primary); font-weight: 600; text-decoration: none;">Acompanhar na fila</a>`;
+                platesList.appendChild(linkWrap);
 
                 resultCard.hidden = false;
             }
@@ -297,6 +298,7 @@
                 event.preventDefault();
                 setError('');
                 setLoading(true);
+                let enqueued = false;
 
                 const payload = {
                     cpf_cgc: normalizeDigits(document.getElementById('cpfCgc').value),
@@ -307,7 +309,7 @@
                 };
 
                 try {
-                    const response = await fetch(CONSULTAR_URL, {
+                    const response = await fetch(ENQUEUE_URL, {
                         method: 'POST',
                         headers: {
                             'Content-Type': 'application/json',
@@ -323,14 +325,18 @@
                     }
 
                     if (!data.success) {
-                        throw new Error(data.error || 'Consulta retornou erro.');
+                        throw new Error(data.error || 'Falha ao enfileirar.');
                     }
 
                     renderResult(data);
+                    enqueued = true;
                 } catch (error) {
-                    setError(error?.message || 'Erro ao consultar placas.');
+                    setError(error?.message || 'Erro ao enfileirar solicitação.');
                 } finally {
                     setLoading(false);
+                    if (enqueued) {
+                        statusText.textContent = 'Enfileirado com sucesso. Acompanhe na fila.';
+                    }
                 }
             });
         })();

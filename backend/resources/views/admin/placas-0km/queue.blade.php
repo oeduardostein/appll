@@ -351,6 +351,8 @@
             const imageModal = document.getElementById('imageModal');
             const imageModalImg = document.getElementById('imageModalImg');
 
+            const urlParams = new URLSearchParams(window.location.search);
+            const initialBatchId = Number(urlParams.get('batch_id') || 0);
             let currentBatchId = null;
             let pollingTimer = null;
 
@@ -555,7 +557,11 @@
                 if (event.key === 'Escape') closeImage();
             });
 
-            refreshBatches();
+            refreshBatches().then(() => {
+                if (Number.isFinite(initialBatchId) && initialBatchId > 0) {
+                    setCurrentBatchId(initialBatchId);
+                }
+            });
         })();
     </script>
 @endsection

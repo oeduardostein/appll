@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
+use App\Jobs\ProcessPlacasZeroKmQueueJob;
 use App\Models\PlacasZeroKmBatch;
 use App\Models\PlacasZeroKmRequest;
 use App\Models\PlacasZeroKmRunnerState;
@@ -76,6 +77,78 @@ class PlacasZeroKmController extends Controller
                 'requests' => $requests,
             ],
         ]);
+    }
+
+    public function enqueue(Request $request): JsonResponse
+    {
+        $cpfCgc = preg_replace('/\D/', '', (string) $request->input('cpf_cgc', ''));
+        $nome = trim((string) $request->input('nome', ''));
+        $chassi = strtoupper(preg_replace('/[^A-Za-z0-9]/', '', (string) $request->input('chassi', '')));
+        $numeros = strtoupper(preg_replace('/[^A-Z0-9]/', '', (string) $request->input('numeros', '')));
+
+        if ($cpfCgc === '' || !in_array(strlen($cpfCgc), [11, 14], true)) {
+            return response()->json([
+                'success' => false,
+                'error' => 'Informe um CPF/CNPJ válido.',
+            ], Response::HTTP_UNPROCESSABLE_ENTITY);
+        }
+
+        if ($nome === '') {
+            return response()->json([
+                'success' => false,
+                'error' => 'Informe o nome.',
+            ], Response::HTTP_UNPROCESSABLE_ENTITY);
+        }
+
+        if ($chassi === '' || strlen($chassi) < 17) {
+            return response()->json([
+                'success' => false,
+                'error' => 'Informe um chassi válido.',
+            ], Response::HTTP_UNPROCESSABLE_ENTITY);
+        }
+
+        if ($numeros !== '' && strlen($numeros) > 4) {
+            return response()->json([
+                'success' => false,
+                'error' => 'O complemento deve ter até 4 caracteres.',
+            ], Response::HTTP_UNPROCESSABLE_ENTITY);
+        }
+
+        $result = DB::transaction(function () use ($cpfCgc, $nome, $chassi, $numeros, $request): array {
+            $batch = PlacasZeroKmBatch::query()->create([
+                'status' => 'pending',
+                'total' => 1,
+                'processed' => 0,
+                'succeeded' => 0,
+                'failed' => 0,
+                'source' => 'admin_web',
+                'request_ip' => $request->ip(),
+            ]);
+
+            $item = PlacasZeroKmRequest::query()->create([
+                'batch_id' => $batch->id,
+                'cpf_cgc' => $cpfCgc,
+                'nome' => $nome,
+                'chassi' => $chassi,
+                'numeros' => $numeros !== '' ? $numeros : null,
+                'status' => 'pending',
+                'attempts' => 0,
+            ]);
+
+            return [
+                'batch_id' => $batch->id,
+                'request_id' => $item->id,
+            ];
+        });
+
+        if (!config('services.placas0km.client_worker')) {
+            ProcessPlacasZeroKmQueueJob::dispatch();
+        }
+
+        return response()->json([
+            'success' => true,
+            'data' => $result,
+        ], Response::HTTP_CREATED);
     }
 
     public function consultar(Request $request): JsonResponse
