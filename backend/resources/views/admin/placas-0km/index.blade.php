@@ -259,8 +259,8 @@
             <form class="placa-zero-km__form" id="placaZeroKmForm">
                 <div class="placa-zero-km__row">
                     <div class="placa-zero-km__field">
-                        <label for="cpfCgc">CPF/CNPJ do proprietário (opcional)</label>
-                        <input id="cpfCgc" name="cpf_cgc" type="text" placeholder="Somente números">
+                        <label for="cpfCgc">CPF/CNPJ do proprietário</label>
+                        <input id="cpfCgc" name="cpf_cgc" type="text" placeholder="Somente números" required>
                     </div>
                     <div class="placa-zero-km__field">
                         <label for="chassi">Chassi</label>
@@ -281,7 +281,7 @@
 
                 <div class="placa-zero-km__actions">
                     <button class="placa-zero-km__button" id="consultarButton" type="submit">Enfileirar</button>
-                    <span class="placa-zero-km__status" id="statusText">Preencha o chassi para enfileirar.</span>
+                    <span class="placa-zero-km__status" id="statusText">Preencha CPF/CNPJ e chassi para enfileirar.</span>
                 </div>
                 <div class="placa-zero-km__error" id="errorBox"></div>
             </form>
@@ -347,7 +347,7 @@
                     statusText.textContent = text;
                     return;
                 }
-                statusText.textContent = loading ? 'Enfileirando, aguarde...' : 'Preencha o chassi para enfileirar.';
+                statusText.textContent = loading ? 'Enfileirando, aguarde...' : 'Preencha CPF/CNPJ e chassi para enfileirar.';
             }
 
             function setError(message) {

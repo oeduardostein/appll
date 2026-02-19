@@ -53,7 +53,7 @@ function validateTemplate(events) {
     .map((event) => event.name);
   const screenshots = events.filter((event) => event?.type === 'screenshot').length;
 
-  const required = ['chassi', 'cpf_cgc', 'nome'];
+  const required = ['chassi', 'cpf_cgc'];
   const missing = required.filter((name) => !slots.includes(name));
 
   return {
@@ -258,22 +258,13 @@ export async function replayTemplate({
     });
   }
   const cpfDigits = digitsOnly(data?.cpf_cgc);
-  if (cpfDigits.length > 0) {
-    const doc = detectCpfCnpjType(cpfDigits);
-    if (doc.type === 'invalid') {
-      throw new Error(
-        `cpf_cgc inválido para replay. Envie CPF com 11 dígitos ou CNPJ com 14 dígitos. Recebido: "${data?.cpf_cgc ?? ''}".`
-      );
-    }
-    logger?.info('replay.document', { type: doc.type, digits: doc.digits.length });
-  } else {
-    logger?.info('replay.document', {
-      type: null,
-      digits: 0,
-      skipped: true,
-      reason: 'cpf_cgc vazio',
-    });
+  const doc = detectCpfCnpjType(cpfDigits);
+  if (doc.type === 'invalid') {
+    throw new Error(
+      `cpf_cgc inválido para replay. Envie CPF com 11 dígitos ou CNPJ com 14 dígitos. Recebido: "${data?.cpf_cgc ?? ''}".`
+    );
   }
+  logger?.info('replay.document', { type: doc.type, digits: doc.digits.length });
   if (warnPasswordSlotMissing && data?.senha && !templateMeta.slots.includes('senha')) {
     logger?.warn('replay.password_slot_missing', {
       recommendation: 'Grave um slot F9 (senha) no template para garantir login automático.',

@@ -82,11 +82,10 @@ class PlacasZeroKmController extends Controller
     public function enqueue(Request $request): JsonResponse
     {
         $cpfCgc = preg_replace('/\D/', '', (string) $request->input('cpf_cgc', ''));
-        $nome = trim((string) $request->input('nome', ''));
         $chassi = strtoupper(preg_replace('/[^A-Za-z0-9]/', '', (string) $request->input('chassi', '')));
         $numeros = strtoupper(preg_replace('/[^A-Z0-9]/', '', (string) $request->input('numeros', '')));
 
-        if ($cpfCgc !== '' && !in_array(strlen($cpfCgc), [11, 14], true)) {
+        if ($cpfCgc === '' || !in_array(strlen($cpfCgc), [11, 14], true)) {
             return response()->json([
                 'success' => false,
                 'error' => 'Informe um CPF/CNPJ válido.',
@@ -107,7 +106,7 @@ class PlacasZeroKmController extends Controller
             ], Response::HTTP_UNPROCESSABLE_ENTITY);
         }
 
-        $result = DB::transaction(function () use ($cpfCgc, $nome, $chassi, $numeros, $request): array {
+        $result = DB::transaction(function () use ($cpfCgc, $chassi, $numeros, $request): array {
             $batch = PlacasZeroKmBatch::query()->create([
                 'status' => 'pending',
                 'total' => 1,
@@ -121,7 +120,7 @@ class PlacasZeroKmController extends Controller
             $item = PlacasZeroKmRequest::query()->create([
                 'batch_id' => $batch->id,
                 'cpf_cgc' => $cpfCgc,
-                'nome' => $nome !== '' ? $nome : null,
+                'nome' => null,
                 'chassi' => $chassi,
                 'numeros' => $numeros !== '' ? $numeros : null,
                 'status' => 'pending',
@@ -147,7 +146,6 @@ class PlacasZeroKmController extends Controller
     public function consultar(Request $request): JsonResponse
     {
         $cpfCgc = preg_replace('/\D/', '', (string) $request->input('cpf_cgc', ''));
-        $nome = trim((string) $request->input('nome', ''));
         $chassi = strtoupper(preg_replace('/[^A-Za-z0-9]/', '', (string) $request->input('chassi', '')));
         $numeros = strtoupper(preg_replace('/[^A-Z0-9]/', '', (string) $request->input('numeros', '')));
         $numeroTentativa = (string) ((int) $request->input('numero_tentativa', 3));
@@ -155,7 +153,7 @@ class PlacasZeroKmController extends Controller
         $placaEscolhaAnterior = '';
         $debug = filter_var($request->input('debug', false), FILTER_VALIDATE_BOOLEAN);
 
-        if ($cpfCgc !== '' && !in_array(strlen($cpfCgc), [11, 14], true)) {
+        if ($cpfCgc === '' || !in_array(strlen($cpfCgc), [11, 14], true)) {
             return response()->json([
                 'success' => false,
                 'error' => 'Informe um CPF/CNPJ válido.',
@@ -231,7 +229,7 @@ class PlacasZeroKmController extends Controller
             $payload = [
                 'method' => 'pesquisarPlaca',
                 'cpfCgcProprietario' => $cpfCgc,
-                'nome' => $nome,
+                'nome' => '',
                 'tipoRestricaoFinanceira' => $tipoRestricao,
                 'chassi' => $chassi,
                 'cpfCgcProprietarioFormatado' => $this->formatCpfCnpj($cpfCgc),

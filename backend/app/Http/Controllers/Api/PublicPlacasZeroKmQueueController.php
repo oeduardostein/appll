@@ -67,11 +67,10 @@ class PublicPlacasZeroKmQueueController extends Controller
             }
 
             $cpfCgc = preg_replace('/\D/', '', (string) ($item['cpf_cgc'] ?? $item['cpf'] ?? '')) ?? '';
-            $nome = trim((string) ($item['nome'] ?? ''));
             $chassi = strtoupper(preg_replace('/[^A-Za-z0-9]/', '', (string) ($item['chassi'] ?? '')) ?? '');
             $numeros = strtoupper(preg_replace('/[^A-Za-z0-9]/', '', (string) ($item['numeros'] ?? '')) ?? '');
 
-            if ($cpfCgc !== '' && !in_array(strlen($cpfCgc), [11, 14], true)) {
+            if ($cpfCgc === '' || !in_array(strlen($cpfCgc), [11, 14], true)) {
                 return response()->json([
                     'success' => false,
                     'error' => "CPF/CNPJ inválido no item {$idx}.",
@@ -94,7 +93,7 @@ class PublicPlacasZeroKmQueueController extends Controller
 
             $normalized[] = [
                 'cpf_cgc' => $cpfCgc,
-                'nome' => $nome !== '' ? $nome : null,
+                'nome' => null,
                 'chassi' => $chassi,
                 'numeros' => $numeros !== '' ? $numeros : null,
             ];
