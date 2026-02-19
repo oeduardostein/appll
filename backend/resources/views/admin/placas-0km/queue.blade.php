@@ -421,6 +421,7 @@
             const BATCHES_URL = '{{ route('admin.placas-0km.queue.batches') }}';
             const BATCH_SHOW_BASE_URL = '{{ url('/admin/placas-0km/fila/batches') }}';
             const STORAGE_URL_BASE = @json(asset('storage'));
+            const SHOW_REQUEST_IMAGE = false; // Troque para true para voltar a exibir a imagem da requisição.
 
             const batchIdInput = document.getElementById('batchIdInput');
             const loadBatchBtn = document.getElementById('loadBatchBtn');
@@ -599,7 +600,7 @@
                                 .map((plate) => `<div class="queue-request__plate">${toSafeText(plate)}</div>`)
                                 .join('')
                             : '<div class="queue-empty" style="padding: 0;">Nenhuma placa listada.</div>';
-                        const screenshotHtml = screenshotUrl
+                        const screenshotHtml = SHOW_REQUEST_IMAGE && screenshotUrl
                             ? `
                                 <div class="queue-request__field">
                                     <span class="queue-request__label">Imagem</span>
