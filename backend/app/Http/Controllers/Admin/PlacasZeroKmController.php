@@ -18,6 +18,8 @@ use Symfony\Component\HttpFoundation\Response;
 
 class PlacasZeroKmController extends Controller
 {
+    private const RUNNER_STALE_MINUTES = 10;
+
     public function index(): View
     {
         return view('admin.placas-0km.index');
@@ -57,6 +59,8 @@ class PlacasZeroKmController extends Controller
         }
 
         $runner = PlacasZeroKmRunnerState::query()->find(1);
+        $staleCutoff = now()->subMinutes(self::RUNNER_STALE_MINUTES);
+        $runnerIsStuck = $this->isRunnerStuck($runner, $staleCutoff);
         $current = null;
         if ($runner && $runner->current_request_id) {
             $current = PlacasZeroKmRequest::query()->find((int) $runner->current_request_id);
@@ -68,15 +72,111 @@ class PlacasZeroKmController extends Controller
             ->limit(500)
             ->get();
 
+        $requests->transform(function (PlacasZeroKmRequest $requestItem) use ($runner, $runnerIsStuck, $staleCutoff): PlacasZeroKmRequest {
+            $isStuck = $this->isRequestStuck($requestItem, $runner, $runnerIsStuck, $staleCutoff);
+            $displayStatus = $isStuck
+                ? 'stuck'
+                : match ((string) $requestItem->status) {
+                    'succeeded' => 'completed',
+                    default => (string) $requestItem->status,
+                };
+
+            $requestItem->setAttribute('is_stuck', $isStuck);
+            $requestItem->setAttribute('display_status', $displayStatus);
+
+            return $requestItem;
+        });
+
+        $statusCounts = PlacasZeroKmRequest::query()
+            ->where('batch_id', $batchId)
+            ->selectRaw('status, COUNT(*) as total')
+            ->groupBy('status')
+            ->pluck('total', 'status');
+
+        $stuckCount = PlacasZeroKmRequest::query()
+            ->where('batch_id', $batchId)
+            ->where('status', 'running')
+            ->where(function ($query) use ($staleCutoff): void {
+                $query
+                    ->whereNull('started_at')
+                    ->orWhere('started_at', '<=', $staleCutoff);
+            })
+            ->count();
+
+        if ($runnerIsStuck && $runner && $runner->current_request_id) {
+            $currentRunningRequest = PlacasZeroKmRequest::query()
+                ->where('id', (int) $runner->current_request_id)
+                ->where('batch_id', $batchId)
+                ->where('status', 'running')
+                ->first();
+
+            if ($currentRunningRequest && $currentRunningRequest->started_at && $currentRunningRequest->started_at->gt($staleCutoff)) {
+                $stuckCount += 1;
+            }
+        }
+
         return response()->json([
             'success' => true,
             'data' => [
                 'batch' => $batch,
                 'runner' => $runner,
+                'runner_status' => $this->resolveRunnerStatus($runner, $runnerIsStuck),
+                'summary' => [
+                    'stale_minutes' => self::RUNNER_STALE_MINUTES,
+                    'total' => (int) ($batch->total ?? 0),
+                    'running' => (int) ($statusCounts->get('running', 0)),
+                    'stuck' => (int) $stuckCount,
+                    'pending' => (int) ($statusCounts->get('pending', 0)),
+                    'completed' => (int) ($statusCounts->get('succeeded', 0)),
+                    'failed' => (int) ($statusCounts->get('failed', 0)),
+                ],
                 'current' => $current,
                 'requests' => $requests,
             ],
         ]);
+    }
+
+    private function resolveRunnerStatus(?PlacasZeroKmRunnerState $runner, bool $runnerIsStuck): string
+    {
+        if (!$runner || (int) $runner->is_running !== 1) {
+            return 'idle';
+        }
+
+        return $runnerIsStuck ? 'stuck' : 'running';
+    }
+
+    private function isRunnerStuck(?PlacasZeroKmRunnerState $runner, $staleCutoff): bool
+    {
+        if (!$runner || (int) $runner->is_running !== 1) {
+            return false;
+        }
+
+        if (!$runner->last_heartbeat_at) {
+            return true;
+        }
+
+        return $runner->last_heartbeat_at->lte($staleCutoff);
+    }
+
+    private function isRequestStuck(
+        PlacasZeroKmRequest $requestItem,
+        ?PlacasZeroKmRunnerState $runner,
+        bool $runnerIsStuck,
+        $staleCutoff
+    ): bool {
+        if ((string) $requestItem->status !== 'running') {
+            return false;
+        }
+
+        if (!$requestItem->started_at || $requestItem->started_at->lte($staleCutoff)) {
+            return true;
+        }
+
+        if (!$runnerIsStuck || !$runner) {
+            return false;
+        }
+
+        return (int) $runner->current_request_id === (int) $requestItem->id;
     }
 
     public function enqueue(Request $request): JsonResponse

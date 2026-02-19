@@ -251,7 +251,7 @@
         <div class="placa-zero-km__header-copy">
             <h1>Consulta de Placas 0KM</h1>
         </div>
-        <a class="placa-zero-km__header-link" href="{{ route('admin.placas-0km.queue') }}">Abrir fila com imagens</a>
+        <a class="placa-zero-km__header-link" href="{{ route('admin.placas-0km.queue') }}">Abrir controle de status</a>
     </div>
 
     <div class="placa-zero-km__grid">

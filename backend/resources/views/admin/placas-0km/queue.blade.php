@@ -109,6 +109,12 @@
             font-weight: 600;
         }
 
+        .queue-pill--danger {
+            border-color: #fecaca;
+            background: #fef2f2;
+            color: #991b1b;
+        }
+
         .queue-status-row {
             display: flex;
             justify-content: space-between;
@@ -182,6 +188,11 @@
             color: #92400e;
         }
 
+        .queue-tag--stuck {
+            background: #fee2e2;
+            color: #991b1b;
+        }
+
         .queue-link-batch {
             color: var(--brand-primary);
             font-weight: 700;
@@ -213,6 +224,11 @@
             padding: 12px;
             display: grid;
             gap: 10px;
+        }
+
+        .queue-request--stuck {
+            border-color: #fecaca;
+            background: #fff7f7;
         }
 
         .queue-request__head {
@@ -309,6 +325,52 @@
             font-size: 13px;
         }
 
+        .queue-filters {
+            margin-top: 14px;
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+        }
+
+        .queue-filter-btn {
+            border: 1px solid var(--border);
+            border-radius: 999px;
+            background: #fff;
+            color: var(--text-strong);
+            font-weight: 700;
+            font-size: 12px;
+            padding: 7px 12px;
+            cursor: pointer;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            transition: background 120ms ease, border-color 120ms ease, color 120ms ease;
+        }
+
+        .queue-filter-btn:hover {
+            border-color: #b8c8db;
+            background: #f8fafc;
+        }
+
+        .queue-filter-btn.is-active {
+            border-color: #0b4ea2;
+            background: #eaf2ff;
+            color: #0b4ea2;
+        }
+
+        .queue-filter-btn__count {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            min-width: 24px;
+            height: 20px;
+            border-radius: 999px;
+            background: #edf2f8;
+            color: #1e293b;
+            font-size: 11px;
+            padding: 0 6px;
+        }
+
         .queue-error {
             margin-top: 10px;
             padding: 10px 12px;
@@ -353,8 +415,8 @@
 
     <div class="queue-header">
         <div>
-            <h1>Fila Placas 0KM (Admin)</h1>
-            <p>Acompanhamento da fila com preview da imagem enviada pelo agente.</p>
+            <h1>Controle de Consultas de Placas 0KM</h1>
+            <p>Acompanhe consultas rodando, travadas, pendentes, completas e com falha.</p>
         </div>
         <a class="queue-link" href="{{ route('admin.placas-0km.index') }}">Voltar para consulta manual</a>
     </div>
@@ -380,6 +442,32 @@
             </div>
             <div class="queue-muted" id="currentText" style="margin-top: 10px;">Atual: —</div>
             <div class="queue-muted" id="countsText" style="margin-top: 6px;">—</div>
+            <div class="queue-filters" id="statusFilters" aria-label="Filtros de status">
+                <button class="queue-filter-btn is-active" type="button" data-filter-status="all">
+                    Todas
+                    <span class="queue-filter-btn__count" data-filter-count="all">0</span>
+                </button>
+                <button class="queue-filter-btn" type="button" data-filter-status="running">
+                    Rodando
+                    <span class="queue-filter-btn__count" data-filter-count="running">0</span>
+                </button>
+                <button class="queue-filter-btn" type="button" data-filter-status="stuck">
+                    Travadas
+                    <span class="queue-filter-btn__count" data-filter-count="stuck">0</span>
+                </button>
+                <button class="queue-filter-btn" type="button" data-filter-status="pending">
+                    Pendentes
+                    <span class="queue-filter-btn__count" data-filter-count="pending">0</span>
+                </button>
+                <button class="queue-filter-btn" type="button" data-filter-status="completed">
+                    Completas
+                    <span class="queue-filter-btn__count" data-filter-count="completed">0</span>
+                </button>
+                <button class="queue-filter-btn" type="button" data-filter-status="failed">
+                    Falhas
+                    <span class="queue-filter-btn__count" data-filter-count="failed">0</span>
+                </button>
+            </div>
             <div class="queue-error" id="errorBox"></div>
 
             <div id="rowsBody" class="queue-requests">
@@ -422,6 +510,16 @@
             const BATCH_SHOW_BASE_URL = '{{ url('/admin/placas-0km/fila/batches') }}';
             const STORAGE_URL_BASE = @json(asset('storage'));
             const SHOW_REQUEST_IMAGE = false; // Troque para true para voltar a exibir a imagem da requisição.
+            const DEFAULT_STALE_MINUTES = 10;
+            const STATUS_KEYS = new Set(['all', 'running', 'stuck', 'pending', 'completed', 'failed']);
+            const STATUS_LABELS = {
+                all: 'todas',
+                running: 'rodando',
+                stuck: 'travadas',
+                pending: 'pendentes',
+                completed: 'completas',
+                failed: 'com falha',
+            };
 
             const batchIdInput = document.getElementById('batchIdInput');
             const loadBatchBtn = document.getElementById('loadBatchBtn');
@@ -436,6 +534,7 @@
             const errorBox = document.getElementById('errorBox');
             const batchesText = document.getElementById('batchesText');
             const batchesBody = document.getElementById('batchesBody');
+            const statusFilters = document.getElementById('statusFilters');
             const imageModal = document.getElementById('imageModal');
             const imageModalImg = document.getElementById('imageModalImg');
 
@@ -443,6 +542,24 @@
             const initialBatchId = Number(urlParams.get('batch_id') || 0);
             let currentBatchId = null;
             let pollingTimer = null;
+            let activeStatusFilter = 'all';
+            let latestRequests = [];
+            let latestRunner = null;
+            let latestStaleMinutes = DEFAULT_STALE_MINUTES;
+            let latestSummary = {
+                total: 0,
+                running: 0,
+                stuck: 0,
+                pending: 0,
+                completed: 0,
+                failed: 0,
+            };
+
+            function toCount(value) {
+                const n = Number(value);
+                if (!Number.isFinite(n) || n < 0) return 0;
+                return Math.floor(n);
+            }
 
             function showError(message) {
                 errorBox.textContent = message;
@@ -454,14 +571,6 @@
                 errorBox.style.display = 'none';
             }
 
-            function tagHtml(status) {
-                const s = String(status || '').toLowerCase();
-                if (s === 'succeeded') return '<span class="queue-tag queue-tag--ok">OK</span>';
-                if (s === 'failed') return '<span class="queue-tag queue-tag--err">FALHA</span>';
-                if (s === 'running') return '<span class="queue-tag queue-tag--run">RODANDO</span>';
-                return '<span class="queue-tag">PENDENTE</span>';
-            }
-
             function toSafeText(value) {
                 return String(value ?? '')
                     .replaceAll('&', '&amp;')
@@ -469,6 +578,19 @@
                     .replaceAll('>', '&gt;')
                     .replaceAll('"', '&quot;')
                     .replaceAll("'", '&#039;');
+            }
+
+            function tagHtml(statusKey) {
+                if (statusKey === 'completed') return '<span class="queue-tag queue-tag--ok">COMPLETA</span>';
+                if (statusKey === 'failed') return '<span class="queue-tag queue-tag--err">FALHA</span>';
+                if (statusKey === 'stuck') return '<span class="queue-tag queue-tag--stuck">TRAVADA</span>';
+                if (statusKey === 'running') return '<span class="queue-tag queue-tag--run">RODANDO</span>';
+                return '<span class="queue-tag">PENDENTE</span>';
+            }
+
+            function parseDateMs(value) {
+                const ts = Date.parse(String(value || ''));
+                return Number.isFinite(ts) ? ts : null;
             }
 
             function normalizePlate(value) {
@@ -484,10 +606,7 @@
             function extractPlates(payload) {
                 const seen = new Set();
                 const out = [];
-                const sources = [
-                    payload?.data?.ocr?.plates,
-                    payload?.data?.placas,
-                ];
+                const sources = [payload?.data?.ocr?.plates, payload?.data?.placas];
 
                 for (const source of sources) {
                     if (!Array.isArray(source)) continue;
@@ -522,9 +641,164 @@
                 imageModalImg.src = '';
             }
 
+            function isRunnerStuck(runner, staleMinutes) {
+                if (!runner || Number(runner?.is_running) !== 1) return false;
+                const heartbeatTs = parseDateMs(runner?.last_heartbeat_at);
+                if (!heartbeatTs) return true;
+                return (Date.now() - heartbeatTs) >= staleMinutes * 60 * 1000;
+            }
+
+            function normalizeRequestStatus(requestItem, runner, staleMinutes) {
+                const displayStatus = String(requestItem?.display_status || '').toLowerCase();
+                if (STATUS_KEYS.has(displayStatus) && displayStatus !== 'all') return displayStatus;
+
+                const rawStatus = String(requestItem?.status || '').toLowerCase();
+                if (rawStatus === 'succeeded') return 'completed';
+                if (rawStatus === 'failed') return 'failed';
+                if (rawStatus === 'pending') return 'pending';
+                if (rawStatus !== 'running') return 'pending';
+
+                if (requestItem?.is_stuck === true) return 'stuck';
+
+                const startedAtTs = parseDateMs(requestItem?.started_at);
+                if (!startedAtTs) return 'stuck';
+                if ((Date.now() - startedAtTs) >= staleMinutes * 60 * 1000) return 'stuck';
+
+                const runnerIsStuck = isRunnerStuck(runner, staleMinutes);
+                if (runnerIsStuck && Number(runner?.current_request_id || 0) === Number(requestItem?.id || 0)) {
+                    return 'stuck';
+                }
+
+                return 'running';
+            }
+
+            function fallbackSummaryFromRequests(requests, runner, staleMinutes) {
+                const base = { total: 0, running: 0, stuck: 0, pending: 0, completed: 0, failed: 0 };
+                for (const requestItem of requests) {
+                    const key = normalizeRequestStatus(requestItem, runner, staleMinutes);
+                    base.total += 1;
+                    if (key in base) {
+                        base[key] += 1;
+                    }
+                }
+                return base;
+            }
+
+            function resolveSummary(summaryRaw, requests, runner, staleMinutes) {
+                const fallback = fallbackSummaryFromRequests(requests, runner, staleMinutes);
+                return {
+                    total: toCount(summaryRaw?.total ?? fallback.total),
+                    running: toCount(summaryRaw?.running ?? fallback.running),
+                    stuck: toCount(summaryRaw?.stuck ?? fallback.stuck),
+                    pending: toCount(summaryRaw?.pending ?? fallback.pending),
+                    completed: toCount(summaryRaw?.completed ?? fallback.completed),
+                    failed: toCount(summaryRaw?.failed ?? fallback.failed),
+                };
+            }
+
+            function setActiveFilter(filterKey) {
+                activeStatusFilter = STATUS_KEYS.has(filterKey) ? filterKey : 'all';
+
+                const buttons = statusFilters.querySelectorAll('[data-filter-status]');
+                for (const button of buttons) {
+                    const key = String(button.getAttribute('data-filter-status') || '');
+                    button.classList.toggle('is-active', key === activeStatusFilter);
+                }
+            }
+
+            function updateFilterCounts(summary) {
+                const counts = {
+                    all: toCount(summary.total),
+                    running: toCount(summary.running),
+                    stuck: toCount(summary.stuck),
+                    pending: toCount(summary.pending),
+                    completed: toCount(summary.completed),
+                    failed: toCount(summary.failed),
+                };
+
+                const countNodes = statusFilters.querySelectorAll('[data-filter-count]');
+                for (const node of countNodes) {
+                    const key = String(node.getAttribute('data-filter-count') || '');
+                    node.textContent = String(counts[key] ?? 0);
+                }
+            }
+
+            function renderRequests() {
+                const filtered = latestRequests.filter((requestItem) => {
+                    if (activeStatusFilter === 'all') return true;
+                    return normalizeRequestStatus(requestItem, latestRunner, latestStaleMinutes) === activeStatusFilter;
+                });
+
+                rowsBody.innerHTML = '';
+                if (!filtered.length) {
+                    if (activeStatusFilter === 'all') {
+                        rowsBody.innerHTML = '<div class="queue-empty">Sem itens.</div>';
+                    } else {
+                        rowsBody.innerHTML = `<div class="queue-empty">Nenhuma consulta ${toSafeText(STATUS_LABELS[activeStatusFilter] || 'neste status')}.</div>`;
+                    }
+                    return;
+                }
+
+                for (const requestItem of filtered) {
+                    const statusKey = normalizeRequestStatus(requestItem, latestRunner, latestStaleMinutes);
+                    const plates = extractPlates(requestItem.response_payload);
+                    const screenshotUrl = extractScreenshotUrl(requestItem.response_payload);
+                    const platesHtml = plates.length
+                        ? plates.map((plate) => `<div class="queue-request__plate">${toSafeText(plate)}</div>`).join('')
+                        : '<div class="queue-empty" style="padding: 0;">Nenhuma placa listada.</div>';
+                    const screenshotHtml = SHOW_REQUEST_IMAGE && screenshotUrl
+                        ? `
+                            <div class="queue-request__field">
+                                <span class="queue-request__label">Imagem</span>
+                                <img class="queue-thumb" src="${toSafeText(screenshotUrl)}" data-image-url="${toSafeText(screenshotUrl)}" alt="Screenshot #${Number(requestItem.id)}">
+                            </div>
+                        `
+                        : '';
+                    const errorHtml = requestItem.response_error
+                        ? `<div class="queue-request__error">${toSafeText(requestItem.response_error)}</div>`
+                        : '';
+
+                    const row = document.createElement('article');
+                    row.className = statusKey === 'stuck' ? 'queue-request queue-request--stuck' : 'queue-request';
+                    row.innerHTML = `
+                        <div class="queue-request__head">
+                            <span class="queue-request__id">Req #${Number(requestItem.id)}</span>
+                            ${tagHtml(statusKey)}
+                        </div>
+                        <div class="queue-request__fields">
+                            <div class="queue-request__field">
+                                <span class="queue-request__label">CPF/CNPJ</span>
+                                <span class="queue-request__value">${toSafeText(requestItem.cpf_cgc)}</span>
+                            </div>
+                            <div class="queue-request__field">
+                                <span class="queue-request__label">Nome</span>
+                                <span class="queue-request__value">${toSafeText(requestItem.nome || '') || '—'}</span>
+                            </div>
+                            <div class="queue-request__field">
+                                <span class="queue-request__label">Chassi</span>
+                                <span class="queue-request__value">${toSafeText(requestItem.chassi || '') || '—'}</span>
+                            </div>
+                            <div class="queue-request__field">
+                                <span class="queue-request__label">Complemento</span>
+                                <span class="queue-request__value">${toSafeText(requestItem.numeros || '') || '—'}</span>
+                            </div>
+                            <div class="queue-request__field">
+                                <span class="queue-request__label">Placas disponíveis</span>
+                                <div class="queue-request__plates">${platesHtml}</div>
+                            </div>
+                        </div>
+                        <div class="queue-request__meta">
+                            ${screenshotHtml}
+                            ${errorHtml}
+                        </div>
+                    `;
+                    rowsBody.appendChild(row);
+                }
+            }
+
             async function refreshBatches() {
                 try {
-                    const resp = await fetch(BATCHES_URL, { headers: { 'Accept': 'application/json' } });
+                    const resp = await fetch(BATCHES_URL, { headers: { Accept: 'application/json' } });
                     const json = await resp.json().catch(() => null);
                     if (!resp.ok || !json?.success) throw new Error(json?.error || `HTTP ${resp.status}`);
 
@@ -542,10 +816,10 @@
                         row.innerHTML = `
                             <td><a class="queue-link-batch" data-batch-id="${b.id}">#${b.id}</a></td>
                             <td>${toSafeText(b.status)}</td>
-                            <td>${Number(b.total || 0)}</td>
-                            <td>${Number(b.processed || 0)}</td>
-                            <td>${Number(b.succeeded || 0)}</td>
-                            <td>${Number(b.failed || 0)}</td>
+                            <td>${toCount(b.total)}</td>
+                            <td>${toCount(b.processed)}</td>
+                            <td>${toCount(b.succeeded)}</td>
+                            <td>${toCount(b.failed)}</td>
                         `;
                         batchesBody.appendChild(row);
                     }
@@ -556,98 +830,66 @@
 
             async function refreshStatus() {
                 if (!currentBatchId) return;
+
                 try {
                     const resp = await fetch(`${BATCH_SHOW_BASE_URL}/${currentBatchId}`, {
-                        headers: { 'Accept': 'application/json' },
+                        headers: { Accept: 'application/json' },
                     });
                     const json = await resp.json().catch(() => null);
                     if (!resp.ok || !json?.success) throw new Error(json?.error || `HTTP ${resp.status}`);
 
                     const batch = json.data?.batch;
                     const runner = json.data?.runner;
+                    const runnerStatus = String(json.data?.runner_status || '').toLowerCase();
+                    const summaryRaw = json.data?.summary ?? {};
                     const current = json.data?.current;
-                    const requests = json.data?.requests || [];
+                    const requests = Array.isArray(json.data?.requests) ? json.data.requests : [];
+
+                    const staleMinutesRaw = Number(summaryRaw?.stale_minutes);
+                    latestStaleMinutes = Number.isFinite(staleMinutesRaw) && staleMinutesRaw > 0
+                        ? Math.floor(staleMinutesRaw)
+                        : DEFAULT_STALE_MINUTES;
+                    latestRunner = runner || null;
+                    latestRequests = requests;
+                    latestSummary = resolveSummary(summaryRaw, latestRequests, latestRunner, latestStaleMinutes);
 
                     batchPill.textContent = `Batch: #${batch?.id ?? currentBatchId}`;
-                    runnerPill.textContent = `Runner: ${runner?.is_running ? 'rodando' : 'ocioso'}${runner?.current_request_id ? ' (#' + runner.current_request_id + ')' : ''}`;
 
-                    const total = Number(batch?.total || 0);
-                    const processed = Number(batch?.processed || 0);
-                    const succeeded = Number(batch?.succeeded || 0);
-                    const failed = Number(batch?.failed || 0);
+                    const runnerLabel = runnerStatus === 'stuck'
+                        ? 'travado'
+                        : (runnerStatus === 'running'
+                            ? 'rodando'
+                            : (isRunnerStuck(runner, latestStaleMinutes)
+                                ? 'travado'
+                                : (Number(runner?.is_running) === 1 ? 'rodando' : 'ocioso')));
+                    runnerPill.textContent = `Runner: ${runnerLabel}${runner?.current_request_id ? ' (#' + runner.current_request_id + ')' : ''}`;
+                    runnerPill.classList.toggle('queue-pill--danger', runnerLabel === 'travado');
+
+                    const total = toCount(batch?.total);
+                    const processed = toCount(batch?.processed);
                     const pct = total > 0 ? Math.min(100, Math.round((processed / total) * 100)) : 0;
                     progressFill.style.width = `${pct}%`;
 
-                    statusText.textContent = batch?.status === 'completed'
-                        ? 'Batch concluído.'
-                        : 'Batch em processamento.';
-                    countsText.textContent = `Status: ${batch?.status} • Total ${total} • Processado ${processed} • OK ${succeeded} • Falhas ${failed}`;
+                    if (latestSummary.stuck > 0 || runnerLabel === 'travado') {
+                        statusText.textContent = `Atenção: existem consultas travadas (limite de ${latestStaleMinutes} min sem avanço).`;
+                    } else if (batch?.status === 'completed') {
+                        statusText.textContent = 'Batch concluído.';
+                    } else if (latestSummary.running > 0) {
+                        statusText.textContent = 'Consultas em processamento.';
+                    } else if (latestSummary.pending > 0) {
+                        statusText.textContent = 'Batch aguardando processamento.';
+                    } else {
+                        statusText.textContent = 'Status atualizado.';
+                    }
+
+                    countsText.textContent =
+                        `Total ${latestSummary.total} • Rodando ${latestSummary.running} • Travadas ${latestSummary.stuck} • Pendentes ${latestSummary.pending} • Completas ${latestSummary.completed} • Falhas ${latestSummary.failed}`;
                     currentText.textContent = current
                         ? `Atual: #${current.id} • ${current.cpf_cgc} • ${current.chassi}`
                         : 'Atual: —';
 
-                    rowsBody.innerHTML = '';
-                    if (!requests.length) {
-                        rowsBody.innerHTML = '<div class="queue-empty">Sem itens.</div>';
-                        return;
-                    }
-
-                    for (const r of requests) {
-                        const plates = extractPlates(r.response_payload);
-                        const screenshotUrl = extractScreenshotUrl(r.response_payload);
-                        const platesHtml = plates.length
-                            ? plates
-                                .map((plate) => `<div class="queue-request__plate">${toSafeText(plate)}</div>`)
-                                .join('')
-                            : '<div class="queue-empty" style="padding: 0;">Nenhuma placa listada.</div>';
-                        const screenshotHtml = SHOW_REQUEST_IMAGE && screenshotUrl
-                            ? `
-                                <div class="queue-request__field">
-                                    <span class="queue-request__label">Imagem</span>
-                                    <img class="queue-thumb" src="${toSafeText(screenshotUrl)}" data-image-url="${toSafeText(screenshotUrl)}" alt="Screenshot #${Number(r.id)}">
-                                </div>
-                            `
-                            : '';
-                        const errorHtml = r.response_error
-                            ? `<div class="queue-request__error">${toSafeText(r.response_error)}</div>`
-                            : '';
-
-                        const row = document.createElement('article');
-                        row.className = 'queue-request';
-                        row.innerHTML = `
-                            <div class="queue-request__head">
-                                <span class="queue-request__id">Req #${Number(r.id)}</span>
-                                ${tagHtml(r.status)}
-                            </div>
-                            <div class="queue-request__fields">
-                                <div class="queue-request__field">
-                                    <span class="queue-request__label">CPF/CNPJ</span>
-                                    <span class="queue-request__value">${toSafeText(r.cpf_cgc)}</span>
-                                </div>
-                                <div class="queue-request__field">
-                                    <span class="queue-request__label">Nome</span>
-                                    <span class="queue-request__value">${toSafeText(r.nome || '') || '—'}</span>
-                                </div>
-                                <div class="queue-request__field">
-                                    <span class="queue-request__label">Chassi</span>
-                                    <span class="queue-request__value">${toSafeText(r.chassi || '') || '—'}</span>
-                                </div>
-                                <div class="queue-request__field">
-                                    <span class="queue-request__label">Complemento</span>
-                                    <span class="queue-request__value">${toSafeText(r.numeros || '') || '—'}</span>
-                                </div>
-                                <div class="queue-request__field">
-                                    <span class="queue-request__label">Placas disponíveis</span>
-                                    <div class="queue-request__plates">${platesHtml}</div>
-                                </div>
-                            </div>
-                            <div class="queue-request__meta">
-                                ${screenshotHtml}
-                                ${errorHtml}
-                            </div>
-                        `;
-                        rowsBody.appendChild(row);
-                    }
+                    updateFilterCounts(latestSummary);
+                    renderRequests();
                 } catch (e) {
                     showError(String(e?.message || e));
                 }
@@ -666,6 +908,8 @@
                 startPolling();
             }
 
+            setActiveFilter('all');
+
             loadBatchBtn.addEventListener('click', () => {
                 const id = Number(batchIdInput.value || 0);
                 if (!Number.isFinite(id) || id <= 0) {
@@ -679,6 +923,14 @@
                 clearError();
                 await refreshBatches();
                 await refreshStatus();
+            });
+
+            statusFilters.addEventListener('click', (event) => {
+                const button = event.target.closest('[data-filter-status]');
+                if (!button) return;
+                const key = String(button.getAttribute('data-filter-status') || 'all');
+                setActiveFilter(key);
+                renderRequests();
             });
 
             batchesBody.addEventListener('click', (event) => {
