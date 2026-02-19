@@ -159,6 +159,18 @@ export async function replayTemplate({
   requireRequiredSlots = true,
   requireScreenshot = true,
   warnPasswordSlotMissing = true,
+  passwordInputMode = 'paste',
+  passwordTypeDelayMs = 120,
+  passwordBeforeEnterMs = 350,
+  appExePath = '',
+  appStartWaitMs = 7000,
+  autoEnterAfterClick = false,
+  autoEnterClickX = 0,
+  autoEnterClickY = 0,
+  autoEnterClickTolerance = 3,
+  autoEnterWaitBeforeMs = 2000,
+  autoEnterWaitAfterMs = 2000,
+  appKillAfterScreenshot = true,
   logger = null,
 }) {
   if (process.platform !== 'win32') {
@@ -180,6 +192,18 @@ export async function replayTemplate({
     hasCpf: Boolean(data?.cpf_cgc),
     hasNome: Boolean(data?.nome),
     hasChassi: Boolean(data?.chassi),
+    passwordInputMode,
+    passwordTypeDelayMs,
+    passwordBeforeEnterMs,
+    appExePath: appExePath || null,
+    appStartWaitMs,
+    autoEnterAfterClick,
+    autoEnterClickX,
+    autoEnterClickY,
+    autoEnterClickTolerance,
+    autoEnterWaitBeforeMs,
+    autoEnterWaitAfterMs,
+    appKillAfterScreenshot,
   });
 
   const absTemplate = path.resolve(process.cwd(), templatePath);
@@ -300,6 +324,30 @@ export async function replayTemplate({
     String(cropWidth || 0),
     '-CropH',
     String(cropHeight || 0),
+    '-PasswordInputMode',
+    String(passwordInputMode || 'paste'),
+    '-PasswordTypeDelayMs',
+    String(passwordTypeDelayMs || 120),
+    '-PasswordBeforeEnterMs',
+    String(passwordBeforeEnterMs || 350),
+    '-AppExePath',
+    String(appExePath || ''),
+    '-AppStartWaitMs',
+    String(appStartWaitMs || 7000),
+    '-AutoEnterAfterClick',
+    autoEnterAfterClick ? 'true' : 'false',
+    '-AutoEnterClickX',
+    String(autoEnterClickX || 0),
+    '-AutoEnterClickY',
+    String(autoEnterClickY || 0),
+    '-AutoEnterClickTolerance',
+    String(autoEnterClickTolerance || 3),
+    '-AutoEnterWaitBeforeMs',
+    String(autoEnterWaitBeforeMs || 2000),
+    '-AutoEnterWaitAfterMs',
+    String(autoEnterWaitAfterMs || 2000),
+    '-AppKillAfterScreenshot',
+    appKillAfterScreenshot ? 'true' : 'false',
   ];
 
   const result = await new Promise((resolve, reject) => {
@@ -338,6 +386,8 @@ export async function replayTemplate({
 export function loadAgentConfigFromEnv(env) {
   const templatePath = env.AGENT_TEMPLATE_PATH || 'recordings/template.json';
   const templatePaths = parseCsvList(env.AGENT_TEMPLATE_PATHS);
+  const passwordInputModeRaw = String(env.AGENT_PASSWORD_INPUT_MODE || 'paste').trim().toLowerCase();
+  const passwordInputMode = passwordInputModeRaw === 'type' ? 'type' : 'paste';
   return {
     templatePath,
     templatePaths: templatePaths.length ? templatePaths : [templatePath],
@@ -364,5 +414,17 @@ export function loadAgentConfigFromEnv(env) {
     uploadUrl: env.AGENT_UPLOAD_URL || '',
     uploadApiKey: env.AGENT_UPLOAD_API_KEY || '',
     loginPassword: env.AGENT_LOGIN_PASSWORD || '',
+    passwordInputMode,
+    passwordTypeDelayMs: Number(env.AGENT_PASSWORD_TYPE_DELAY_MS || 120),
+    passwordBeforeEnterMs: Number(env.AGENT_PASSWORD_BEFORE_ENTER_MS || 350),
+    appExePath: env.AGENT_APP_EXE_PATH || '',
+    appStartWaitMs: Number(env.AGENT_APP_START_WAIT_MS || 7000),
+    autoEnterAfterClick: toBool(env.AGENT_AUTO_ENTER_AFTER_CLICK, false),
+    autoEnterClickX: Number(env.AGENT_AUTO_ENTER_CLICK_X || 0),
+    autoEnterClickY: Number(env.AGENT_AUTO_ENTER_CLICK_Y || 0),
+    autoEnterClickTolerance: Number(env.AGENT_AUTO_ENTER_CLICK_TOLERANCE || 3),
+    autoEnterWaitBeforeMs: Number(env.AGENT_AUTO_ENTER_WAIT_BEFORE_MS || 2000),
+    autoEnterWaitAfterMs: Number(env.AGENT_AUTO_ENTER_WAIT_AFTER_MS || 2000),
+    appKillAfterScreenshot: toBool(env.AGENT_APP_KILL_AFTER_SCREENSHOT, true),
   };
 }

@@ -3,6 +3,9 @@
 namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
+use App\Models\PlacasZeroKmBatch;
+use App\Models\PlacasZeroKmRequest;
+use App\Models\PlacasZeroKmRunnerState;
 use App\Support\PlacaZeroKmParser;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -17,6 +20,62 @@ class PlacasZeroKmController extends Controller
     public function index(): View
     {
         return view('admin.placas-0km.index');
+    }
+
+    public function queue(): View
+    {
+        return view('admin.placas-0km.queue');
+    }
+
+    public function queueBatches(): JsonResponse
+    {
+        $batches = PlacasZeroKmBatch::query()
+            ->orderByDesc('id')
+            ->limit(30)
+            ->get();
+
+        $runner = PlacasZeroKmRunnerState::query()->find(1);
+
+        return response()->json([
+            'success' => true,
+            'data' => [
+                'runner' => $runner,
+                'batches' => $batches,
+            ],
+        ]);
+    }
+
+    public function queueShow(int $batchId): JsonResponse
+    {
+        $batch = PlacasZeroKmBatch::query()->find($batchId);
+        if (!$batch) {
+            return response()->json([
+                'success' => false,
+                'error' => 'Batch não encontrado.',
+            ], Response::HTTP_NOT_FOUND);
+        }
+
+        $runner = PlacasZeroKmRunnerState::query()->find(1);
+        $current = null;
+        if ($runner && $runner->current_request_id) {
+            $current = PlacasZeroKmRequest::query()->find((int) $runner->current_request_id);
+        }
+
+        $requests = PlacasZeroKmRequest::query()
+            ->where('batch_id', $batchId)
+            ->orderBy('id')
+            ->limit(500)
+            ->get();
+
+        return response()->json([
+            'success' => true,
+            'data' => [
+                'batch' => $batch,
+                'runner' => $runner,
+                'current' => $current,
+                'requests' => $requests,
+            ],
+        ]);
     }
 
     public function consultar(Request $request): JsonResponse

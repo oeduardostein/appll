@@ -121,6 +121,15 @@ Se o seu template tem esperas longas entre cliques, use no `.env`:
 AGENT_MAX_DELAY_MS=0
 ```
 
+Para reduzir risco de bloqueio por excesso de tentativas no banco:
+
+```
+DB_POOL_CONNECTION_LIMIT=2
+AGENT_POLL_INTERVAL_MS=10000
+AGENT_DB_MAX_RETRY_MS=300000
+AGENT_DB_AUTH_RETRY_MS=900000
+```
+
 Isso evita adiantar o replay.
 
 Para visualizar exatamente onde o replay esta clicando (debug visual), use:
@@ -143,11 +152,37 @@ AGENT_LOGIN_PASSWORD=sua_senha
 ```
 
 Quando o slot `senha` (F9) é executado, o agente cola a senha e envia `ENTER` automaticamente para confirmar login.
+Se o sistema rejeitar colagem muito rápida, configure digitação com atraso:
+
+```
+AGENT_PASSWORD_INPUT_MODE=type
+AGENT_PASSWORD_TYPE_DELAY_MS=140
+AGENT_PASSWORD_BEFORE_ENTER_MS=500
+```
 
 Se o sistema demorar para carregar depois do login, configure uma espera extra:
 
 ```
 AGENT_POST_LOGIN_WAIT_MS=10000
+```
+
+Para iniciar automaticamente o e-System antes do replay, aguardar e encerrar após screenshot:
+
+```
+AGENT_APP_EXE_PATH="C:\SH Sistemas\System Desp SX\eSystemDesp.exe"
+AGENT_APP_START_WAIT_MS=7000
+AGENT_APP_KILL_AFTER_SCREENSHOT=true
+```
+
+Para clicar em um ponto e depois enviar `ENTER` com pausas:
+
+```
+AGENT_AUTO_ENTER_AFTER_CLICK=true
+AGENT_AUTO_ENTER_CLICK_X=960
+AGENT_AUTO_ENTER_CLICK_Y=476
+AGENT_AUTO_ENTER_CLICK_TOLERANCE=3
+AGENT_AUTO_ENTER_WAIT_BEFORE_MS=2000
+AGENT_AUTO_ENTER_WAIT_AFTER_MS=2000
 ```
 
 Se o template foi gravado para começar somente após login já concluído, use também:

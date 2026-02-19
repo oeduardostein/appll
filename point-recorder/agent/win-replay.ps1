@@ -13,7 +13,19 @@ param(
   [int]$PreReplayWaitMs = 0,
   [int]$PostLoginWaitMs = 0,
   [int]$CropW = 0,
-  [int]$CropH = 0
+  [int]$CropH = 0,
+  [string]$PasswordInputMode = "paste",
+  [int]$PasswordTypeDelayMs = 120,
+  [int]$PasswordBeforeEnterMs = 350,
+  [string]$AppExePath = "",
+  [int]$AppStartWaitMs = 7000,
+  [string]$AutoEnterAfterClick = "false",
+  [int]$AutoEnterClickX = 0,
+  [int]$AutoEnterClickY = 0,
+  [int]$AutoEnterClickTolerance = 3,
+  [int]$AutoEnterWaitBeforeMs = 2000,
+  [int]$AutoEnterWaitAfterMs = 2000,
+  [string]$AppKillAfterScreenshot = "true"
 )
 
 $ErrorActionPreference = "Stop"
@@ -255,6 +267,21 @@ function PasteText([string]$text) {
   [System.Windows.Forms.SendKeys]::SendWait("^v")
 }
 
+function TypeText([string]$text, [int]$delayMs) {
+  [System.Windows.Forms.SendKeys]::SendWait("^a")
+  Start-Sleep -Milliseconds 60
+  [System.Windows.Forms.SendKeys]::SendWait("{BACKSPACE}")
+  if ([string]::IsNullOrEmpty($text)) { return }
+
+  $safeDelayMs = [Math]::Max(0, [int]$delayMs)
+  foreach ($ch in $text.ToCharArray()) {
+    [System.Windows.Forms.SendKeys]::SendWait((EscapeSendKeys ([string]$ch)))
+    if ($safeDelayMs -gt 0) {
+      Start-Sleep -Milliseconds $safeDelayMs
+    }
+  }
+}
+
 function OnlyDigits([string]$value) {
   if ($null -eq $value) { return "" }
   return [regex]::Replace($value, "\D", "")
@@ -325,6 +352,8 @@ $visualDebugMsSafe = [Math]::Max(0, [int]$VisualDebugMs)
 $visualDebugDotWSafe = [Math]::Max(2, [int]$VisualDebugDotW)
 $visualDebugDotHSafe = [Math]::Max(2, [int]$VisualDebugDotH)
 $visualDebugShowCardBool = ToBool $VisualDebugShowCard $true
+$autoEnterAfterClickBool = ToBool $AutoEnterAfterClick $false
+$appKillAfterScreenshotBool = ToBool $AppKillAfterScreenshot $true
 $postClickPauseMs = $visualDebugMsSafe
 
 EnsureDir $ScreenshotsDir
@@ -336,6 +365,20 @@ $lastScreenshot = $null
 $lastMouseX = 0
 $lastMouseY = 0
 $hasMouse = $false
+$startedAppProcess = $null
+$startedAppExeName = $null
+
+if (-not [string]::IsNullOrWhiteSpace($AppExePath)) {
+  if (-not (Test-Path -LiteralPath $AppExePath)) {
+    throw "Executável não encontrado em AppExePath: '$AppExePath'."
+  }
+  $startedAppProcess = Start-Process -FilePath $AppExePath -PassThru
+  $startedAppExeName = [System.IO.Path]::GetFileNameWithoutExtension($AppExePath)
+  $appWaitMs = [Math]::Max(0, [int]$AppStartWaitMs)
+  if ($appWaitMs -gt 0) {
+    Start-Sleep -Milliseconds $appWaitMs
+  }
+}
 
 if ($PreReplayWaitMs -gt 0) {
   SleepMs $PreReplayWaitMs
@@ -404,9 +447,16 @@ foreach ($ev in $events) {
         $value = $data.$name
         if ($null -eq $value) { $value = "" }
         $text = [string]$value
-        PasteText $text
+        $pwdMode = [string]$PasswordInputMode
+        if ([string]::IsNullOrWhiteSpace($pwdMode)) { $pwdMode = "paste" }
+        $pwdMode = $pwdMode.Trim().ToLower()
+        if ($pwdMode -eq "type") {
+          TypeText $text $PasswordTypeDelayMs
+        } else {
+          PasteText $text
+        }
         if (-not [string]::IsNullOrWhiteSpace($text)) {
-          Start-Sleep -Milliseconds 120
+          Start-Sleep -Milliseconds ([Math]::Max(0, [int]$PasswordBeforeEnterMs))
           [System.Windows.Forms.SendKeys]::SendWait("{ENTER}")
           if ($PostLoginWaitMs -gt 0) {
             SleepMs $PostLoginWaitMs
@@ -431,6 +481,16 @@ foreach ($ev in $events) {
 
   if ($type -eq "screenshot") {
     $lastScreenshot = TakeScreenshot $ScreenshotsDir $CropW $CropH $lastMouseX $lastMouseY $hasMouse
+    if ($appKillAfterScreenshotBool -and $null -ne $startedAppProcess) {
+      try {
+        if (-not $startedAppProcess.HasExited) {
+          Stop-Process -Id $startedAppProcess.Id -Force -ErrorAction SilentlyContinue
+        }
+      } catch {}
+      if (-not [string]::IsNullOrWhiteSpace($startedAppExeName)) {
+        Get-Process -Name $startedAppExeName -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue
+      }
+    }
     continue
   }
 
@@ -456,6 +516,16 @@ foreach ($ev in $events) {
     [WinInput]::SetCursorPos($x, $y) | Out-Null
     MouseUp (MapButton([int]$ev.button))
     if ($visualDebugBool) { ShowDebugMarkerSafe $x $y $postClickPauseMs $visualDebugDotWSafe $visualDebugDotHSafe $visualDebugShowCardBool }
+    if ($autoEnterAfterClickBool -and [int]$ev.button -eq 1) {
+      $tol = [Math]::Max(0, [int]$AutoEnterClickTolerance)
+      $dx = [Math]::Abs($x - [int]$AutoEnterClickX)
+      $dy = [Math]::Abs($y - [int]$AutoEnterClickY)
+      if ($dx -le $tol -and $dy -le $tol) {
+        Start-Sleep -Milliseconds ([Math]::Max(0, [int]$AutoEnterWaitBeforeMs))
+        [System.Windows.Forms.SendKeys]::SendWait("{ENTER}")
+        Start-Sleep -Milliseconds ([Math]::Max(0, [int]$AutoEnterWaitAfterMs))
+      }
+    }
     continue
   }
 

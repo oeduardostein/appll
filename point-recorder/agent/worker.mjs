@@ -23,6 +23,34 @@ async function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
+function toPositiveInt(value, fallback) {
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed) || parsed <= 0) return fallback;
+  return Math.floor(parsed);
+}
+
+function isDbConnectionOrAuthError(err) {
+  const code = String(err?.code || '');
+  if (!code) return false;
+
+  if (code.startsWith('ER_')) return true;
+
+  const transientCodes = new Set([
+    'ECONNREFUSED',
+    'ECONNRESET',
+    'ETIMEDOUT',
+    'EHOSTUNREACH',
+    'ENOTFOUND',
+    'PROTOCOL_CONNECTION_LOST',
+  ]);
+  return transientCodes.has(code);
+}
+
+function isDbAuthError(err) {
+  const code = String(err?.code || '');
+  return code === 'ER_ACCESS_DENIED_ERROR' || code === 'ER_DBACCESS_DENIED_ERROR';
+}
+
 async function templateContainsSlot(templatePath, slotName) {
   if (!templatePath || !slotName) return false;
   const absTemplatePath = path.resolve(process.cwd(), templatePath);
@@ -248,6 +276,18 @@ async function processOne(pool, agentCfg) {
           requireRequiredSlots: false,
           requireScreenshot: false,
           warnPasswordSlotMissing: false,
+          passwordInputMode: agentCfg.passwordInputMode,
+          passwordTypeDelayMs: agentCfg.passwordTypeDelayMs,
+          passwordBeforeEnterMs: agentCfg.passwordBeforeEnterMs,
+          appExePath: agentCfg.appExePath,
+          appStartWaitMs: agentCfg.appStartWaitMs,
+          autoEnterAfterClick: agentCfg.autoEnterAfterClick,
+          autoEnterClickX: agentCfg.autoEnterClickX,
+          autoEnterClickY: agentCfg.autoEnterClickY,
+          autoEnterClickTolerance: agentCfg.autoEnterClickTolerance,
+          autoEnterWaitBeforeMs: agentCfg.autoEnterWaitBeforeMs,
+          autoEnterWaitAfterMs: agentCfg.autoEnterWaitAfterMs,
+          appKillAfterScreenshot: false,
           logger,
         });
         logger?.info?.('replay.login.done', { request_id: req.id });
@@ -264,6 +304,7 @@ async function processOne(pool, agentCfg) {
       for (let i = 0; i < templatePaths.length; i += 1) {
         const templatePath = templatePaths[i];
         const isLastTemplate = i === templatePaths.length - 1;
+        const launchAppInThisStep = !shouldRunSeparateLogin && i === 0;
         const templateHasSenha = await templateContainsSlot(templatePath, 'senha');
 
         if (shouldRunSeparateLogin && templateHasSenha) {
@@ -302,6 +343,18 @@ async function processOne(pool, agentCfg) {
           requireRequiredSlots: multipleMainTemplates ? false : true,
           requireScreenshot: isLastTemplate,
           warnPasswordSlotMissing: !agentCfg.loginTemplatePath && !multipleMainTemplates && isLastTemplate,
+          passwordInputMode: agentCfg.passwordInputMode,
+          passwordTypeDelayMs: agentCfg.passwordTypeDelayMs,
+          passwordBeforeEnterMs: agentCfg.passwordBeforeEnterMs,
+          appExePath: launchAppInThisStep ? agentCfg.appExePath : '',
+          appStartWaitMs: agentCfg.appStartWaitMs,
+          autoEnterAfterClick: agentCfg.autoEnterAfterClick,
+          autoEnterClickX: agentCfg.autoEnterClickX,
+          autoEnterClickY: agentCfg.autoEnterClickY,
+          autoEnterClickTolerance: agentCfg.autoEnterClickTolerance,
+          autoEnterWaitBeforeMs: agentCfg.autoEnterWaitBeforeMs,
+          autoEnterWaitAfterMs: agentCfg.autoEnterWaitAfterMs,
+          appKillAfterScreenshot: isLastTemplate ? agentCfg.appKillAfterScreenshot : false,
           logger,
         });
 
@@ -410,6 +463,10 @@ async function main() {
   const agentCfg = loadAgentConfigFromEnv(process.env);
   const dbCfg = getMysqlConfigFromEnv(process.env);
   const pool = await createPool(process.env);
+  const basePollMs = toPositiveInt(agentCfg.pollIntervalMs, 5000);
+  const maxDbRetryMs = toPositiveInt(process.env.AGENT_DB_MAX_RETRY_MS, 5 * 60 * 1000);
+  const authRetryMs = toPositiveInt(process.env.AGENT_DB_AUTH_RETRY_MS, 15 * 60 * 1000);
+  let dbRetryCount = 0;
 
   logger?.info?.('agent.start', {
     template: agentCfg.templatePath,
@@ -426,15 +483,32 @@ async function main() {
   for (;;) {
     try {
       const did = await processOne(pool, agentCfg);
+      dbRetryCount = 0;
       if (!did) {
-        await sleep(agentCfg.pollIntervalMs);
+        await sleep(basePollMs);
       } else {
         // processou 1 item; tenta o próximo “logo em seguida”
         await sleep(250);
       }
     } catch (err) {
-      logger?.error?.('agent.loop_error', { error: String(err?.message || err) });
-      await sleep(agentCfg.pollIntervalMs);
+      const errCode = String(err?.code || '');
+      const errMsg = String(err?.message || err);
+      if (isDbConnectionOrAuthError(err)) {
+        dbRetryCount += 1;
+        const expBackoffMs = Math.min(maxDbRetryMs, basePollMs * (2 ** Math.max(0, dbRetryCount - 1)));
+        const retryMs = isDbAuthError(err) ? authRetryMs : expBackoffMs;
+        logger?.error?.('agent.loop_db_error', {
+          code: errCode || null,
+          error: errMsg,
+          retry_count: dbRetryCount,
+          retry_in_ms: retryMs,
+        });
+        await sleep(retryMs);
+      } else {
+        dbRetryCount = 0;
+        logger?.error?.('agent.loop_error', { code: errCode || null, error: errMsg });
+        await sleep(basePollMs);
+      }
     }
   }
 }

@@ -4,9 +4,17 @@
     <style>
         .placa-zero-km__header {
             display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 12px;
+            margin-bottom: 28px;
+            flex-wrap: wrap;
+        }
+
+        .placa-zero-km__header-copy {
+            display: flex;
             flex-direction: column;
             gap: 8px;
-            margin-bottom: 28px;
         }
 
         .placa-zero-km__header h1 {
@@ -18,6 +26,20 @@
         .placa-zero-km__header p {
             margin: 0;
             color: var(--text-muted);
+        }
+
+        .placa-zero-km__header-link {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 12px;
+            border: 1px solid var(--border);
+            background: #fff;
+            color: var(--text-strong);
+            text-decoration: none;
+            font-size: 14px;
+            font-weight: 600;
+            padding: 10px 14px;
         }
 
         .placa-zero-km__grid {
@@ -184,7 +206,10 @@
     </style>
 
     <div class="placa-zero-km__header">
-        <h1>Consulta de Placas 0KM</h1>
+        <div class="placa-zero-km__header-copy">
+            <h1>Consulta de Placas 0KM</h1>
+        </div>
+        <a class="placa-zero-km__header-link" href="{{ route('admin.placas-0km.queue') }}">Abrir fila com imagens</a>
     </div>
 
     <div class="placa-zero-km__grid">

@@ -6,6 +6,14 @@ export function getMysqlConfigFromEnv(env) {
   const database = env.DB_DATABASE || '';
   const user = env.DB_USERNAME || '';
   const password = env.DB_PASSWORD || '';
+  const parsedConnectionLimit = Number(env.DB_POOL_CONNECTION_LIMIT || 2);
+  const connectionLimit = Number.isFinite(parsedConnectionLimit) && parsedConnectionLimit > 0
+    ? Math.floor(parsedConnectionLimit)
+    : 2;
+  const parsedQueueLimit = Number(env.DB_POOL_QUEUE_LIMIT || 0);
+  const queueLimit = Number.isFinite(parsedQueueLimit) && parsedQueueLimit >= 0
+    ? Math.floor(parsedQueueLimit)
+    : 0;
 
   if (!database || !user) {
     throw new Error('Config MySQL inválida: defina DB_DATABASE e DB_USERNAME no .env');
@@ -18,8 +26,8 @@ export function getMysqlConfigFromEnv(env) {
     user,
     password,
     waitForConnections: true,
-    connectionLimit: 5,
-    queueLimit: 0,
+    connectionLimit,
+    queueLimit,
     namedPlaceholders: true,
     dateStrings: false,
     timezone: 'Z',
@@ -30,4 +38,3 @@ export async function createPool(env) {
   const cfg = getMysqlConfigFromEnv(env);
   return mysql.createPool(cfg);
 }
-
