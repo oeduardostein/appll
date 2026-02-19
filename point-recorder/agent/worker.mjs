@@ -27,7 +27,8 @@ async function templateContainsSlot(templatePath, slotName) {
   if (!templatePath || !slotName) return false;
   const absTemplatePath = path.resolve(process.cwd(), templatePath);
   const raw = await fs.readFile(absTemplatePath, 'utf8');
-  const parsed = JSON.parse(raw);
+  const normalized = raw.charCodeAt(0) === 0xfeff ? raw.slice(1) : raw;
+  const parsed = JSON.parse(normalized);
   if (!Array.isArray(parsed)) return false;
   return parsed.some((event) => event?.type === 'slot_begin' && event?.name === slotName);
 }
@@ -234,6 +235,11 @@ async function processOne(pool, agentCfg) {
           maxDelayMs: agentCfg.maxDelayMs,
           speed: agentCfg.speed,
           replayText: agentCfg.replayText,
+          replayVisualDebug: agentCfg.replayVisualDebug,
+          replayVisualMs: agentCfg.replayVisualMs,
+          replayVisualDotW: agentCfg.replayVisualDotW,
+          replayVisualDotH: agentCfg.replayVisualDotH,
+          replayVisualShowCard: agentCfg.replayVisualShowCard,
           preReplayWaitMs: 0,
           postLoginWaitMs: agentCfg.postLoginWaitMs,
           cropWidth: 0,
@@ -282,6 +288,11 @@ async function processOne(pool, agentCfg) {
           maxDelayMs: agentCfg.maxDelayMs,
           speed: agentCfg.speed,
           replayText: agentCfg.replayText,
+          replayVisualDebug: agentCfg.replayVisualDebug,
+          replayVisualMs: agentCfg.replayVisualMs,
+          replayVisualDotW: agentCfg.replayVisualDotW,
+          replayVisualDotH: agentCfg.replayVisualDotH,
+          replayVisualShowCard: agentCfg.replayVisualShowCard,
           preReplayWaitMs: i === 0 ? agentCfg.preReplayWaitMs : 0,
           postLoginWaitMs: agentCfg.postLoginWaitMs,
           cropWidth: agentCfg.screenshotCropW,

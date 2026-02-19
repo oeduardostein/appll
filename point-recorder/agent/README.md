@@ -73,13 +73,37 @@ npm run calibrate:template
 Ou com arquivo customizado:
 
 ```bash
-node agent/calibrate.mjs --template recordings/template.json --out recordings/template.calibrated.json
+node agent/calibrate.mjs --template recordings/meu-template.json --out recordings/meu-template.calibrated.json
 ```
+
+Se `--template` nao for informado, o script tenta detectar automaticamente um template em `recordings/*.json`.
+O calibrador usa modo rapido por acao (agrupa `mouse_down + mouse_up` e evita repetir o mesmo clique duas vezes).
 
 Atalhos durante a calibração:
 - `Enter`: confirma novo ponto.
 - `S`: mantém o ponto original.
 - `Esc`: cancela a calibração.
+- `F6`: marca o ponto atual como slot `cpf_cgc`.
+- `F7`: marca o ponto atual como slot `nome`.
+- `F8`: marca o ponto atual como slot `chassi`.
+- `F9`: marca o ponto atual como slot `senha`.
+
+### Captura manual de pontos (X/Y)
+
+Se quiser montar um JSON manualmente, rode:
+
+```bash
+npm run pick:points -- --out recordings/manual-points.json
+```
+
+Como funciona:
+- clique com o botao esquerdo no ponto desejado;
+- um card mostra `X` e `Y` do clique;
+- pressione `Esc` para finalizar e salvar o arquivo.
+
+Opcoes uteis:
+- `--card-ms 1200`: tempo do card em cada clique.
+- `--poll-ms 20`: intervalo de leitura do mouse.
 
 ## 4) Rodar o agente (fica em loop)
 
@@ -98,6 +122,19 @@ AGENT_MAX_DELAY_MS=0
 ```
 
 Isso evita adiantar o replay.
+
+Para visualizar exatamente onde o replay esta clicando (debug visual), use:
+
+```
+AGENT_REPLAY_VISUAL_DEBUG=true
+AGENT_REPLAY_VISUAL_MS=180
+AGENT_REPLAY_VISUAL_DOT_W=12
+AGENT_REPLAY_VISUAL_DOT_H=12
+AGENT_REPLAY_VISUAL_SHOW_CARD=true
+```
+
+Assim uma bolinha (com tamanho em pixels) aparece em cada ponto antes do clique
+e um card mostra as coordenadas `X` e `Y` do ponto.
 
 Se você marcou `F9` no template, configure também:
 

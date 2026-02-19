@@ -5,6 +5,11 @@ param(
   [int]$MaxDelayMs = 5000,
   [double]$Speed = 1.0,
   [string]$ReplayText = "false",
+  [string]$VisualDebug = "false",
+  [int]$VisualDebugMs = 180,
+  [int]$VisualDebugDotW = 12,
+  [int]$VisualDebugDotH = 12,
+  [string]$VisualDebugShowCard = "true",
   [int]$PreReplayWaitMs = 0,
   [int]$PostLoginWaitMs = 0,
   [int]$CropW = 0,
@@ -54,6 +59,13 @@ function EnsureDir([string]$dir) {
   }
 }
 
+function ClampInt([int]$value, [int]$min, [int]$max) {
+  if ($max -lt $min) { return $min }
+  if ($value -lt $min) { return $min }
+  if ($value -gt $max) { return $max }
+  return $value
+}
+
 function MapButton([int]$btn) {
   switch ($btn) {
     2 { return "right" }
@@ -75,6 +87,129 @@ function MouseUp([string]$button) {
     "right"  { [WinInput]::mouse_event([WinInput]::MOUSEEVENTF_RIGHTUP,0,0,0,[UIntPtr]::Zero) }
     "middle" { [WinInput]::mouse_event([WinInput]::MOUSEEVENTF_MIDDLEUP,0,0,0,[UIntPtr]::Zero) }
     Default  { [WinInput]::mouse_event([WinInput]::MOUSEEVENTF_LEFTUP,0,0,0,[UIntPtr]::Zero) }
+  }
+}
+
+function Apply-CircleRegion([System.Windows.Forms.Form]$form) {
+  $width = [Math]::Max(1, [int]$form.Width)
+  $height = [Math]::Max(1, [int]$form.Height)
+  $path = New-Object System.Drawing.Drawing2D.GraphicsPath
+  $path.AddEllipse(0, 0, $width - 1, $height - 1)
+  $form.Region = New-Object System.Drawing.Region($path)
+  $path.Dispose()
+}
+
+function ShowDebugMarker(
+  [int]$x,
+  [int]$y,
+  [int]$durationMs,
+  [int]$dotW,
+  [int]$dotH,
+  [bool]$showCard
+) {
+  if ($durationMs -le 0) { return }
+
+  $dotWidth = [Math]::Max(2, [int]$dotW)
+  $dotHeight = [Math]::Max(2, [int]$dotH)
+  $markerOpacity = (235.0 / 255.0)
+  $markerColor = [System.Drawing.Color]::FromArgb(255, 255, 64, 64)
+  $screen = [System.Windows.Forms.SystemInformation]::VirtualScreen
+  $screenLeft = [int]$screen.Left
+  $screenTop = [int]$screen.Top
+  $screenRight = [int]$screen.Right
+  $screenBottom = [int]$screen.Bottom
+  $maxMarkerLeft = [Math]::Max($screenLeft, $screenRight - $dotWidth)
+  $maxMarkerTop = [Math]::Max($screenTop, $screenBottom - $dotHeight)
+  $markerLeft = ClampInt ([int]($x - [Math]::Floor($dotWidth / 2))) $screenLeft $maxMarkerLeft
+  $markerTop = ClampInt ([int]($y - [Math]::Floor($dotHeight / 2))) $screenTop $maxMarkerTop
+
+  $markerForm = New-Object System.Windows.Forms.Form
+  $markerForm.AutoScaleMode = [System.Windows.Forms.AutoScaleMode]::None
+  $markerForm.ClientSize = New-Object System.Drawing.Size -ArgumentList $dotWidth, $dotHeight
+  $markerForm.StartPosition = [System.Windows.Forms.FormStartPosition]::Manual
+  $markerForm.Location = New-Object System.Drawing.Point -ArgumentList $markerLeft, $markerTop
+  $markerForm.TopMost = $true
+  $markerForm.ShowInTaskbar = $false
+  $markerForm.FormBorderStyle = [System.Windows.Forms.FormBorderStyle]::None
+  $markerForm.BackColor = $markerColor
+  $markerForm.Opacity = $markerOpacity
+  Apply-CircleRegion $markerForm
+
+  $cardForm = $null
+  if ($showCard) {
+    $cardWidth = 180
+    $cardHeight = 56
+    $cardGap = 8
+    $maxCardLeft = [Math]::Max($screenLeft, $screenRight - $cardWidth)
+    $maxCardTop = [Math]::Max($screenTop, $screenBottom - $cardHeight)
+
+    $cardLeft = [int]($markerLeft + $dotWidth + $cardGap)
+    if ($cardLeft + $cardWidth -gt $screenRight) {
+      $cardLeft = [int]($markerLeft - $cardWidth - $cardGap)
+    }
+    $cardLeft = ClampInt $cardLeft $screenLeft $maxCardLeft
+
+    $cardTop = ClampInt ([int]($markerTop - [Math]::Floor(($cardHeight - $dotHeight) / 2))) $screenTop $maxCardTop
+
+    $cardForm = New-Object System.Windows.Forms.Form
+    $cardForm.AutoScaleMode = [System.Windows.Forms.AutoScaleMode]::None
+    $cardForm.ClientSize = New-Object System.Drawing.Size -ArgumentList $cardWidth, $cardHeight
+    $cardForm.StartPosition = [System.Windows.Forms.FormStartPosition]::Manual
+    $cardForm.Location = New-Object System.Drawing.Point -ArgumentList $cardLeft, $cardTop
+    $cardForm.TopMost = $true
+    $cardForm.ShowInTaskbar = $false
+    $cardForm.FormBorderStyle = [System.Windows.Forms.FormBorderStyle]::FixedSingle
+    $cardForm.ControlBox = $false
+    $cardForm.BackColor = [System.Drawing.Color]::FromArgb(255, 31, 35, 42)
+    $cardForm.Opacity = 0.96
+
+    $titleLabel = New-Object System.Windows.Forms.Label
+    $titleLabel.AutoSize = $false
+    $titleLabel.Location = New-Object System.Drawing.Point -ArgumentList 8, 6
+    $titleLabel.Size = New-Object System.Drawing.Size -ArgumentList ([int]($cardWidth - 16)), 18
+    $titleLabel.ForeColor = [System.Drawing.Color]::White
+    $titleLabel.Text = "Ponto replay"
+
+    $coordsLabel = New-Object System.Windows.Forms.Label
+    $coordsLabel.AutoSize = $false
+    $coordsLabel.Location = New-Object System.Drawing.Point -ArgumentList 8, 26
+    $coordsLabel.Size = New-Object System.Drawing.Size -ArgumentList ([int]($cardWidth - 16)), 20
+    $coordsLabel.ForeColor = [System.Drawing.Color]::White
+    $coordsLabel.Text = ("X: {0}    Y: {1}" -f [int]$x, [int]$y)
+
+    [void]$cardForm.Controls.Add($titleLabel)
+    [void]$cardForm.Controls.Add($coordsLabel)
+  }
+
+  try {
+    $markerForm.Show()
+    if ($null -ne $cardForm) { $cardForm.Show() }
+    $markerForm.Refresh()
+    if ($null -ne $cardForm) { $cardForm.Refresh() }
+    [System.Windows.Forms.Application]::DoEvents()
+    Start-Sleep -Milliseconds $durationMs
+  } finally {
+    if ($null -ne $cardForm) {
+      try { $cardForm.Close() } catch {}
+      $cardForm.Dispose()
+    }
+    try { $markerForm.Close() } catch {}
+    $markerForm.Dispose()
+  }
+}
+
+function ShowDebugMarkerSafe(
+  [int]$x,
+  [int]$y,
+  [int]$durationMs,
+  [int]$dotW,
+  [int]$dotH,
+  [bool]$showCard
+) {
+  try {
+    ShowDebugMarker $x $y $durationMs $dotW $dotH $showCard
+  } catch {
+    # Debug visual não pode interromper o replay funcional.
   }
 }
 
@@ -185,6 +320,12 @@ if ($events -isnot [System.Collections.IEnumerable]) {
 
 $data = Get-Content -LiteralPath $DataPath -Raw | ConvertFrom-Json
 $replayTextBool = ToBool $ReplayText $false
+$visualDebugBool = ToBool $VisualDebug $false
+$visualDebugMsSafe = [Math]::Max(0, [int]$VisualDebugMs)
+$visualDebugDotWSafe = [Math]::Max(2, [int]$VisualDebugDotW)
+$visualDebugDotHSafe = [Math]::Max(2, [int]$VisualDebugDotH)
+$visualDebugShowCardBool = ToBool $VisualDebugShowCard $true
+$postClickPauseMs = $visualDebugMsSafe
 
 EnsureDir $ScreenshotsDir
 
@@ -239,6 +380,7 @@ foreach ($ev in $events) {
         MouseDown "left"
         Start-Sleep -Milliseconds 40
         MouseUp "left"
+        if ($visualDebugBool) { ShowDebugMarkerSafe $sx $sy $postClickPauseMs $visualDebugDotWSafe $visualDebugDotHSafe $visualDebugShowCardBool }
         Start-Sleep -Milliseconds 90
       }
 
@@ -313,6 +455,7 @@ foreach ($ev in $events) {
     $hasMouse = $true
     [WinInput]::SetCursorPos($x, $y) | Out-Null
     MouseUp (MapButton([int]$ev.button))
+    if ($visualDebugBool) { ShowDebugMarkerSafe $x $y $postClickPauseMs $visualDebugDotWSafe $visualDebugDotHSafe $visualDebugShowCardBool }
     continue
   }
 

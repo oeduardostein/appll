@@ -14,6 +14,20 @@ function EnsureDir([string]$dir) {
   }
 }
 
+function Write-Utf8NoBom([string]$path, [string]$content) {
+  $encoding = New-Object System.Text.UTF8Encoding($false)
+  [System.IO.File]::WriteAllText($path, $content, $encoding)
+}
+
+function Apply-CircleRegion([System.Windows.Forms.Form]$form) {
+  $width = [Math]::Max(1, [int]$form.Width)
+  $height = [Math]::Max(1, [int]$form.Height)
+  $path = New-Object System.Drawing.Drawing2D.GraphicsPath
+  $path.AddEllipse(0, 0, $width - 1, $height - 1)
+  $form.Region = New-Object System.Drawing.Region($path)
+  $path.Dispose()
+}
+
 function Clamp([int]$value, [int]$min, [int]$max) {
   if ($value -lt $min) { return $min }
   if ($value -gt $max) { return $max }
@@ -35,18 +49,102 @@ function ToIntCoord($value) {
   return [int][Math]::Round([double]$value)
 }
 
-function GetPointIndexes($events) {
-  $indexes = New-Object System.Collections.Generic.List[int]
-  for ($i = 0; $i -lt $events.Count; $i++) {
+function HasPoint($event) {
+  if ($null -eq $event) { return $false }
+  if (-not ($event.PSObject.Properties.Name -contains "x")) { return $false }
+  if (-not ($event.PSObject.Properties.Name -contains "y")) { return $false }
+  if (-not (IsNumericLike $event.x)) { return $false }
+  if (-not (IsNumericLike $event.y)) { return $false }
+  return $true
+}
+
+function GetTypeLower($event) {
+  if ($null -eq $event) { return "" }
+  if (-not ($event.PSObject.Properties.Name -contains "type")) { return "" }
+  return ([string]$event.type).ToLowerInvariant()
+}
+
+function GetCalibrationTargets($events) {
+  $targets = New-Object System.Collections.Generic.List[object]
+  $i = 0
+
+  while ($i -lt $events.Count) {
     $ev = $events[$i]
-    if ($null -eq $ev) { continue }
-    if (-not ($ev.PSObject.Properties.Name -contains "x")) { continue }
-    if (-not ($ev.PSObject.Properties.Name -contains "y")) { continue }
-    if (-not (IsNumericLike $ev.x)) { continue }
-    if (-not (IsNumericLike $ev.y)) { continue }
+    if (-not (HasPoint $ev)) {
+      $i += 1
+      continue
+    }
+
+    $typeLower = GetTypeLower $ev
+    $x = ToIntCoord $ev.x
+    $y = ToIntCoord $ev.y
+    $indexes = New-Object System.Collections.Generic.List[int]
     $indexes.Add($i)
+    $slotIndex = -1
+    $titleType = if ([string]::IsNullOrWhiteSpace($typeLower)) { "point" } else { $typeLower }
+
+    if ($typeLower -eq "slot_begin") {
+      $slotIndex = $i
+      $slotName = ""
+      if ($ev.PSObject.Properties.Name -contains "name") {
+        $slotName = [string]$ev.name
+      }
+      if (-not [string]::IsNullOrWhiteSpace($slotName)) {
+        $titleType = "slot:$slotName"
+      }
+
+      $mouseDownIdx = $i + 1
+      if ($mouseDownIdx -lt $events.Count) {
+        $nextEv = $events[$mouseDownIdx]
+        if ((GetTypeLower $nextEv) -eq "mouse_down" -and (HasPoint $nextEv)) {
+          $indexes.Add($mouseDownIdx)
+          $mouseUpIdx = $mouseDownIdx + 1
+          if ($mouseUpIdx -lt $events.Count) {
+            $nextUp = $events[$mouseUpIdx]
+            if ((GetTypeLower $nextUp) -eq "mouse_up" -and (HasPoint $nextUp)) {
+              $indexes.Add($mouseUpIdx)
+              $i = $mouseUpIdx + 1
+            } else {
+              $i = $mouseDownIdx + 1
+            }
+          } else {
+            $i = $mouseDownIdx + 1
+          }
+        } else {
+          $i += 1
+        }
+      } else {
+        $i += 1
+      }
+    } elseif ($typeLower -eq "mouse_down") {
+      $mouseUpIdx = $i + 1
+      if ($mouseUpIdx -lt $events.Count) {
+        $nextUp = $events[$mouseUpIdx]
+        if ((GetTypeLower $nextUp) -eq "mouse_up" -and (HasPoint $nextUp)) {
+          $indexes.Add($mouseUpIdx)
+          $i = $mouseUpIdx + 1
+        } else {
+          $i += 1
+        }
+      } else {
+        $i += 1
+      }
+      $titleType = "click"
+    } else {
+      $i += 1
+    }
+
+    $targets.Add([pscustomobject]@{
+      primaryIndex = [int]$indexes[0]
+      slotIndex = [int]$slotIndex
+      indexes = @($indexes)
+      x = $x
+      y = $y
+      titleType = $titleType
+    })
   }
-  return $indexes
+
+  return $targets
 }
 
 function Show-CalibrationMarker(
@@ -55,12 +153,20 @@ function Show-CalibrationMarker(
   [string]$titleText,
   [string]$helpText
 ) {
-  $markerSize = 44
+  $markerSize = 12
+  $markerOpacity = (235.0 / 255.0)
+  $markerColor = [System.Drawing.Color]::FromArgb(255, 230, 36, 36)
   $screen = [System.Windows.Forms.SystemInformation]::VirtualScreen
+  $screenLeft = [int]$screen.Left
+  $screenTop = [int]$screen.Top
+  $screenRight = [int]$screen.Right
+  $screenBottom = [int]$screen.Bottom
+  $maxLeftBound = [Math]::Max($screenLeft, $screenRight - $markerSize)
+  $maxTopBound = [Math]::Max($screenTop, $screenBottom - $markerSize)
   $half = [int]($markerSize / 2)
 
-  $startLeft = Clamp ($initialX - $half) $screen.Left ($screen.Right - $markerSize)
-  $startTop = Clamp ($initialY - $half) $screen.Top ($screen.Bottom - $markerSize)
+  $startLeft = Clamp ($initialX - $half) $screenLeft $maxLeftBound
+  $startTop = Clamp ($initialY - $half) $screenTop $maxTopBound
 
   $form = New-Object System.Windows.Forms.Form
   $form.Text = $titleText
@@ -71,9 +177,10 @@ function Show-CalibrationMarker(
   $form.TopMost = $true
   $form.ShowInTaskbar = $false
   $form.FormBorderStyle = [System.Windows.Forms.FormBorderStyle]::None
-  $form.BackColor = [System.Drawing.Color]::Black
-  $form.Opacity = 0.95
+  $form.BackColor = $markerColor
+  $form.Opacity = $markerOpacity
   $form.KeyPreview = $true
+  Apply-CircleRegion $form
 
   $toolTip = New-Object System.Windows.Forms.ToolTip
   $toolTip.IsBalloon = $true
@@ -89,30 +196,8 @@ function Show-CalibrationMarker(
     action = "cancel"
     x = $initialX
     y = $initialY
+    slotName = $null
   }
-
-  $form.Add_Paint({
-    param($sender, $e)
-    $g = $e.Graphics
-    $g.SmoothingMode = [System.Drawing.Drawing2D.SmoothingMode]::AntiAlias
-
-    $rect = New-Object System.Drawing.Rectangle(2, 2, $sender.ClientSize.Width - 5, $sender.ClientSize.Height - 5)
-    $fillBrush = New-Object System.Drawing.SolidBrush([System.Drawing.Color]::FromArgb(210, 239, 68, 68))
-    $strokePen = New-Object System.Drawing.Pen([System.Drawing.Color]::White, 2)
-    $crossPen = New-Object System.Drawing.Pen([System.Drawing.Color]::White, 1)
-
-    $g.FillEllipse($fillBrush, $rect)
-    $g.DrawEllipse($strokePen, $rect)
-
-    $centerX = [int]($sender.ClientSize.Width / 2)
-    $centerY = [int]($sender.ClientSize.Height / 2)
-    $g.DrawLine($crossPen, $centerX, 6, $centerX, $sender.ClientSize.Height - 7)
-    $g.DrawLine($crossPen, 6, $centerY, $sender.ClientSize.Width - 7, $centerY)
-
-    $crossPen.Dispose()
-    $strokePen.Dispose()
-    $fillBrush.Dispose()
-  })
 
   $onMouseDown = {
     param($sender, $e)
@@ -127,8 +212,8 @@ function Show-CalibrationMarker(
     $currentScreenPos = $form.PointToScreen((New-Object System.Drawing.Point($e.X, $e.Y)))
     $newLeft = $currentScreenPos.X - $dragState.StartX
     $newTop = $currentScreenPos.Y - $dragState.StartY
-    $form.Left = Clamp $newLeft $screen.Left ($screen.Right - $form.Width)
-    $form.Top = Clamp $newTop $screen.Top ($screen.Bottom - $form.Height)
+    $form.Left = Clamp $newLeft $screenLeft $maxLeftBound
+    $form.Top = Clamp $newTop $screenTop $maxTopBound
   }
   $onMouseUp = {
     $dragState.IsDragging = $false
@@ -155,17 +240,45 @@ function Show-CalibrationMarker(
         $result.action = "cancel"
         $form.Close()
       }
+      ([System.Windows.Forms.Keys]::F6) {
+        $result.action = "mark_slot"
+        $result.slotName = "cpf_cgc"
+        $result.x = [int]($form.Left + ($form.Width / 2))
+        $result.y = [int]($form.Top + ($form.Height / 2))
+        $form.Close()
+      }
+      ([System.Windows.Forms.Keys]::F7) {
+        $result.action = "mark_slot"
+        $result.slotName = "nome"
+        $result.x = [int]($form.Left + ($form.Width / 2))
+        $result.y = [int]($form.Top + ($form.Height / 2))
+        $form.Close()
+      }
+      ([System.Windows.Forms.Keys]::F8) {
+        $result.action = "mark_slot"
+        $result.slotName = "chassi"
+        $result.x = [int]($form.Left + ($form.Width / 2))
+        $result.y = [int]($form.Top + ($form.Height / 2))
+        $form.Close()
+      }
+      ([System.Windows.Forms.Keys]::F9) {
+        $result.action = "mark_slot"
+        $result.slotName = "senha"
+        $result.x = [int]($form.Left + ($form.Width / 2))
+        $result.y = [int]($form.Top + ($form.Height / 2))
+        $form.Close()
+      }
       ([System.Windows.Forms.Keys]::Left) {
-        $form.Left = Clamp ($form.Left - 1) $screen.Left ($screen.Right - $form.Width)
+        $form.Left = Clamp ($form.Left - 1) $screenLeft $maxLeftBound
       }
       ([System.Windows.Forms.Keys]::Right) {
-        $form.Left = Clamp ($form.Left + 1) $screen.Left ($screen.Right - $form.Width)
+        $form.Left = Clamp ($form.Left + 1) $screenLeft $maxLeftBound
       }
       ([System.Windows.Forms.Keys]::Up) {
-        $form.Top = Clamp ($form.Top - 1) $screen.Top ($screen.Bottom - $form.Height)
+        $form.Top = Clamp ($form.Top - 1) $screenTop $maxTopBound
       }
       ([System.Windows.Forms.Keys]::Down) {
-        $form.Top = Clamp ($form.Top + 1) $screen.Top ($screen.Bottom - $form.Height)
+        $form.Top = Clamp ($form.Top + 1) $screenTop $maxTopBound
       }
     }
   })
@@ -188,14 +301,19 @@ if ($events -isnot [System.Collections.IEnumerable]) {
 
 # Force indexable list
 $eventsList = @($events)
-$pointIndexes = GetPointIndexes $eventsList
+$targets = GetCalibrationTargets $eventsList
+$rawPointCount = 0
+for ($scan = 0; $scan -lt $eventsList.Count; $scan++) {
+  if (HasPoint $eventsList[$scan]) { $rawPointCount += 1 }
+}
 
-if ($pointIndexes.Count -eq 0) {
+if ($targets.Count -eq 0) {
   EnsureDir (Split-Path -Parent $OutputPath)
-  $eventsList | ConvertTo-Json -Depth 100 | Set-Content -LiteralPath $OutputPath -Encoding UTF8
+  Write-Utf8NoBom -path $OutputPath -content ($eventsList | ConvertTo-Json -Depth 100)
   @{
     outputPath = (Resolve-Path -LiteralPath $OutputPath).Path
     pointsTotal = 0
+    pointsRaw = $rawPointCount
     pointsChanged = 0
     pointsSkipped = 0
     canceled = $false
@@ -204,23 +322,26 @@ if ($pointIndexes.Count -eq 0) {
   exit 0
 }
 
-Write-Host "Calibracao iniciada. Atalhos: Enter=confirmar, S=manter ponto original, Esc=cancelar."
-Write-Host "Dica: arraste o marcador vermelho para o local correto de cada ponto."
+Write-Host "Calibracao iniciada. Atalhos: Enter=confirmar, S=manter ponto original, Esc=cancelar, F6/F7/F8/F9=marcar slot."
+Write-Host "Modo rapido: calibrando por acao de clique/slot/screenshot."
+Write-Host "Dica: arraste a bolinha vermelha para o local correto."
 
 $changed = 0
 $skipped = 0
+$slotMarks = 0
 $canceled = $false
+$pendingSlotInserts = New-Object System.Collections.Generic.List[object]
 
-for ($pos = 0; $pos -lt $pointIndexes.Count; $pos++) {
-  $index = $pointIndexes[$pos]
-  $ev = $eventsList[$index]
-  $x = ToIntCoord $ev.x
-  $y = ToIntCoord $ev.y
-  $type = [string]$ev.type
-  $stepTitle = "Ponto $($pos + 1)/$($pointIndexes.Count) - idx $index - $type"
-  $help = "Arraste este marcador para o ponto correto. Enter confirma. S mantém. Esc cancela."
+for ($pos = 0; $pos -lt $targets.Count; $pos++) {
+  $target = $targets[$pos]
+  $index = [int]$target.primaryIndex
+  $x = ToIntCoord $target.x
+  $y = ToIntCoord $target.y
+  $type = [string]$target.titleType
+  $stepTitle = "Acao $($pos + 1)/$($targets.Count) - idx $index - $type"
+  $help = "Arraste este marcador para o ponto correto. Enter confirma. S mantém. Esc cancela. F6=cpf_cgc, F7=nome, F8=chassi, F9=senha."
 
-  Write-Host "[$($pos + 1)/$($pointIndexes.Count)] Ajustando evento idx=$index type=$type x=$x y=$y"
+  Write-Host "[$($pos + 1)/$($targets.Count)] Ajustando acao idx=$index type=$type x=$x y=$y"
 
   $result = Show-CalibrationMarker -initialX $x -initialY $y -titleText $stepTitle -helpText $help
   if ($result.action -eq "cancel") {
@@ -239,21 +360,83 @@ for ($pos = 0; $pos -lt $pointIndexes.Count; $pos++) {
     $changed += 1
   }
 
-  $eventsList[$index].x = $newX
-  $eventsList[$index].y = $newY
+  foreach ($targetIndex in @($target.indexes)) {
+    $ti = [int]$targetIndex
+    if ($ti -lt 0 -or $ti -ge $eventsList.Count) { continue }
+    $eventsList[$ti].x = $newX
+    $eventsList[$ti].y = $newY
+  }
+
+  if ($result.action -eq "mark_slot") {
+    $slotName = [string]$result.slotName
+
+    $slotIdx = [int]$target.slotIndex
+    if ($slotIdx -ge 0 -and $slotIdx -lt $eventsList.Count) {
+      $eventsList[$slotIdx].type = "slot_begin"
+      $eventsList[$slotIdx].name = $slotName
+      $eventsList[$slotIdx].x = $newX
+      $eventsList[$slotIdx].y = $newY
+    } else {
+      $pendingSlotInserts.Add([pscustomobject]@{
+        index = $index
+        name = $slotName
+        x = $newX
+        y = $newY
+      })
+    }
+
+    $slotMarks += 1
+    Write-Host "  -> slot marcado: $slotName (idx=$index x=$newX y=$newY)"
+    continue
+  }
 }
 
 if ($canceled) {
   throw "Calibracao cancelada pelo usuario."
 }
 
+if ($pendingSlotInserts.Count -gt 0) {
+  $eventsMutable = New-Object System.Collections.ArrayList
+  foreach ($item in $eventsList) { [void]$eventsMutable.Add($item) }
+
+  $orderedInserts = @($pendingSlotInserts | Sort-Object -Property index -Descending)
+  foreach ($insert in $orderedInserts) {
+    $insertIndex = [int]$insert.index
+    if ($insertIndex -lt 0) { $insertIndex = 0 }
+    if ($insertIndex -gt $eventsMutable.Count) { $insertIndex = $eventsMutable.Count }
+
+    $slotEvent = [ordered]@{
+      type = "slot_begin"
+      name = [string]$insert.name
+      x = [int]$insert.x
+      y = [int]$insert.y
+    }
+
+    if ($insertIndex -lt $eventsMutable.Count) {
+      $anchor = $eventsMutable[$insertIndex]
+      if ($anchor.PSObject.Properties.Name -contains "t" -and $null -ne $anchor.t) {
+        $slotEvent.t = $anchor.t
+      }
+      if ($anchor.PSObject.Properties.Name -contains "ts" -and $null -ne $anchor.ts) {
+        $slotEvent.ts = $anchor.ts
+      }
+    }
+
+    [void]$eventsMutable.Insert($insertIndex, [pscustomobject]$slotEvent)
+  }
+
+  $eventsList = @($eventsMutable)
+}
+
 EnsureDir (Split-Path -Parent $OutputPath)
-$eventsList | ConvertTo-Json -Depth 100 | Set-Content -LiteralPath $OutputPath -Encoding UTF8
+Write-Utf8NoBom -path $OutputPath -content ($eventsList | ConvertTo-Json -Depth 100)
 
 @{
   outputPath = (Resolve-Path -LiteralPath $OutputPath).Path
-  pointsTotal = $pointIndexes.Count
+  pointsTotal = $targets.Count
+  pointsRaw = $rawPointCount
   pointsChanged = $changed
   pointsSkipped = $skipped
+  slotsMarked = $slotMarks
   canceled = $false
 } | ConvertTo-Json -Compress

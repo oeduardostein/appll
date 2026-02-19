@@ -37,14 +37,17 @@ Calibrar visualmente os pontos de um template (Windows, UI topmost arrastável):
 npm run calibrate:template
 ```
 
-Isso gera `recordings/template.calibrated.json` por padrão.
+Se `recordings/template.json` nao existir, o script tenta detectar automaticamente um template em `recordings/*.json`.
+O arquivo de saida padrao vira `<template>.calibrated.json` no mesmo diretorio do template escolhido.
+Durante a calibracao: `Enter` confirma, `S` mantem, `Esc` cancela, `F6/F7/F8/F9` marcam `cpf_cgc/nome/chassi/senha`.
+Obs: a calibracao agora roda em modo rapido por acao (ex.: click completo), nao em todos os pontos brutos.
 
 Escolher arquivo de saída e formato:
 
 ```bash
 node record.js --out recordings/minha-sessao.json --format json
 node record.js --out recordings/minha-sessao.jsonl --format jsonl
-node agent/calibrate.mjs --template recordings/template.json --out recordings/template.calibrated.json
+node agent/calibrate.mjs --template recordings/meu-template.json --out recordings/meu-template.calibrated.json
 ```
 
 ## Como parar

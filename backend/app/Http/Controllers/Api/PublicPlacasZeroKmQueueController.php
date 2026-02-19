@@ -243,6 +243,62 @@ class PublicPlacasZeroKmQueueController extends Controller
         ]);
     }
 
+    public function resetRunnerState(Request $request): JsonResponse
+    {
+        $auth = $this->authorizePublicApi($request);
+        if ($auth) {
+            return $auth;
+        }
+
+        $runnerId = (int) $request->input('runner_id', 1);
+        $requestId = (int) $request->input('request_id', 10);
+
+        if ($runnerId <= 0 || $requestId <= 0) {
+            return response()->json([
+                'success' => false,
+                'error' => 'runner_id e request_id devem ser maiores que zero.',
+            ], Response::HTTP_UNPROCESSABLE_ENTITY);
+        }
+
+        $result = DB::transaction(function () use ($runnerId, $requestId): array {
+            $runnerUpdated = DB::table('placas_zero_km_runner_state')
+                ->where('id', $runnerId)
+                ->update([
+                    'is_running' => 0,
+                    'current_request_id' => null,
+                    'last_heartbeat_at' => now(),
+                    'updated_at' => now(),
+                ]);
+
+            $requestUpdated = DB::table('placas_zero_km_requests')
+                ->where('id', $requestId)
+                ->where('status', 'running')
+                ->update([
+                    'status' => 'pending',
+                    'response_error' => null,
+                    'started_at' => null,
+                    'finished_at' => null,
+                    'updated_at' => now(),
+                ]);
+
+            return [
+                'runner_updated_rows' => $runnerUpdated,
+                'request_updated_rows' => $requestUpdated,
+                'runner_id' => $runnerId,
+                'request_id' => $requestId,
+            ];
+        });
+
+        if (!config('services.placas0km.client_worker')) {
+            ProcessPlacasZeroKmQueueJob::dispatch();
+        }
+
+        return response()->json([
+            'success' => true,
+            'data' => $result,
+        ]);
+    }
+
     private function authorizePublicApi(Request $request): ?JsonResponse
     {
         $apiKey = (string) config('services.public_placas0km.key', '');

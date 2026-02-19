@@ -73,6 +73,7 @@ Route::get('public/placas-0km/batches', [PublicPlacasZeroKmQueueController::clas
 Route::post('public/placas-0km/batches', [PublicPlacasZeroKmQueueController::class, 'store'])->middleware('throttle:20,1');
 Route::get('public/placas-0km/batches/{batchId}', [PublicPlacasZeroKmQueueController::class, 'show'])->middleware('throttle:120,1');
 Route::post('public/placas-0km/screenshot', [PublicPlacasZeroKmQueueController::class, 'uploadScreenshot'])->middleware('throttle:60,1');
+Route::post('public/placas-0km/runner/reset', [PublicPlacasZeroKmQueueController::class, 'resetRunnerState'])->middleware('throttle:10,1');
 
 Route::get('pesquisas', [PesquisaController::class, 'index']);
 Route::get('pesquisas/ultimo-mes', [PesquisaController::class, 'lastMonth']);

@@ -28,6 +28,14 @@ function digitsOnly(value) {
   return String(value ?? '').replace(/\D+/g, '');
 }
 
+function parseJsonMaybeBom(rawText) {
+  const normalized =
+    typeof rawText === 'string' && rawText.charCodeAt(0) === 0xfeff
+      ? rawText.slice(1)
+      : rawText;
+  return JSON.parse(normalized);
+}
+
 function detectCpfCnpjType(value) {
   const digits = digitsOnly(value);
   if (digits.length === 11) return { type: 'cpf', digits };
@@ -69,6 +77,26 @@ function analyzeTemplateTiming(events) {
     lastT = event.t;
   }
   return { timedEvents, maxDelta };
+}
+
+function collectClickPoints(events) {
+  const points = [];
+  for (let i = 0; i < events.length; i += 1) {
+    const event = events[i];
+    if (!event || typeof event !== 'object') continue;
+    const type = String(event.type || '');
+    if (type !== 'mouse_down' && type !== 'slot_begin') continue;
+    if (typeof event.x !== 'number' || typeof event.y !== 'number') continue;
+    points.push({
+      step: points.length + 1,
+      eventIndex: i,
+      type,
+      name: type === 'slot_begin' ? String(event.name || '') : '',
+      x: Math.round(event.x),
+      y: Math.round(event.y),
+    });
+  }
+  return points;
 }
 
 function buildReplayEvents(events, stopAtScreenshot) {
@@ -117,6 +145,11 @@ export async function replayTemplate({
   maxDelayMs = 5000,
   speed = 1.0,
   replayText = false,
+  replayVisualDebug = false,
+  replayVisualMs = 180,
+  replayVisualDotW = 12,
+  replayVisualDotH = 12,
+  replayVisualShowCard = true,
   preReplayWaitMs = 0,
   postLoginWaitMs = 0,
   cropWidth = 0,
@@ -137,6 +170,11 @@ export async function replayTemplate({
     screenshotsDir,
     speed,
     replayText,
+    replayVisualDebug,
+    replayVisualMs,
+    replayVisualDotW,
+    replayVisualDotH,
+    replayVisualShowCard,
     preReplayWaitMs,
     postLoginWaitMs,
     hasCpf: Boolean(data?.cpf_cgc),
@@ -146,7 +184,7 @@ export async function replayTemplate({
 
   const absTemplate = path.resolve(process.cwd(), templatePath);
   const rawTemplate = await fs.readFile(absTemplate, 'utf8');
-  const parsedTemplate = JSON.parse(rawTemplate);
+  const parsedTemplate = parseJsonMaybeBom(rawTemplate);
   if (!Array.isArray(parsedTemplate)) {
     throw new Error('Template inválido: esperado array JSON.');
   }
@@ -169,6 +207,14 @@ export async function replayTemplate({
     maxDeltaMs: timingMeta.maxDelta,
     maxDelayMs,
   });
+  if (replayVisualDebug) {
+    const clickPoints = collectClickPoints(built.replayEvents);
+    logger?.debug('replay.click_points', {
+      templatePath,
+      pointsCount: clickPoints.length,
+      points: clickPoints,
+    });
+  }
   if (maxDelayMs > 0 && timingMeta.maxDelta > maxDelayMs) {
     logger?.warn('replay.timing_warning', {
       maxDeltaMs: timingMeta.maxDelta,
@@ -236,6 +282,16 @@ export async function replayTemplate({
     String(speed),
     '-ReplayText',
     replayText ? 'true' : 'false',
+    '-VisualDebug',
+    replayVisualDebug ? 'true' : 'false',
+    '-VisualDebugMs',
+    String(replayVisualMs || 0),
+    '-VisualDebugDotW',
+    String(replayVisualDotW || 12),
+    '-VisualDebugDotH',
+    String(replayVisualDotH || 12),
+    '-VisualDebugShowCard',
+    replayVisualShowCard ? 'true' : 'false',
     '-PreReplayWaitMs',
     String(preReplayWaitMs || 0),
     '-PostLoginWaitMs',
@@ -290,6 +346,11 @@ export function loadAgentConfigFromEnv(env) {
     maxDelayMs: Number(env.AGENT_MAX_DELAY_MS || 5000),
     speed: Number(env.AGENT_SPEED || 1.0),
     replayText: toBool(env.AGENT_REPLAY_TEXT, false),
+    replayVisualDebug: toBool(env.AGENT_REPLAY_VISUAL_DEBUG, false),
+    replayVisualMs: Number(env.AGENT_REPLAY_VISUAL_MS || 180),
+    replayVisualDotW: Number(env.AGENT_REPLAY_VISUAL_DOT_W || 12),
+    replayVisualDotH: Number(env.AGENT_REPLAY_VISUAL_DOT_H || 12),
+    replayVisualShowCard: toBool(env.AGENT_REPLAY_VISUAL_SHOW_CARD, true),
     preReplayWaitMs: Number(env.AGENT_PRE_REPLAY_WAIT_MS || 0),
     postLoginWaitMs: Number(env.AGENT_POST_LOGIN_WAIT_MS || 0),
     loginTemplatePath: env.AGENT_LOGIN_TEMPLATE_PATH || '',

@@ -140,6 +140,14 @@
             cursor: not-allowed;
         }
 
+        .btn.warn {
+            background: #dc2626;
+        }
+
+        .btn.warn:hover {
+            background: #ef4444;
+        }
+
         .pill {
             display: inline-flex;
             align-items: center;
@@ -288,6 +296,7 @@
 
             <div class="actions">
                 <button class="btn" id="enqueueBtn" type="button">Enfileirar</button>
+                <button class="btn warn" id="resetRunnerBtn" type="button">Resetar runner (id 1 / req 10)</button>
                 <span class="pill" id="hintPill">Dica: você pode enviar outra lista enquanto uma está rodando.</span>
             </div>
             <div class="errorBox" id="errorBox"></div>
@@ -356,6 +365,7 @@
         const enqueueSingleBtn = document.getElementById('enqueueSingleBtn');
         const itemsJsonEl = document.getElementById('itemsJson');
         const enqueueBtn = document.getElementById('enqueueBtn');
+        const resetRunnerBtn = document.getElementById('resetRunnerBtn');
         const errorBox = document.getElementById('errorBox');
 
         const statusText = document.getElementById('statusText');
@@ -614,6 +624,37 @@
                 showError(String(e?.message || e));
             } finally {
                 enqueueSingleBtn.disabled = false;
+            }
+        });
+
+        resetRunnerBtn.addEventListener('click', async () => {
+            clearError();
+            setApiKey(apiKeyEl.value);
+
+            const confirmed = window.confirm(
+                'Confirma resetar runner (id=1) e voltar request #10 para pending?'
+            );
+            if (!confirmed) return;
+
+            resetRunnerBtn.disabled = true;
+            try {
+                const resp = await apiFetch('/api/public/placas-0km/runner/reset', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+                    body: JSON.stringify({ runner_id: 1, request_id: 10 })
+                });
+
+                const json = await resp.json().catch(() => null);
+                if (!resp.ok || !json?.success) {
+                    throw new Error(json?.error || json?.message || `HTTP ${resp.status}`);
+                }
+
+                await refreshStatus();
+                await refreshBatches();
+            } catch (e) {
+                showError(String(e?.message || e));
+            } finally {
+                resetRunnerBtn.disabled = false;
             }
         });
 
