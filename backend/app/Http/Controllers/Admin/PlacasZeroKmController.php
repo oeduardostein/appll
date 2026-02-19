@@ -86,17 +86,10 @@ class PlacasZeroKmController extends Controller
         $chassi = strtoupper(preg_replace('/[^A-Za-z0-9]/', '', (string) $request->input('chassi', '')));
         $numeros = strtoupper(preg_replace('/[^A-Z0-9]/', '', (string) $request->input('numeros', '')));
 
-        if ($cpfCgc === '' || !in_array(strlen($cpfCgc), [11, 14], true)) {
+        if ($cpfCgc !== '' && !in_array(strlen($cpfCgc), [11, 14], true)) {
             return response()->json([
                 'success' => false,
                 'error' => 'Informe um CPF/CNPJ válido.',
-            ], Response::HTTP_UNPROCESSABLE_ENTITY);
-        }
-
-        if ($nome === '') {
-            return response()->json([
-                'success' => false,
-                'error' => 'Informe o nome.',
             ], Response::HTTP_UNPROCESSABLE_ENTITY);
         }
 
@@ -128,7 +121,7 @@ class PlacasZeroKmController extends Controller
             $item = PlacasZeroKmRequest::query()->create([
                 'batch_id' => $batch->id,
                 'cpf_cgc' => $cpfCgc,
-                'nome' => $nome,
+                'nome' => $nome !== '' ? $nome : null,
                 'chassi' => $chassi,
                 'numeros' => $numeros !== '' ? $numeros : null,
                 'status' => 'pending',
@@ -162,17 +155,10 @@ class PlacasZeroKmController extends Controller
         $placaEscolhaAnterior = '';
         $debug = filter_var($request->input('debug', false), FILTER_VALIDATE_BOOLEAN);
 
-        if ($cpfCgc === '' || !in_array(strlen($cpfCgc), [11, 14], true)) {
+        if ($cpfCgc !== '' && !in_array(strlen($cpfCgc), [11, 14], true)) {
             return response()->json([
                 'success' => false,
                 'error' => 'Informe um CPF/CNPJ válido.',
-            ], Response::HTTP_UNPROCESSABLE_ENTITY);
-        }
-
-        if ($nome === '') {
-            return response()->json([
-                'success' => false,
-                'error' => 'Informe o nome.',
             ], Response::HTTP_UNPROCESSABLE_ENTITY);
         }
 

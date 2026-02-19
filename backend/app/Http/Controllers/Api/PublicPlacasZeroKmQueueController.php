@@ -71,7 +71,7 @@ class PublicPlacasZeroKmQueueController extends Controller
             $chassi = strtoupper(preg_replace('/[^A-Za-z0-9]/', '', (string) ($item['chassi'] ?? '')) ?? '');
             $numeros = strtoupper(preg_replace('/[^A-Za-z0-9]/', '', (string) ($item['numeros'] ?? '')) ?? '');
 
-            if ($cpfCgc === '' || !in_array(strlen($cpfCgc), [11, 14], true)) {
+            if ($cpfCgc !== '' && !in_array(strlen($cpfCgc), [11, 14], true)) {
                 return response()->json([
                     'success' => false,
                     'error' => "CPF/CNPJ inválido no item {$idx}.",

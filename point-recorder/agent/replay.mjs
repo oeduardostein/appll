@@ -171,6 +171,7 @@ export async function replayTemplate({
   autoEnterWaitBeforeMs = 2000,
   autoEnterWaitAfterMs = 2000,
   appKillAfterScreenshot = true,
+  exitAfterSenha = false,
   logger = null,
 }) {
   if (process.platform !== 'win32') {
@@ -204,6 +205,7 @@ export async function replayTemplate({
     autoEnterWaitBeforeMs,
     autoEnterWaitAfterMs,
     appKillAfterScreenshot,
+    exitAfterSenha,
   });
 
   const absTemplate = path.resolve(process.cwd(), templatePath);
@@ -255,13 +257,23 @@ export async function replayTemplate({
       missing: templateMeta.missing,
     });
   }
-  const doc = detectCpfCnpjType(data?.cpf_cgc);
-  if (doc.type === 'invalid') {
-    throw new Error(
-      `cpf_cgc inválido para replay. Envie CPF com 11 dígitos ou CNPJ com 14 dígitos. Recebido: "${data?.cpf_cgc ?? ''}".`
-    );
+  const cpfDigits = digitsOnly(data?.cpf_cgc);
+  if (cpfDigits.length > 0) {
+    const doc = detectCpfCnpjType(cpfDigits);
+    if (doc.type === 'invalid') {
+      throw new Error(
+        `cpf_cgc inválido para replay. Envie CPF com 11 dígitos ou CNPJ com 14 dígitos. Recebido: "${data?.cpf_cgc ?? ''}".`
+      );
+    }
+    logger?.info('replay.document', { type: doc.type, digits: doc.digits.length });
+  } else {
+    logger?.info('replay.document', {
+      type: null,
+      digits: 0,
+      skipped: true,
+      reason: 'cpf_cgc vazio',
+    });
   }
-  logger?.info('replay.document', { type: doc.type, digits: doc.digits.length });
   if (warnPasswordSlotMissing && data?.senha && !templateMeta.slots.includes('senha')) {
     logger?.warn('replay.password_slot_missing', {
       recommendation: 'Grave um slot F9 (senha) no template para garantir login automático.',
@@ -348,6 +360,8 @@ export async function replayTemplate({
     String(autoEnterWaitAfterMs || 2000),
     '-AppKillAfterScreenshot',
     appKillAfterScreenshot ? 'true' : 'false',
+    '-ExitAfterSenha',
+    exitAfterSenha ? 'true' : 'false',
   ];
 
   const result = await new Promise((resolve, reject) => {

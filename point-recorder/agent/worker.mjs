@@ -131,6 +131,16 @@ async function templateContainsSlot(templatePath, slotName) {
   return parsed.some((event) => event?.type === 'slot_begin' && event?.name === slotName);
 }
 
+async function assertLoginTemplateHasSenha(templatePath) {
+  const hasSenha = await templateContainsSlot(templatePath, 'senha');
+  if (!hasSenha) {
+    throw new Error(
+      `Template de login inválido (${templatePath}): faltou slot_begin "senha". ` +
+      'Isso pode causar cliques globais fora da janela do sistema.'
+    );
+  }
+}
+
 async function claimNextPending(connection) {
   // Trava o runner_state para garantir execução única
   const [stateRows] = await connection.query(
@@ -285,6 +295,8 @@ async function runStartupLogin(agentCfg) {
   if (!agentCfg.loginTemplatePath) return;
   if (!agentCfg.loginBootstrapOnStart) return;
 
+  await assertLoginTemplateHasSenha(agentCfg.loginTemplatePath);
+
   logger?.info?.('agent.bootstrap_login.begin', {
     templatePath: agentCfg.loginTemplatePath,
     appExePath: agentCfg.appExePath || null,
@@ -330,6 +342,7 @@ async function runStartupLogin(agentCfg) {
     autoEnterWaitBeforeMs: agentCfg.autoEnterWaitBeforeMs,
     autoEnterWaitAfterMs: agentCfg.autoEnterWaitAfterMs,
     appKillAfterScreenshot: false,
+    exitAfterSenha: true,
     logger,
   });
 
@@ -390,7 +403,7 @@ async function processOne(pool, agentCfg) {
     };
 
     const data = {
-      cpf_cgc: req.cpf_cgc,
+      cpf_cgc: req.cpf_cgc ?? '',
       nome: req.nome ?? '',
       chassi: req.chassi,
       senha: agentCfg.loginPassword ?? '',
@@ -412,6 +425,7 @@ async function processOne(pool, agentCfg) {
       const appKillAfterRequest = agentCfg.loginBootstrapOnStart ? false : Boolean(agentCfg.appKillAfterScreenshot);
 
       if (shouldRunSeparateLogin) {
+        await assertLoginTemplateHasSenha(agentCfg.loginTemplatePath);
         logger?.info?.('replay.login.begin', {
           request_id: req.id,
           templatePath: agentCfg.loginTemplatePath,
@@ -448,6 +462,7 @@ async function processOne(pool, agentCfg) {
           autoEnterWaitBeforeMs: agentCfg.autoEnterWaitBeforeMs,
           autoEnterWaitAfterMs: agentCfg.autoEnterWaitAfterMs,
           appKillAfterScreenshot: false,
+          exitAfterSenha: true,
           logger,
         });
         logger?.info?.('replay.login.done', { request_id: req.id });
@@ -586,11 +601,20 @@ async function processOne(pool, agentCfg) {
           logger,
         });
 
-        if (transientRetryEnabled && analysis?.transientMessage) {
+        const shouldRetryAnalysis = (currentAnalysis) => {
+          if (!transientRetryEnabled || !currentAnalysis) return false;
+          const hasError = Boolean(currentAnalysis?.errorMessage);
+          const hasPlates = Array.isArray(currentAnalysis?.plates) && currentAnalysis.plates.length > 0;
+          return !hasError && !hasPlates;
+        };
+
+        if (shouldRetryAnalysis(analysis)) {
           transientRetryTriggered = true;
+          const initialReason = analysis?.transientMessage ? 'transient_message' : 'no_result_yet';
           logger?.warn?.('ocr.transient.detected', {
             request_id: req.id,
-            message: analysis.transientMessage,
+            reason: initialReason,
+            message: analysis.transientMessage || null,
             max_retries: transientRetryMaxRetries,
             wait_ms: transientRetryWaitMs,
           });
@@ -617,12 +641,19 @@ async function processOne(pool, agentCfg) {
                 logger,
               });
 
+              const hasError = Boolean(analysis?.errorMessage);
+              const hasPlates = Array.isArray(analysis?.plates) && analysis.plates.length > 0;
+              const stillPending = !hasError && !hasPlates;
+
               const check = {
                 retry: retryIndex,
                 screenshot_path: screenshotPath,
                 transient_message: analysis?.transientMessage || null,
                 error_message: analysis?.errorMessage || null,
                 plates: Array.isArray(analysis?.plates) ? analysis.plates : [],
+                retry_reason: stillPending
+                  ? (analysis?.transientMessage ? 'transient_message' : 'no_result_yet')
+                  : null,
               };
               transientRetryChecks.push(check);
 
@@ -632,10 +663,11 @@ async function processOne(pool, agentCfg) {
                 transient_message: check.transient_message,
                 plates_count: check.plates.length,
                 error_message: check.error_message,
+                retry_reason: check.retry_reason,
               });
-              await persistRunningProgress(screenshotPath, analysis, analysis?.transientMessage ? 'waiting_retry' : 'running');
+              await persistRunningProgress(screenshotPath, analysis, stillPending ? 'waiting_retry' : 'running');
 
-              if (!analysis?.transientMessage) {
+              if (!stillPending) {
                 break;
               }
             } catch (retryErr) {
@@ -669,17 +701,22 @@ async function processOne(pool, agentCfg) {
       }
 
       const outcome = analysis
-        ? (analysis?.transientMessage
-          ? 'transient_timeout'
-          : analysis?.errorMessage && (!analysis?.plates || analysis.plates.length === 0)
+        ? (analysis?.errorMessage && (!analysis?.plates || analysis.plates.length === 0)
             ? 'error'
             : analysis?.plates && analysis.plates.length
               ? 'plates'
-              : 'unknown')
+              : transientRetryTriggered &&
+                  transientRetryChecks.length >= transientRetryMaxRetries &&
+                  analysis?.transientMessage
+                ? 'transient_timeout'
+                : transientRetryTriggered &&
+                    transientRetryChecks.length >= transientRetryMaxRetries
+                  ? 'no_result_timeout'
+                  : 'unknown')
         : (uploadResult ? 'uploaded' : 'unknown');
 
       const status =
-        outcome === 'error' || outcome === 'transient_timeout'
+        outcome === 'error' || outcome === 'transient_timeout' || outcome === 'no_result_timeout'
           ? 'failed'
           : (uploadResult || analysis)
             ? 'succeeded'
@@ -696,6 +733,8 @@ async function processOne(pool, agentCfg) {
               ? (String(analysis?.rawText || '').trim() || analysis?.errorMessage || 'Erro detectado no modal')
               : outcome === 'transient_timeout'
                 ? `Tela sem resposta após ${transientRetryMaxRetries} tentativa(s): ${analysis?.transientMessage || 'não está respondendo'}`
+                : outcome === 'no_result_timeout'
+                  ? `Sem placas/erro após ${transientRetryMaxRetries} nova(s) tentativa(s).`
                 : null,
           payload: JSON.stringify({
             success: true,
@@ -717,7 +756,9 @@ async function processOne(pool, agentCfg) {
                 wait_ms: transientRetryWaitMs,
                 max_retries: transientRetryMaxRetries,
                 attempts: transientRetryChecks.length,
-                resolved: transientRetryTriggered ? !analysis?.transientMessage : null,
+                resolved: transientRetryTriggered
+                  ? Boolean(analysis?.errorMessage) || (Array.isArray(analysis?.plates) && analysis.plates.length > 0)
+                  : null,
                 checks: transientRetryChecks,
               },
               outcome,

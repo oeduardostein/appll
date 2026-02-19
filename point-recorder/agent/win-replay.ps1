@@ -25,7 +25,8 @@ param(
   [int]$AutoEnterClickTolerance = 3,
   [int]$AutoEnterWaitBeforeMs = 2000,
   [int]$AutoEnterWaitAfterMs = 2000,
-  [string]$AppKillAfterScreenshot = "true"
+  [string]$AppKillAfterScreenshot = "true",
+  [string]$ExitAfterSenha = "false"
 )
 
 $ErrorActionPreference = "Stop"
@@ -354,6 +355,7 @@ $visualDebugDotHSafe = [Math]::Max(2, [int]$VisualDebugDotH)
 $visualDebugShowCardBool = ToBool $VisualDebugShowCard $true
 $autoEnterAfterClickBool = ToBool $AutoEnterAfterClick $false
 $appKillAfterScreenshotBool = ToBool $AppKillAfterScreenshot $true
+$exitAfterSenhaBool = ToBool $ExitAfterSenha $false
 $postClickPauseMs = $visualDebugMsSafe
 
 EnsureDir $ScreenshotsDir
@@ -410,6 +412,29 @@ foreach ($ev in $events) {
     if (-not [string]::IsNullOrWhiteSpace($name)) {
       $slotActive = $name
       $slotState = $null
+      $slotRawValue = $data.$name
+      if ($null -eq $slotRawValue) { $slotRawValue = "" }
+      $slotValue = [string]$slotRawValue
+
+      $skipOptionalSlot = $false
+      if ($name -eq "cpf_cgc") {
+        if ([string]::IsNullOrWhiteSpace((OnlyDigits $slotValue))) {
+          $skipOptionalSlot = $true
+        }
+      } elseif ($name -eq "nome") {
+        if ([string]::IsNullOrWhiteSpace($slotValue)) {
+          $skipOptionalSlot = $true
+        }
+      }
+
+      if ($skipOptionalSlot) {
+        $slotState = @{
+          mode = "ignore_until_mouse"
+          skipped = $true
+          reason = "optional_slot_empty"
+        }
+        continue
+      }
 
       $hasSlotX = $ev.PSObject.Properties.Name -contains "x"
       $hasSlotY = $ev.PSObject.Properties.Name -contains "y"
@@ -428,7 +453,7 @@ foreach ($ev in $events) {
       }
 
       if ($name -eq "cpf_cgc") {
-        $segments = BuildCpfCnpjSegments ([string]$data.$name)
+        $segments = BuildCpfCnpjSegments $slotValue
         # Preenchimento determinístico de CPF/CNPJ:
         # campo 1 -> TAB -> campo 2 -> TAB -> campo 3.
         PasteText ([string]$segments[0])
@@ -444,9 +469,7 @@ foreach ($ev in $events) {
           mode = "ignore_until_mouse"
         }
       } elseif ($name -eq "senha") {
-        $value = $data.$name
-        if ($null -eq $value) { $value = "" }
-        $text = [string]$value
+        $text = $slotValue
         $pwdMode = [string]$PasswordInputMode
         if ([string]::IsNullOrWhiteSpace($pwdMode)) { $pwdMode = "paste" }
         $pwdMode = $pwdMode.Trim().ToLower()
@@ -467,10 +490,11 @@ foreach ($ev in $events) {
         $slotState = @{
           mode = "ignore_until_mouse"
         }
+        if ($exitAfterSenhaBool) {
+          break
+        }
       } else {
-        $value = $data.$name
-        if ($null -eq $value) { $value = "" }
-        PasteText ([string]$value)
+        PasteText $slotValue
         $slotState = @{
           mode = "ignore_until_mouse"
         }
