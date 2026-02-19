@@ -162,16 +162,68 @@
         .placa-zero-km__list {
             display: grid;
             gap: 8px;
-            grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+            grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
         }
 
         .placa-zero-km__plate {
             padding: 10px 12px;
             border-radius: 12px;
             background: var(--surface-muted);
-            text-align: center;
+            text-align: left;
             font-weight: 600;
             color: var(--text-strong);
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .placa-zero-km__plate::before {
+            content: '';
+            width: 14px;
+            height: 14px;
+            border-radius: 999px;
+            border: 2px solid #bfd0e6;
+            background: #fff;
+            flex-shrink: 0;
+        }
+
+        .placa-zero-km__result-section {
+            display: grid;
+            gap: 10px;
+        }
+
+        .placa-zero-km__result-status {
+            font-size: 14px;
+            color: var(--text-muted);
+        }
+
+        .placa-zero-km__link {
+            color: var(--brand-primary);
+            font-weight: 600;
+            text-decoration: none;
+        }
+
+        .placa-zero-km__loader {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 14px;
+            color: var(--text-muted);
+        }
+
+        .placa-zero-km__spinner {
+            width: 16px;
+            height: 16px;
+            border: 2px solid #d3e0ef;
+            border-top-color: var(--brand-primary);
+            border-radius: 999px;
+            animation: placa-zero-km-spin 800ms linear infinite;
+        }
+
+        @keyframes placa-zero-km-spin {
+            to {
+                transform: rotate(360deg);
+            }
         }
 
         .placa-zero-km__json {
@@ -234,18 +286,31 @@
 
         <section class="admin-card placa-zero-km__card placa-zero-km__result" id="resultCard" hidden>
             <span class="placa-zero-km__pill">Resultado</span>
-            <div>
+            <div class="placa-zero-km__result-section">
                 <strong>Status da fila</strong>
+                <div class="placa-zero-km__result-status" id="queueStatusText">Aguardando envio.</div>
+                <a class="placa-zero-km__link" id="queueLink" href="#" target="_blank" rel="noopener noreferrer" hidden>Acompanhar na fila</a>
+            </div>
+            <div class="placa-zero-km__result-section">
+                <strong>Placas disponíveis</strong>
+                <div class="placa-zero-km__loader" id="processingLoader" hidden>
+                    <span class="placa-zero-km__spinner" aria-hidden="true"></span>
+                    <span id="processingText">Processando consulta...</span>
+                </div>
                 <div class="placa-zero-km__list" id="platesList"></div>
+                <div class="placa-zero-km__result-status" id="resultText"></div>
             </div>
         </section>
     </div>
 
     <script>
         (function() {
-            const CSRF_TOKEN = document.querySelector('meta[name="csrf-token"]')?.content ?? '';
-            const ENQUEUE_URL = '{{ route('admin.placas-0km.enqueue') }}';
+            const ENQUEUE_URL = '{{ url('/api/public/placas-0km/batches') }}';
             const QUEUE_URL_BASE = '{{ route('admin.placas-0km.queue') }}';
+            const QUEUE_BATCH_SHOW_BASE_URL = '{{ url('/api/public/placas-0km/batches') }}';
+            const PUBLIC_API_KEY = @json((string) config('services.public_placas0km.key', ''));
+            const POLL_INTERVAL_MS = 2000;
+            const POLL_TIMEOUT_MS = 180000;
 
             const form = document.getElementById('placaZeroKmForm');
             const statusText = document.getElementById('statusText');
@@ -253,6 +318,17 @@
             const button = document.getElementById('consultarButton');
             const resultCard = document.getElementById('resultCard');
             const platesList = document.getElementById('platesList');
+            const queueStatusText = document.getElementById('queueStatusText');
+            const queueLink = document.getElementById('queueLink');
+            const processingLoader = document.getElementById('processingLoader');
+            const processingText = document.getElementById('processingText');
+            const resultText = document.getElementById('resultText');
+
+            let pollingTimer = null;
+            let pollingStartedAt = 0;
+            let pollingInFlight = false;
+            let activeBatchId = null;
+            let activeRequestId = null;
 
             function normalizeDigits(value) {
                 return (value || '').replace(/\D/g, '');
@@ -262,8 +338,12 @@
                 return (value || '').replace(/[^A-Za-z0-9]/g, '').toUpperCase();
             }
 
-            function setLoading(loading) {
+            function setLoading(loading, text) {
                 button.disabled = loading;
+                if (typeof text === 'string') {
+                    statusText.textContent = text;
+                    return;
+                }
                 statusText.textContent = loading ? 'Enfileirando, aguarde...' : 'Preencha os campos para enfileirar.';
             }
 
@@ -277,45 +357,203 @@
                 errorBox.style.display = 'block';
             }
 
-            function renderResult(payload) {
-                const batchId = payload?.data?.batch_id;
-                const requestId = payload?.data?.request_id;
+            function withPublicApiHeaders(baseHeaders = {}) {
+                const headers = { ...baseHeaders };
+                if (PUBLIC_API_KEY) {
+                    headers['X-Public-Api-Key'] = PUBLIC_API_KEY;
+                }
+                return headers;
+            }
+
+            function toSafeNumber(value) {
+                const parsed = Number(value);
+                return Number.isFinite(parsed) ? parsed : 0;
+            }
+
+            function normalizePlate(value) {
+                const compact = normalizeUpper(value);
+                if (compact.length !== 7) return compact;
+                return `${compact.slice(0, 3)}-${compact.slice(3)}`;
+            }
+
+            function mergeUniquePlates(...groups) {
+                const unique = new Set();
+                for (const group of groups) {
+                    if (!Array.isArray(group)) continue;
+                    for (const item of group) {
+                        const plate = normalizePlate(item);
+                        if (!plate) continue;
+                        unique.add(plate);
+                    }
+                }
+                return Array.from(unique);
+            }
+
+            function extractRequestPlates(requestRow) {
+                const payload = requestRow?.response_payload;
+                const ocrPlates = payload?.data?.ocr?.plates;
+                const detectedPlates = payload?.data?.placas;
+                return mergeUniquePlates(ocrPlates, detectedPlates);
+            }
+
+            function renderPlateItems(plates) {
                 platesList.innerHTML = '';
-                const item = document.createElement('div');
-                item.className = 'placa-zero-km__plate';
-                item.textContent = `Item enfileirado no batch #${batchId} (req #${requestId}).`;
-                platesList.appendChild(item);
+                for (const plate of plates) {
+                    const item = document.createElement('div');
+                    item.className = 'placa-zero-km__plate';
+                    item.textContent = plate;
+                    platesList.appendChild(item);
+                }
+            }
 
-                const linkWrap = document.createElement('div');
-                linkWrap.style.marginTop = '8px';
-                linkWrap.innerHTML = `<a href="${QUEUE_URL_BASE}?batch_id=${batchId}" style="color: var(--brand-primary); font-weight: 600; text-decoration: none;">Acompanhar na fila</a>`;
-                platesList.appendChild(linkWrap);
-
+            function showResultCard(batchId, requestId) {
                 resultCard.hidden = false;
+                if (requestId) {
+                    queueStatusText.textContent = `Item enfileirado no batch #${batchId} (req #${requestId}).`;
+                } else {
+                    queueStatusText.textContent = `Item enfileirado no batch #${batchId}.`;
+                }
+                queueLink.href = `${QUEUE_URL_BASE}?batch_id=${batchId}`;
+                queueLink.hidden = false;
+            }
+
+            function setProcessingState(loading, text) {
+                processingLoader.hidden = !loading;
+                if (text) {
+                    processingText.textContent = text;
+                }
+            }
+
+            function stopPolling() {
+                if (pollingTimer) {
+                    clearInterval(pollingTimer);
+                }
+                pollingTimer = null;
+                pollingInFlight = false;
+            }
+
+            async function fetchBatchStatus(batchId) {
+                const response = await fetch(`${QUEUE_BATCH_SHOW_BASE_URL}/${batchId}`, {
+                    headers: withPublicApiHeaders({
+                        'Accept': 'application/json',
+                    }),
+                });
+
+                const data = await response.json().catch(() => null);
+                if (!response.ok || !data?.success) {
+                    throw new Error(data?.error || data?.message || 'Erro ao consultar status da fila.');
+                }
+
+                return data.data;
+            }
+
+            function updateFromBatchStatus(data) {
+                const batch = data?.batch ?? null;
+                const requests = Array.isArray(data?.requests) ? data.requests : [];
+                const requestRow = requests.find((item) => toSafeNumber(item?.id) === activeRequestId) ?? requests[0] ?? null;
+                if (!activeRequestId && requestRow?.id) {
+                    activeRequestId = toSafeNumber(requestRow.id);
+                }
+
+                const requestStatus = String(requestRow?.status || '');
+                const batchStatus = String(batch?.status || '');
+                const isDone = requestStatus === 'succeeded' || requestStatus === 'failed';
+
+                if (requestStatus === 'running' || requestStatus === 'pending') {
+                    queueStatusText.textContent = `Processando requisição #${activeRequestId} no batch #${activeBatchId}...`;
+                    setProcessingState(true, 'Executando script e analisando resultado...');
+                    resultText.textContent = '';
+                    renderPlateItems([]);
+                    return false;
+                }
+
+                if (isDone || batchStatus === 'completed') {
+                    setProcessingState(false);
+
+                    if (requestStatus === 'failed') {
+                        queueStatusText.textContent = `Falha na requisição #${activeRequestId}.`;
+                        resultText.textContent = requestRow?.response_error || 'Consulta finalizada com falha.';
+                        renderPlateItems([]);
+                        return true;
+                    }
+
+                    const plates = extractRequestPlates(requestRow);
+                    queueStatusText.textContent = `Requisição #${activeRequestId} concluída com sucesso.`;
+                    renderPlateItems(plates);
+                    resultText.textContent = plates.length
+                        ? `${plates.length} placa(s) encontrada(s).`
+                        : 'Nenhuma placa listada para esta consulta.';
+                    return true;
+                }
+
+                queueStatusText.textContent = `Batch #${activeBatchId} em processamento...`;
+                setProcessingState(true, 'Aguardando processamento da fila...');
+                return false;
+            }
+
+            async function pollBatchStatus() {
+                if (!activeBatchId || pollingInFlight) return;
+                pollingInFlight = true;
+                try {
+                    const data = await fetchBatchStatus(activeBatchId);
+                    const finished = updateFromBatchStatus(data);
+                    if (finished) {
+                        stopPolling();
+                        setLoading(false, 'Consulta finalizada.');
+                        return;
+                    }
+
+                    if (Date.now() - pollingStartedAt > POLL_TIMEOUT_MS) {
+                        stopPolling();
+                        setProcessingState(false);
+                        queueStatusText.textContent = `Batch #${activeBatchId} ainda em andamento.`;
+                        resultText.textContent = 'A consulta está demorando mais que o esperado. Use "Acompanhar na fila" para monitorar.';
+                        setLoading(false, 'Item enfileirado. Acompanhamento em execução.');
+                    }
+                } catch (error) {
+                    stopPolling();
+                    setProcessingState(false);
+                    setError(error?.message || 'Falha ao buscar status da fila.');
+                    setLoading(false, 'Erro ao acompanhar fila.');
+                } finally {
+                    pollingInFlight = false;
+                }
+            }
+
+            function startPolling(batchId, requestId) {
+                stopPolling();
+                activeBatchId = toSafeNumber(batchId);
+                activeRequestId = toSafeNumber(requestId);
+                pollingStartedAt = Date.now();
+                pollBatchStatus();
+                pollingTimer = setInterval(pollBatchStatus, POLL_INTERVAL_MS);
             }
 
             form.addEventListener('submit', async (event) => {
                 event.preventDefault();
+                stopPolling();
                 setError('');
-                setLoading(true);
+                setLoading(true, 'Enfileirando, aguarde...');
                 let enqueued = false;
+                let batchId = 0;
+                let requestId = 0;
 
                 const payload = {
-                    cpf_cgc: normalizeDigits(document.getElementById('cpfCgc').value),
-                    nome: (document.getElementById('nome').value || '').trim(),
-                    chassi: normalizeUpper(document.getElementById('chassi').value),
-                    numeros: normalizeUpper(document.getElementById('numeros').value),
-                    numero_tentativa: document.getElementById('numeroTentativa').value,
+                    items: [{
+                        cpf_cgc: normalizeDigits(document.getElementById('cpfCgc').value),
+                        nome: (document.getElementById('nome').value || '').trim(),
+                        chassi: normalizeUpper(document.getElementById('chassi').value),
+                        numeros: normalizeUpper(document.getElementById('numeros').value),
+                    }],
                 };
 
                 try {
                     const response = await fetch(ENQUEUE_URL, {
                         method: 'POST',
-                        headers: {
+                        headers: withPublicApiHeaders({
                             'Content-Type': 'application/json',
                             'Accept': 'application/json',
-                            'X-CSRF-TOKEN': CSRF_TOKEN,
-                        },
+                        }),
                         body: JSON.stringify(payload),
                     });
 
@@ -328,14 +566,24 @@
                         throw new Error(data.error || 'Falha ao enfileirar.');
                     }
 
-                    renderResult(data);
+                    batchId = toSafeNumber(data?.data?.batch_id);
+                    requestId = toSafeNumber(data?.data?.request_id);
+                    if (!batchId) {
+                        throw new Error('Resposta inválida ao enfileirar item.');
+                    }
+
+                    showResultCard(batchId, requestId);
+                    setProcessingState(true, 'Aguardando início da execução...');
+                    resultText.textContent = '';
+                    renderPlateItems([]);
                     enqueued = true;
                 } catch (error) {
                     setError(error?.message || 'Erro ao enfileirar solicitação.');
                 } finally {
                     setLoading(false);
                     if (enqueued) {
-                        statusText.textContent = 'Enfileirado com sucesso. Acompanhe na fila.';
+                        statusText.textContent = 'Enfileirado com sucesso. Aguardando conclusão...';
+                        startPolling(batchId, requestId);
                     }
                 }
             });
