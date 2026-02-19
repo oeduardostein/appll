@@ -200,6 +200,109 @@
             display: block;
         }
 
+        .queue-requests {
+            margin-top: 14px;
+            display: grid;
+            gap: 12px;
+        }
+
+        .queue-request {
+            border: 1px solid var(--border);
+            border-radius: 14px;
+            background: #fff;
+            padding: 12px;
+            display: grid;
+            gap: 10px;
+        }
+
+        .queue-request__head {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 8px;
+            flex-wrap: wrap;
+        }
+
+        .queue-request__id {
+            display: inline-flex;
+            align-items: center;
+            border-radius: 999px;
+            padding: 5px 10px;
+            font-size: 12px;
+            font-weight: 700;
+            background: var(--surface-muted);
+            color: var(--text-strong);
+        }
+
+        .queue-request__fields {
+            display: grid;
+            gap: 8px;
+        }
+
+        .queue-request__field {
+            display: grid;
+            gap: 3px;
+        }
+
+        .queue-request__label {
+            color: var(--text-muted);
+            font-size: 11px;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.02em;
+        }
+
+        .queue-request__value {
+            color: var(--text-strong);
+            font-size: 14px;
+            line-height: 1.35;
+        }
+
+        .queue-request__plates {
+            display: grid;
+            gap: 8px;
+            grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+        }
+
+        .queue-request__plate {
+            padding: 10px 12px;
+            border-radius: 12px;
+            background: var(--surface-muted);
+            color: var(--text-strong);
+            font-weight: 700;
+            font-size: 13px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            line-height: 1.2;
+        }
+
+        .queue-request__plate::before {
+            content: '';
+            width: 14px;
+            height: 14px;
+            border-radius: 999px;
+            border: 2px solid #bfd0e6;
+            background: #fff;
+            flex-shrink: 0;
+        }
+
+        .queue-request__meta {
+            display: grid;
+            gap: 8px;
+        }
+
+        .queue-request__error {
+            white-space: pre-wrap;
+            word-break: break-word;
+            color: #991b1b;
+            background: #fef2f2;
+            border: 1px solid #fecaca;
+            border-radius: 10px;
+            padding: 8px 10px;
+            font-size: 12px;
+        }
+
         .queue-empty {
             padding: 12px 0;
             color: var(--text-muted);
@@ -279,24 +382,8 @@
             <div class="queue-muted" id="countsText" style="margin-top: 6px;">—</div>
             <div class="queue-error" id="errorBox"></div>
 
-            <div class="queue-table-wrap">
-                <table class="queue-table">
-                    <thead>
-                    <tr>
-                        <th>#</th>
-                        <th>CPF/CNPJ</th>
-                        <th>Nome</th>
-                        <th>Chassi</th>
-                        <th>Status</th>
-                        <th>Placas</th>
-                        <th>Imagem</th>
-                        <th>Erro</th>
-                    </tr>
-                    </thead>
-                    <tbody id="rowsBody">
-                    <tr><td colspan="8" class="queue-empty">Sem itens carregados.</td></tr>
-                    </tbody>
-                </table>
+            <div id="rowsBody" class="queue-requests">
+                <div class="queue-empty">Sem itens carregados.</div>
             </div>
         </section>
 
@@ -383,12 +470,35 @@
                     .replaceAll("'", '&#039;');
             }
 
+            function normalizePlate(value) {
+                const cleaned = String(value ?? '')
+                    .replace(/[^A-Za-z0-9]/g, '')
+                    .toUpperCase();
+                if (cleaned.length === 7) {
+                    return `${cleaned.slice(0, 3)}-${cleaned.slice(3)}`;
+                }
+                return cleaned;
+            }
+
             function extractPlates(payload) {
-                const ocrPlates = payload?.data?.ocr?.plates;
-                if (Array.isArray(ocrPlates) && ocrPlates.length) return ocrPlates.join(', ');
-                const plates = payload?.data?.placas;
-                if (Array.isArray(plates) && plates.length) return plates.join(', ');
-                return '';
+                const seen = new Set();
+                const out = [];
+                const sources = [
+                    payload?.data?.ocr?.plates,
+                    payload?.data?.placas,
+                ];
+
+                for (const source of sources) {
+                    if (!Array.isArray(source)) continue;
+                    for (const plateRaw of source) {
+                        const plate = normalizePlate(plateRaw);
+                        if (!plate || seen.has(plate)) continue;
+                        seen.add(plate);
+                        out.push(plate);
+                    }
+                }
+
+                return out;
             }
 
             function extractScreenshotUrl(payload) {
@@ -477,26 +587,63 @@
 
                     rowsBody.innerHTML = '';
                     if (!requests.length) {
-                        rowsBody.innerHTML = '<tr><td colspan="8" class="queue-empty">Sem itens.</td></tr>';
+                        rowsBody.innerHTML = '<div class="queue-empty">Sem itens.</div>';
                         return;
                     }
 
                     for (const r of requests) {
                         const plates = extractPlates(r.response_payload);
                         const screenshotUrl = extractScreenshotUrl(r.response_payload);
-                        const screenshotCell = screenshotUrl
-                            ? `<img class="queue-thumb" src="${toSafeText(screenshotUrl)}" data-image-url="${toSafeText(screenshotUrl)}" alt="Screenshot #${Number(r.id)}">`
+                        const platesHtml = plates.length
+                            ? plates
+                                .map((plate) => `<div class="queue-request__plate">${toSafeText(plate)}</div>`)
+                                .join('')
+                            : '<div class="queue-empty" style="padding: 0;">Nenhuma placa listada.</div>';
+                        const screenshotHtml = screenshotUrl
+                            ? `
+                                <div class="queue-request__field">
+                                    <span class="queue-request__label">Imagem</span>
+                                    <img class="queue-thumb" src="${toSafeText(screenshotUrl)}" data-image-url="${toSafeText(screenshotUrl)}" alt="Screenshot #${Number(r.id)}">
+                                </div>
+                            `
                             : '';
-                        const row = document.createElement('tr');
+                        const errorHtml = r.response_error
+                            ? `<div class="queue-request__error">${toSafeText(r.response_error)}</div>`
+                            : '';
+
+                        const row = document.createElement('article');
+                        row.className = 'queue-request';
                         row.innerHTML = `
-                            <td>#${Number(r.id)}</td>
-                            <td>${toSafeText(r.cpf_cgc)}</td>
-                            <td>${toSafeText(r.nome || '')}</td>
-                            <td>${toSafeText(r.chassi || '')}${r.numeros ? ' / ' + toSafeText(r.numeros) : ''}</td>
-                            <td>${tagHtml(r.status)}</td>
-                            <td>${toSafeText(plates)}</td>
-                            <td>${screenshotCell}</td>
-                            <td>${toSafeText(r.response_error || '')}</td>
+                            <div class="queue-request__head">
+                                <span class="queue-request__id">Req #${Number(r.id)}</span>
+                                ${tagHtml(r.status)}
+                            </div>
+                            <div class="queue-request__fields">
+                                <div class="queue-request__field">
+                                    <span class="queue-request__label">CPF/CNPJ</span>
+                                    <span class="queue-request__value">${toSafeText(r.cpf_cgc)}</span>
+                                </div>
+                                <div class="queue-request__field">
+                                    <span class="queue-request__label">Nome</span>
+                                    <span class="queue-request__value">${toSafeText(r.nome || '') || '—'}</span>
+                                </div>
+                                <div class="queue-request__field">
+                                    <span class="queue-request__label">Chassi</span>
+                                    <span class="queue-request__value">${toSafeText(r.chassi || '') || '—'}</span>
+                                </div>
+                                <div class="queue-request__field">
+                                    <span class="queue-request__label">Complemento</span>
+                                    <span class="queue-request__value">${toSafeText(r.numeros || '') || '—'}</span>
+                                </div>
+                                <div class="queue-request__field">
+                                    <span class="queue-request__label">Placas disponíveis</span>
+                                    <div class="queue-request__plates">${platesHtml}</div>
+                                </div>
+                            </div>
+                            <div class="queue-request__meta">
+                                ${screenshotHtml}
+                                ${errorHtml}
+                            </div>
                         `;
                         rowsBody.appendChild(row);
                     }
