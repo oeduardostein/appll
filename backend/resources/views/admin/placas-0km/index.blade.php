@@ -492,7 +492,7 @@
                         const attempts = toSafeNumber(retryInfo?.attempts);
                         const maxRetries = toSafeNumber(retryInfo?.max_retries);
                         const waitMs = toSafeNumber(retryInfo?.wait_ms);
-                        const waitSeconds = waitMs > 0 ? Math.max(1, Math.round(waitMs / 1000)) : 20;
+                        const waitSeconds = waitMs > 0 ? Math.max(1, Math.round(waitMs / 1000)) : 8;
                         const progressLabel = maxRetries > 0 ? `${attempts}/${maxRetries}` : `${attempts}`;
                         queueStatusText.textContent = 'O servidor está mais lento do que o normal. Estamos fazendo uma nova tentativa.';
                         setProcessingState(true, `Nova tentativa ${progressLabel}. Aguardando ${waitSeconds}s para reprocessar...`);

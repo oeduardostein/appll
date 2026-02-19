@@ -281,6 +281,67 @@ async function killAppProcessByExePath(appExePath, localLogger) {
   localLogger?.info?.('app.killed', { exe: exeName });
 }
 
+async function runStartupLogin(agentCfg) {
+  if (!agentCfg.loginTemplatePath) return;
+  if (!agentCfg.loginBootstrapOnStart) return;
+
+  logger?.info?.('agent.bootstrap_login.begin', {
+    templatePath: agentCfg.loginTemplatePath,
+    appExePath: agentCfg.appExePath || null,
+  });
+
+  const bootstrapData = {
+    // replayTemplate exige cpf_cgc válido, mesmo sem slot no template de login.
+    cpf_cgc: '00000000000',
+    nome: '',
+    chassi: '',
+    senha: agentCfg.loginPassword ?? '',
+  };
+
+  await replayTemplate({
+    templatePath: agentCfg.loginTemplatePath,
+    data: bootstrapData,
+    screenshotsDir: agentCfg.screenshotsDir,
+    maxDelayMs: agentCfg.maxDelayMs,
+    speed: agentCfg.speed,
+    replayText: agentCfg.replayText,
+    replayVisualDebug: agentCfg.replayVisualDebug,
+    replayVisualMs: agentCfg.replayVisualMs,
+    replayVisualDotW: agentCfg.replayVisualDotW,
+    replayVisualDotH: agentCfg.replayVisualDotH,
+    replayVisualShowCard: agentCfg.replayVisualShowCard,
+    preReplayWaitMs: 0,
+    postLoginWaitMs: agentCfg.postLoginWaitMs,
+    cropWidth: 0,
+    cropHeight: 0,
+    stopAtScreenshot: false,
+    requireRequiredSlots: false,
+    requireScreenshot: false,
+    warnPasswordSlotMissing: false,
+    passwordInputMode: agentCfg.passwordInputMode,
+    passwordTypeDelayMs: agentCfg.passwordTypeDelayMs,
+    passwordBeforeEnterMs: agentCfg.passwordBeforeEnterMs,
+    appExePath: agentCfg.appExePath,
+    appStartWaitMs: agentCfg.appStartWaitMs,
+    autoEnterAfterClick: agentCfg.autoEnterAfterClick,
+    autoEnterClickX: agentCfg.autoEnterClickX,
+    autoEnterClickY: agentCfg.autoEnterClickY,
+    autoEnterClickTolerance: agentCfg.autoEnterClickTolerance,
+    autoEnterWaitBeforeMs: agentCfg.autoEnterWaitBeforeMs,
+    autoEnterWaitAfterMs: agentCfg.autoEnterWaitAfterMs,
+    appKillAfterScreenshot: false,
+    logger,
+  });
+
+  if (agentCfg.betweenTemplatesWaitMs > 0) {
+    await sleep(agentCfg.betweenTemplatesWaitMs);
+  }
+
+  logger?.info?.('agent.bootstrap_login.done', {
+    templatePath: agentCfg.loginTemplatePath,
+  });
+}
+
 async function processOne(pool, agentCfg) {
   const connection = await pool.getConnection();
   const finalizeFailure = async (reqId, batchId, errorMessage) => {
@@ -343,11 +404,12 @@ async function processOne(pool, agentCfg) {
     try {
       logger?.info?.('replay.begin', { request_id: req.id });
       startHeartbeat();
-      const shouldRunSeparateLogin = Boolean(agentCfg.loginTemplatePath);
+      const shouldRunSeparateLogin = Boolean(agentCfg.loginTemplatePath) && !agentCfg.loginBootstrapOnStart;
       const templatePaths = Array.isArray(agentCfg.templatePaths) && agentCfg.templatePaths.length
         ? agentCfg.templatePaths
         : [agentCfg.templatePath];
       const multipleMainTemplates = templatePaths.length > 1;
+      const appKillAfterRequest = agentCfg.loginBootstrapOnStart ? false : Boolean(agentCfg.appKillAfterScreenshot);
 
       if (shouldRunSeparateLogin) {
         logger?.info?.('replay.login.begin', {
@@ -398,10 +460,10 @@ async function processOne(pool, agentCfg) {
         }
       }
 
-      const transientRetryWaitMs = toPositiveInt(agentCfg.transientRetryWaitMs, 20000);
+      const transientRetryWaitMs = toPositiveInt(agentCfg.transientRetryWaitMs, 8000);
       const transientRetryMaxRetries = toNonNegativeInt(agentCfg.transientRetryMaxRetries, 6);
       const transientRetryEnabled = Boolean(agentCfg.transientRetryEnabled) && transientRetryMaxRetries > 0;
-      const deferAppKillUntilAfterRetries = transientRetryEnabled && Boolean(agentCfg.appKillAfterScreenshot);
+      const deferAppKillUntilAfterRetries = transientRetryEnabled && appKillAfterRequest;
       deferAppKillEnabled = deferAppKillUntilAfterRetries;
       deferredAppExePath = agentCfg.appExePath || '';
       const transientRetryChecks = [];
@@ -453,7 +515,7 @@ async function processOne(pool, agentCfg) {
       for (let i = 0; i < templatePaths.length; i += 1) {
         const templatePath = templatePaths[i];
         const isLastTemplate = i === templatePaths.length - 1;
-        const launchAppInThisStep = !shouldRunSeparateLogin && i === 0;
+        const launchAppInThisStep = !shouldRunSeparateLogin && !agentCfg.loginBootstrapOnStart && i === 0;
         const templateHasSenha = await templateContainsSlot(templatePath, 'senha');
 
         if (shouldRunSeparateLogin && templateHasSenha) {
@@ -504,7 +566,7 @@ async function processOne(pool, agentCfg) {
           autoEnterWaitBeforeMs: agentCfg.autoEnterWaitBeforeMs,
           autoEnterWaitAfterMs: agentCfg.autoEnterWaitAfterMs,
           appKillAfterScreenshot: isLastTemplate
-            ? (deferAppKillUntilAfterRetries ? false : agentCfg.appKillAfterScreenshot)
+            ? (deferAppKillUntilAfterRetries ? false : appKillAfterRequest)
             : false,
           logger,
         });
@@ -719,12 +781,15 @@ async function main() {
     template: agentCfg.templatePath,
     templates: agentCfg.templatePaths,
     loginTemplate: agentCfg.loginTemplatePath || null,
+    loginBootstrapOnStart: Boolean(agentCfg.loginBootstrapOnStart),
     screenshotsDir: agentCfg.screenshotsDir,
     dbHost: dbCfg.host,
     dbPort: dbCfg.port,
     dbDatabase: dbCfg.database,
     dbUser: dbCfg.user,
   });
+
+  await runStartupLogin(agentCfg);
 
   // Loop: tenta processar 1 por vez; se não tiver, dorme e tenta de novo.
   for (;;) {

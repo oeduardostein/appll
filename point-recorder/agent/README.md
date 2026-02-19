@@ -33,9 +33,11 @@ Se você gravou um template novo apenas para o fluxo pós-login, mantenha:
 ```
 AGENT_LOGIN_TEMPLATE_PATH=recordings/login-antes-enter.json
 AGENT_TEMPLATE_PATH=recordings/meu-template.json
+AGENT_LOGIN_BOOTSTRAP_ON_START=true
 ```
 
-Assim o agente roda primeiro o login e, após entrar, executa o template principal.
+Assim o agente abre o sistema e executa o login uma única vez ao iniciar `npm run agent:poller`.
+Depois, quando chegar requisição, executa apenas o template principal.
 
 Se precisar estabilizar a tela entre os dois, use:
 
@@ -216,7 +218,7 @@ Se o OCR encontrar textos como “não está respondendo”, o agente pode aguar
 
 Configuração no `.env`:
 - `AGENT_TRANSIENT_RETRY_ENABLED=true`
-- `AGENT_TRANSIENT_RETRY_WAIT_MS=20000` (20 segundos)
+- `AGENT_TRANSIENT_RETRY_WAIT_MS=8000` (8 segundos)
 - `AGENT_TRANSIENT_RETRY_MAX_RETRIES=6`
 - `AGENT_TRANSIENT_KEYWORDS=` (opcional, lista separada por vírgula)
 
