@@ -320,7 +320,7 @@
             const QUEUE_BATCH_SHOW_BASE_URL = '{{ url('/api/public/placas-0km/batches') }}';
             const PUBLIC_API_KEY = @json((string) config('services.public_placas0km.key', ''));
             const POLL_INTERVAL_MS = 2000;
-            const POLL_TIMEOUT_MS = 180000;
+            const SLOW_NOTICE_AFTER_MS = 180000;
 
             const form = document.getElementById('placaZeroKmForm');
             const statusText = document.getElementById('statusText');
@@ -479,6 +479,13 @@
                 const isDone = requestStatus === 'succeeded' || requestStatus === 'failed';
                 const retryInfo = requestRow?.response_payload?.data?.transient_retry || null;
                 const transientMessage = requestRow?.response_payload?.data?.ocr?.transient_message || '';
+                const elapsedMs = Date.now() - pollingStartedAt;
+                const queueAhead = toSafeNumber(requestRow?.queue_ahead);
+                const queueAheadMessage = queueAhead > 0
+                    ? (queueAhead === 1
+                        ? 'Há 1 requisição na frente da fila. A sua já vai começar.'
+                        : `Há ${queueAhead} requisições na frente da fila. A sua pode demorar um pouco ainda.`)
+                    : '';
 
                 if (requestStatus === 'running' || requestStatus === 'pending') {
                     if (retryInfo?.triggered) {
@@ -489,13 +496,23 @@
                         const progressLabel = maxRetries > 0 ? `${attempts}/${maxRetries}` : `${attempts}`;
                         queueStatusText.textContent = 'O servidor está mais lento do que o normal. Estamos fazendo uma nova tentativa.';
                         setProcessingState(true, `Nova tentativa ${progressLabel}. Aguardando ${waitSeconds}s para reprocessar...`);
-                        resultText.textContent = transientMessage
-                            ? `Mensagem detectada na tela: ${transientMessage}`
-                            : '';
+                        resultText.textContent = [
+                            queueAheadMessage,
+                            transientMessage ? `Mensagem detectada na tela: ${transientMessage}` : '',
+                        ].filter(Boolean).join('\n');
                     } else {
-                        queueStatusText.textContent = `Processando requisição #${activeRequestId} no batch #${activeBatchId}...`;
-                        setProcessingState(true, 'Executando script e analisando resultado...');
-                        resultText.textContent = '';
+                        if (elapsedMs > SLOW_NOTICE_AFTER_MS) {
+                            queueStatusText.textContent = 'A consulta está demorando mais que o normal. Aguarde, estamos tentando novamente.';
+                            setProcessingState(true, 'Servidor mais lento que o normal. Fazendo nova tentativa...');
+                            resultText.textContent = [
+                                queueAheadMessage,
+                                'Seguimos consultando automaticamente até retornar placas ou erro do sistema.',
+                            ].filter(Boolean).join('\n');
+                        } else {
+                            queueStatusText.textContent = `Processando requisição #${activeRequestId} no batch #${activeBatchId}...`;
+                            setProcessingState(true, 'Executando script e analisando resultado...');
+                            resultText.textContent = queueAheadMessage;
+                        }
                     }
                     renderPlateItems([]);
                     return false;
@@ -531,25 +548,17 @@
                 pollingInFlight = true;
                 try {
                     const data = await fetchBatchStatus(activeBatchId);
+                    setError('');
                     const finished = updateFromBatchStatus(data);
                     if (finished) {
                         stopPolling();
                         setLoading(false, 'Consulta finalizada.');
                         return;
                     }
-
-                    if (Date.now() - pollingStartedAt > POLL_TIMEOUT_MS) {
-                        stopPolling();
-                        setProcessingState(false);
-                        queueStatusText.textContent = `Batch #${activeBatchId} ainda em andamento.`;
-                        resultText.textContent = 'A consulta está demorando mais que o esperado. Use "Acompanhar na fila" para monitorar.';
-                        setLoading(false, 'Item enfileirado. Acompanhamento em execução.');
-                    }
                 } catch (error) {
-                    stopPolling();
-                    setProcessingState(false);
-                    setError(error?.message || 'Falha ao buscar status da fila.');
-                    setLoading(false, 'Erro ao acompanhar fila.');
+                    setError(error?.message || 'Falha ao buscar status da fila. Tentando novamente...');
+                    queueStatusText.textContent = 'Falha temporária ao atualizar. Vamos tentar novamente automaticamente.';
+                    setProcessingState(true, 'Reconectando para continuar acompanhamento...');
                 } finally {
                     pollingInFlight = false;
                 }

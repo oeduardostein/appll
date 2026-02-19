@@ -166,6 +166,29 @@ class PublicPlacasZeroKmQueueController extends Controller
             ->limit(500)
             ->get();
 
+        if ($requests->isNotEmpty()) {
+            $maxRequestId = (int) $requests->max('id');
+            $activeIds = PlacasZeroKmRequest::query()
+                ->whereIn('status', ['pending', 'running'])
+                ->where('id', '<=', $maxRequestId)
+                ->orderBy('id')
+                ->pluck('id')
+                ->map(static fn ($id): int => (int) $id)
+                ->values()
+                ->all();
+
+            $activeIdx = 0;
+            $activeCount = count($activeIds);
+
+            foreach ($requests as $reqItem) {
+                $requestId = (int) $reqItem->id;
+                while ($activeIdx < $activeCount && $activeIds[$activeIdx] < $requestId) {
+                    $activeIdx += 1;
+                }
+                $reqItem->setAttribute('queue_ahead', $activeIdx);
+            }
+        }
+
         return response()->json([
             'success' => true,
             'data' => [
