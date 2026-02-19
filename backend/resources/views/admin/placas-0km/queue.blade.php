@@ -371,6 +371,70 @@
             padding: 0 6px;
         }
 
+        .queue-insight-grid {
+            margin-top: 14px;
+            display: grid;
+            gap: 10px;
+        }
+
+        .queue-insight {
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            background: #fff;
+            padding: 10px 12px;
+            display: grid;
+            gap: 8px;
+        }
+
+        .queue-insight__title {
+            margin: 0;
+            color: var(--text-strong);
+            font-size: 13px;
+            font-weight: 700;
+        }
+
+        .queue-insight__line {
+            color: var(--text-default);
+            font-size: 13px;
+            line-height: 1.35;
+        }
+
+        .queue-insight__line strong {
+            color: var(--text-strong);
+        }
+
+        .queue-insight-list {
+            display: grid;
+            gap: 6px;
+        }
+
+        .queue-insight-item {
+            border: 1px solid #e5edf7;
+            border-radius: 10px;
+            background: #f8fbff;
+            padding: 8px 10px;
+            display: grid;
+            gap: 4px;
+        }
+
+        .queue-insight-item--error {
+            border-color: #fecaca;
+            background: #fef2f2;
+        }
+
+        .queue-insight-item__title {
+            color: #334155;
+            font-size: 12px;
+            font-weight: 700;
+        }
+
+        .queue-insight-item__desc {
+            color: #475569;
+            font-size: 12px;
+            white-space: pre-wrap;
+            word-break: break-word;
+        }
+
         .queue-error {
             margin-top: 10px;
             padding: 10px 12px;
@@ -468,6 +532,30 @@
                     <span class="queue-filter-btn__count" data-filter-count="failed">0</span>
                 </button>
             </div>
+
+            <div class="queue-insight-grid">
+                <section class="queue-insight">
+                    <h3 class="queue-insight__title">Diagnóstico da execução</h3>
+                    <div class="queue-insight__line" id="occupiedReasonText">Runner livre.</div>
+                    <div class="queue-insight__line" id="heartbeatText">Heartbeat: —</div>
+                    <div class="queue-insight__line" id="currentAgeText">Execução atual: —</div>
+                </section>
+
+                <section class="queue-insight">
+                    <h3 class="queue-insight__title">Falhas recentes</h3>
+                    <div class="queue-insight__line" id="latestGlobalFailureText">Última falha global: nenhuma.</div>
+                    <div class="queue-insight-list" id="recentFailuresBody">
+                        <div class="queue-empty" style="padding: 0;">Sem falhas neste batch.</div>
+                    </div>
+                </section>
+
+                <section class="queue-insight">
+                    <h3 class="queue-insight__title">Eventos recentes do batch</h3>
+                    <div class="queue-insight-list" id="eventsBody">
+                        <div class="queue-empty" style="padding: 0;">Sem eventos.</div>
+                    </div>
+                </section>
+            </div>
             <div class="queue-error" id="errorBox"></div>
 
             <div id="rowsBody" class="queue-requests">
@@ -535,6 +623,12 @@
             const batchesText = document.getElementById('batchesText');
             const batchesBody = document.getElementById('batchesBody');
             const statusFilters = document.getElementById('statusFilters');
+            const occupiedReasonText = document.getElementById('occupiedReasonText');
+            const heartbeatText = document.getElementById('heartbeatText');
+            const currentAgeText = document.getElementById('currentAgeText');
+            const latestGlobalFailureText = document.getElementById('latestGlobalFailureText');
+            const recentFailuresBody = document.getElementById('recentFailuresBody');
+            const eventsBody = document.getElementById('eventsBody');
             const imageModal = document.getElementById('imageModal');
             const imageModalImg = document.getElementById('imageModalImg');
 
@@ -554,6 +648,10 @@
                 completed: 0,
                 failed: 0,
             };
+            let latestDiagnostics = {};
+            let latestRecentFailures = [];
+            let latestGlobalFailure = null;
+            let latestEvents = [];
 
             function toCount(value) {
                 const n = Number(value);
@@ -591,6 +689,30 @@
             function parseDateMs(value) {
                 const ts = Date.parse(String(value || ''));
                 return Number.isFinite(ts) ? ts : null;
+            }
+
+            function formatDateTime(value) {
+                const ts = parseDateMs(value);
+                if (!ts) return '—';
+                return new Date(ts).toLocaleString('pt-BR');
+            }
+
+            function formatSecondsAge(seconds) {
+                const total = toCount(seconds);
+                if (!total) return '0s';
+                if (total < 60) return `${total}s`;
+                const minutes = Math.floor(total / 60);
+                const remainSeconds = total % 60;
+                if (minutes < 60) return `${minutes}m ${remainSeconds}s`;
+                const hours = Math.floor(minutes / 60);
+                const remainMinutes = minutes % 60;
+                return `${hours}h ${remainMinutes}m`;
+            }
+
+            function shortText(value, max = 260) {
+                const text = String(value ?? '').trim();
+                if (text.length <= max) return text;
+                return `${text.slice(0, max)}...`;
             }
 
             function normalizePlate(value) {
@@ -723,6 +845,78 @@
                 }
             }
 
+            function renderDiagnostics() {
+                const occupiedReason = String(latestDiagnostics?.occupied_reason || '').trim();
+                occupiedReasonText.textContent = occupiedReason !== '' ? occupiedReason : 'Sem diagnóstico disponível.';
+
+                const heartbeatAge = latestDiagnostics?.heartbeat_age_human
+                    ? `${latestDiagnostics.heartbeat_age_human} atrás`
+                    : 'não informado';
+                heartbeatText.textContent = `Heartbeat: ${heartbeatAge}`;
+
+                const currentAge = latestDiagnostics?.current_request_age_human
+                    ? `${latestDiagnostics.current_request_age_human} em execução`
+                    : 'sem execução ativa';
+                currentAgeText.textContent = `Execução atual: ${currentAge}`;
+            }
+
+            function renderRecentFailures() {
+                const globalFailure = latestGlobalFailure;
+                if (globalFailure?.id) {
+                    latestGlobalFailureText.textContent =
+                        `Última falha global: Req #${toCount(globalFailure.id)} (Batch #${toCount(globalFailure.batch_id)}) em ${formatDateTime(globalFailure.finished_at || globalFailure.updated_at)}.`;
+                } else {
+                    latestGlobalFailureText.textContent = 'Última falha global: nenhuma.';
+                }
+
+                recentFailuresBody.innerHTML = '';
+                if (!latestRecentFailures.length) {
+                    recentFailuresBody.innerHTML = '<div class="queue-empty" style="padding: 0;">Sem falhas neste batch.</div>';
+                    return;
+                }
+
+                for (const failureItem of latestRecentFailures) {
+                    const title = `Req #${toCount(failureItem.id)} • Tentativas ${Math.max(1, toCount(failureItem.attempts))} • ${formatDateTime(failureItem.finished_at || failureItem.updated_at)}`;
+                    const desc = shortText(failureItem.response_error || 'Sem mensagem de erro.');
+
+                    const row = document.createElement('div');
+                    row.className = 'queue-insight-item queue-insight-item--error';
+                    row.innerHTML = `
+                        <div class="queue-insight-item__title">${toSafeText(title)}</div>
+                        <div class="queue-insight-item__desc">${toSafeText(desc)}</div>
+                    `;
+                    recentFailuresBody.appendChild(row);
+                }
+            }
+
+            function renderEvents() {
+                eventsBody.innerHTML = '';
+                if (!latestEvents.length) {
+                    eventsBody.innerHTML = '<div class="queue-empty" style="padding: 0;">Sem eventos.</div>';
+                    return;
+                }
+
+                for (const eventItem of latestEvents) {
+                    const statusKey = normalizeRequestStatus(eventItem, latestRunner, latestStaleMinutes);
+                    const title = `Req #${toCount(eventItem.id)} • ${String(statusKey).toUpperCase()} • Tentativas ${Math.max(1, toCount(eventItem.attempts))}`;
+                    const runningSeconds = toCount(eventItem.running_seconds);
+                    const runningText = runningSeconds > 0 ? ` • Rodando há ${formatSecondsAge(runningSeconds)}` : '';
+                    const info = `Atualizado em ${formatDateTime(eventItem.updated_at)}${runningText}`;
+                    const errorSnippet = eventItem.response_error ? `<div class="queue-insight-item__desc">${toSafeText(shortText(eventItem.response_error, 180))}</div>` : '';
+
+                    const row = document.createElement('div');
+                    row.className = statusKey === 'failed' || statusKey === 'stuck'
+                        ? 'queue-insight-item queue-insight-item--error'
+                        : 'queue-insight-item';
+                    row.innerHTML = `
+                        <div class="queue-insight-item__title">${toSafeText(title)}</div>
+                        <div class="queue-insight-item__desc">${toSafeText(info)}</div>
+                        ${errorSnippet}
+                    `;
+                    eventsBody.appendChild(row);
+                }
+            }
+
             function renderRequests() {
                 const filtered = latestRequests.filter((requestItem) => {
                     if (activeStatusFilter === 'all') return true;
@@ -743,6 +937,19 @@
                     const statusKey = normalizeRequestStatus(requestItem, latestRunner, latestStaleMinutes);
                     const plates = extractPlates(requestItem.response_payload);
                     const screenshotUrl = extractScreenshotUrl(requestItem.response_payload);
+                    const attempts = Math.max(1, toCount(requestItem.attempts));
+                    const startedAtText = formatDateTime(requestItem.started_at);
+                    const finishedAtText = formatDateTime(requestItem.finished_at);
+                    const updatedAtText = formatDateTime(requestItem.updated_at);
+                    const startedAtMs = parseDateMs(requestItem.started_at);
+                    const finishedAtMs = parseDateMs(requestItem.finished_at);
+                    let elapsedText = '—';
+                    if (startedAtMs && finishedAtMs && finishedAtMs >= startedAtMs) {
+                        elapsedText = formatSecondsAge(Math.floor((finishedAtMs - startedAtMs) / 1000));
+                    } else if (startedAtMs && !finishedAtMs) {
+                        elapsedText = formatSecondsAge(Math.floor((Date.now() - startedAtMs) / 1000));
+                    }
+                    const executionText = `Tentativas: ${attempts} • Início: ${startedAtText} • Fim: ${finishedAtText} • Duração: ${elapsedText} • Atualização: ${updatedAtText}`;
                     const platesHtml = plates.length
                         ? plates.map((plate) => `<div class="queue-request__plate">${toSafeText(plate)}</div>`).join('')
                         : '<div class="queue-empty" style="padding: 0;">Nenhuma placa listada.</div>';
@@ -781,6 +988,10 @@
                             <div class="queue-request__field">
                                 <span class="queue-request__label">Complemento</span>
                                 <span class="queue-request__value">${toSafeText(requestItem.numeros || '') || '—'}</span>
+                            </div>
+                            <div class="queue-request__field">
+                                <span class="queue-request__label">Execução</span>
+                                <span class="queue-request__value">${toSafeText(executionText)}</span>
                             </div>
                             <div class="queue-request__field">
                                 <span class="queue-request__label">Placas disponíveis</span>
@@ -842,8 +1053,12 @@
                     const runner = json.data?.runner;
                     const runnerStatus = String(json.data?.runner_status || '').toLowerCase();
                     const summaryRaw = json.data?.summary ?? {};
+                    const diagnostics = json.data?.diagnostics ?? {};
                     const current = json.data?.current;
                     const requests = Array.isArray(json.data?.requests) ? json.data.requests : [];
+                    const events = Array.isArray(json.data?.events) ? json.data.events : [];
+                    const recentFailures = Array.isArray(json.data?.recent_failures) ? json.data.recent_failures : [];
+                    const latestFailure = json.data?.latest_global_failure ?? null;
 
                     const staleMinutesRaw = Number(summaryRaw?.stale_minutes);
                     latestStaleMinutes = Number.isFinite(staleMinutesRaw) && staleMinutesRaw > 0
@@ -852,6 +1067,10 @@
                     latestRunner = runner || null;
                     latestRequests = requests;
                     latestSummary = resolveSummary(summaryRaw, latestRequests, latestRunner, latestStaleMinutes);
+                    latestDiagnostics = diagnostics;
+                    latestRecentFailures = recentFailures;
+                    latestGlobalFailure = latestFailure;
+                    latestEvents = events;
 
                     batchPill.textContent = `Batch: #${batch?.id ?? currentBatchId}`;
 
@@ -889,6 +1108,9 @@
                         : 'Atual: —';
 
                     updateFilterCounts(latestSummary);
+                    renderDiagnostics();
+                    renderRecentFailures();
+                    renderEvents();
                     renderRequests();
                 } catch (e) {
                     showError(String(e?.message || e));

@@ -208,6 +208,12 @@ O agente tenta rodar OCR na imagem e extrair:
 - mensagem de erro (ex: “FICHA CADASTRAL JA EXISTENTE”)
 - placas visíveis no modal
 
+Quando detectar **erro definitivo de modal** (ex.: ficha já existente, mensagem com código do tipo `A0086-362`), o agente:
+- marca como falha;
+- grava a mensagem no `response_error` para exibir ao usuário;
+- **não** faz retentativa de screenshot;
+- executa a limpeza do modal (se configurada) e segue para o próximo item da fila.
+
 Configuração no `.env`:
 - `AGENT_OCR_ENABLED=true`
 - `AGENT_OCR_LANG=por`
@@ -221,12 +227,22 @@ Configuração no `.env`:
 - `AGENT_TRANSIENT_RETRY_WAIT_MS=8000` (8 segundos)
 - `AGENT_TRANSIENT_RETRY_MAX_RETRIES=6`
 - `AGENT_TRANSIENT_KEYWORDS=` (opcional, lista separada por vírgula)
+- `AGENT_ERROR_KEYWORDS=` (opcional, reforça palavras de erro definitivo)
 
 Com isso, quando detectar estado transitório, o agente:
 - espera o tempo configurado;
 - tira um novo screenshot;
 - roda OCR novamente;
 - repete até aparecer placas/erro real ou estourar o limite.
+
+## Limpeza automática de modal (seguir fila)
+
+Configuração no `.env`:
+- `AGENT_POST_RESULT_CLEANUP_ENABLED=true`
+- `AGENT_POST_RESULT_CLICK_POINTS=` (ex.: `976:502` para botão “Cancelar”)
+- `AGENT_POST_RESULT_CLICK_DELAY_MS=140`
+
+Com isso o agent fecha o popup de resultado/erro e já passa para a próxima requisição.
 
 Observação: na primeira execução o Tesseract pode baixar dados de idioma.
 

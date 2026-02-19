@@ -115,6 +115,71 @@ class PlacasZeroKmController extends Controller
             }
         }
 
+        $events = PlacasZeroKmRequest::query()
+            ->where('batch_id', $batchId)
+            ->orderByDesc('id')
+            ->limit(20)
+            ->get([
+                'id',
+                'batch_id',
+                'status',
+                'attempts',
+                'started_at',
+                'finished_at',
+                'updated_at',
+                'response_error',
+            ]);
+
+        $events->transform(function (PlacasZeroKmRequest $eventItem) use ($runner, $runnerIsStuck, $staleCutoff): PlacasZeroKmRequest {
+            $isStuck = $this->isRequestStuck($eventItem, $runner, $runnerIsStuck, $staleCutoff);
+            $displayStatus = $isStuck
+                ? 'stuck'
+                : match ((string) $eventItem->status) {
+                    'succeeded' => 'completed',
+                    default => (string) $eventItem->status,
+                };
+
+            $eventItem->setAttribute('is_stuck', $isStuck);
+            $eventItem->setAttribute('display_status', $displayStatus);
+            $eventItem->setAttribute('running_seconds', $this->ageInSeconds($eventItem->started_at));
+
+            return $eventItem;
+        });
+
+        $recentFailures = PlacasZeroKmRequest::query()
+            ->where('batch_id', $batchId)
+            ->where('status', 'failed')
+            ->whereNotNull('response_error')
+            ->orderByDesc('id')
+            ->limit(8)
+            ->get([
+                'id',
+                'batch_id',
+                'status',
+                'attempts',
+                'response_error',
+                'finished_at',
+                'updated_at',
+            ]);
+
+        $latestGlobalFailure = PlacasZeroKmRequest::query()
+            ->where('status', 'failed')
+            ->whereNotNull('response_error')
+            ->orderByDesc('id')
+            ->first([
+                'id',
+                'batch_id',
+                'status',
+                'attempts',
+                'response_error',
+                'finished_at',
+                'updated_at',
+            ]);
+
+        $heartbeatAge = $this->ageInSeconds($runner?->last_heartbeat_at);
+        $currentRequestAge = $this->ageInSeconds($current?->started_at);
+        $occupiedReason = $this->buildOccupiedReason($runner, $current, $runnerIsStuck, $heartbeatAge, $currentRequestAge);
+
         return response()->json([
             'success' => true,
             'data' => [
@@ -130,8 +195,19 @@ class PlacasZeroKmController extends Controller
                     'completed' => (int) ($statusCounts->get('succeeded', 0)),
                     'failed' => (int) ($statusCounts->get('failed', 0)),
                 ],
+                'diagnostics' => [
+                    'is_occupied' => $runner ? ((int) $runner->is_running === 1) : false,
+                    'occupied_reason' => $occupiedReason,
+                    'heartbeat_age_seconds' => $heartbeatAge,
+                    'heartbeat_age_human' => $this->humanizeAge($heartbeatAge),
+                    'current_request_age_seconds' => $currentRequestAge,
+                    'current_request_age_human' => $this->humanizeAge($currentRequestAge),
+                ],
                 'current' => $current,
                 'requests' => $requests,
+                'events' => $events,
+                'recent_failures' => $recentFailures,
+                'latest_global_failure' => $latestGlobalFailure,
             ],
         ]);
     }
@@ -177,6 +253,64 @@ class PlacasZeroKmController extends Controller
         }
 
         return (int) $runner->current_request_id === (int) $requestItem->id;
+    }
+
+    private function ageInSeconds($dateTime): ?int
+    {
+        if (!$dateTime) {
+            return null;
+        }
+
+        return max(0, $dateTime->diffInSeconds(now()));
+    }
+
+    private function humanizeAge(?int $seconds): ?string
+    {
+        if ($seconds === null) {
+            return null;
+        }
+
+        if ($seconds < 60) {
+            return $seconds . 's';
+        }
+
+        $minutes = intdiv($seconds, 60);
+        $remainingSeconds = $seconds % 60;
+
+        if ($minutes < 60) {
+            return $minutes . 'm ' . $remainingSeconds . 's';
+        }
+
+        $hours = intdiv($minutes, 60);
+        $remainingMinutes = $minutes % 60;
+
+        return $hours . 'h ' . $remainingMinutes . 'm';
+    }
+
+    private function buildOccupiedReason(
+        ?PlacasZeroKmRunnerState $runner,
+        ?PlacasZeroKmRequest $current,
+        bool $runnerIsStuck,
+        ?int $heartbeatAge,
+        ?int $currentRequestAge
+    ): string {
+        if (!$runner || (int) $runner->is_running !== 1) {
+            return 'Runner livre (sem execução ativa).';
+        }
+
+        if ($runnerIsStuck) {
+            $heartbeat = $this->humanizeAge($heartbeatAge) ?? 'tempo desconhecido';
+            return 'Runner marcado como ocupado, mas sem heartbeat recente (' . $heartbeat . ').';
+        }
+
+        if (!$current) {
+            return 'Runner ocupado, porém sem request atual associado.';
+        }
+
+        $requestAge = $this->humanizeAge($currentRequestAge) ?? 'tempo desconhecido';
+        $attempts = (int) ($current->attempts ?? 0);
+
+        return 'Processando request #' . $current->id . ' há ' . $requestAge . ' (tentativa ' . max(1, $attempts) . ').';
     }
 
     public function enqueue(Request $request): JsonResponse

@@ -656,6 +656,8 @@ async function processOne(pool, agentCfg) {
                 normalized_text: currentAnalysis.normalizedText,
                 plates: currentAnalysis.plates,
                 error_message: currentAnalysis.errorMessage,
+                error_code: currentAnalysis.errorCode || null,
+                error_reason: currentAnalysis.errorReason || null,
                 transient_message: currentAnalysis.transientMessage || null,
               }
             : null,
@@ -766,6 +768,7 @@ async function processOne(pool, agentCfg) {
         analysis = await analyzeScreenshot(screenshotPath, {
           lang: agentCfg.ocrLang,
           transientKeywords: agentCfg.transientKeywords,
+          errorKeywords: agentCfg.errorKeywords,
           logger,
         });
 
@@ -816,6 +819,7 @@ async function processOne(pool, agentCfg) {
               analysis = await analyzeScreenshot(screenshotPath, {
                 lang: agentCfg.ocrLang,
                 transientKeywords: agentCfg.transientKeywords,
+                errorKeywords: agentCfg.errorKeywords,
                 logger,
               });
 
@@ -907,6 +911,15 @@ async function processOne(pool, agentCfg) {
             ? 'succeeded'
             : 'failed';
 
+      const resolvedErrorMessage =
+        outcome === 'error'
+          ? (analysis?.errorCode
+              ? `${analysis?.errorMessage || 'Erro detectado no modal'} (${analysis.errorCode})`
+              : (analysis?.errorMessage || null))
+          : null;
+      const rawTextFallback = String(analysis?.rawText || '').trim();
+      const rawTextSnippet = rawTextFallback ? rawTextFallback.slice(0, 600) : '';
+
       await connection.beginTransaction();
       await connection.query(
         "UPDATE placas_zero_km_requests SET status=:status, response_error=:err, response_payload=:payload, finished_at=NOW(), updated_at=NOW() WHERE id=:id",
@@ -915,7 +928,7 @@ async function processOne(pool, agentCfg) {
           status,
           err:
             outcome === 'error'
-              ? (String(analysis?.rawText || '').trim() || analysis?.errorMessage || 'Erro detectado no modal')
+              ? (resolvedErrorMessage || rawTextSnippet || 'Erro detectado no modal')
               : outcome === 'transient_timeout'
                 ? `Tela sem resposta após ${transientRetryMaxRetries} tentativa(s): ${analysis?.transientMessage || 'não está respondendo'}`
                 : outcome === 'no_result_timeout'
@@ -932,6 +945,8 @@ async function processOne(pool, agentCfg) {
                     normalized_text: analysis.normalizedText,
                     plates: analysis.plates,
                     error_message: analysis.errorMessage,
+                    error_code: analysis.errorCode || null,
+                    error_reason: analysis.errorReason || null,
                     transient_message: analysis.transientMessage || null,
                   }
                 : null,
@@ -988,7 +1003,7 @@ async function processOne(pool, agentCfg) {
       });
     } finally {
       stopHeartbeat();
-      if (agentCfg.postResultCleanupEnabled && latestScreenshotPath) {
+      if (agentCfg.postResultCleanupEnabled && (latestScreenshotPath || analysis?.errorMessage)) {
         try {
           await runPostResultModalCleanup({
             points: agentCfg.postResultClickPoints,

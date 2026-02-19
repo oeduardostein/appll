@@ -36,23 +36,55 @@ function extractPlates(text) {
   return Array.from(plates);
 }
 
-function detectError(text) {
+function detectErrorDetails(text, customKeywords = []) {
   const known = [
     'FICHA CADASTRAL JA EXISTENTE',
-    'FICHA CADASTRAL JÁ EXISTENTE',
     'FICHA CADASTRAL JA EXISTE',
-    'FICHA CADASTRAL JÁ EXISTE',
+    'FICHA JA EXISTENTE',
+    'FICHA JA EXISTE',
     'ERRO',
     'NAO EXISTE',
-    'NÃO EXISTE',
     'INDEFERIDO',
     'NEGADO',
-  ];
+    ...(Array.isArray(customKeywords) ? customKeywords : []),
+  ]
+    .map((item) => String(item || '').trim())
+    .filter(Boolean);
 
-  for (const k of known) {
-    if (text.includes(k.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toUpperCase())) {
-      return k;
+  for (const keyword of known) {
+    const normalizedKeyword = normalizeKeyword(keyword);
+    if (!normalizedKeyword) continue;
+    if (text.includes(normalizedKeyword)) {
+      return {
+        message: keyword,
+        code: null,
+        reason: 'keyword',
+      };
     }
+  }
+
+  const codeMatch = text.match(/\b[A-Z0-9]{3,6}-\d{2,4}\b/);
+  const hasFicha = /FICHA/.test(text);
+  const hasCadastral = /CADASTRAL/.test(text);
+  const hasExist = /(EXISTE|EXISTENTE|JA EXIST|J A EXIST|JAEXIST)/.test(text);
+  const hasDenied = /(INDEFERID|NEGAD|REPROVAD|NAO AUTORIZ|NAO PERMIT)/.test(text);
+  const hasErrorWord = /\bERRO\b/.test(text);
+  const hasCancelar = /\bCANCELAR\b/.test(text);
+
+  if (hasFicha && hasCadastral && hasExist) {
+    return {
+      message: 'FICHA CADASTRAL JA EXISTENTE',
+      code: codeMatch?.[0] || null,
+      reason: 'ficha_exists_pattern',
+    };
+  }
+
+  if (codeMatch && (hasFicha || hasCadastral || hasExist || hasDenied || hasErrorWord || hasCancelar)) {
+    return {
+      message: hasDenied ? 'NEGADO' : (hasErrorWord ? 'ERRO' : 'ERRO DE MODAL'),
+      code: codeMatch[0],
+      reason: 'modal_code_pattern',
+    };
   }
 
   return null;
@@ -126,6 +158,7 @@ export async function analyzeScreenshot(imagePath, opts = {}) {
   const lang = opts.lang || 'por';
   const logger = opts.logger || null;
   const transientKeywords = Array.isArray(opts.transientKeywords) ? opts.transientKeywords : [];
+  const errorKeywords = Array.isArray(opts.errorKeywords) ? opts.errorKeywords : [];
   logger?.info('ocr.start', { imagePath, lang });
   const worker = await getSharedWorker(lang, logger);
 
@@ -134,7 +167,10 @@ export async function analyzeScreenshot(imagePath, opts = {}) {
   const normalized = normalizeText(rawText);
 
   const plates = extractPlates(normalized);
-  const errorMessage = detectError(normalized);
+  const errorDetails = detectErrorDetails(normalized, errorKeywords);
+  const errorMessage = errorDetails?.message || null;
+  const errorCode = errorDetails?.code || null;
+  const errorReason = errorDetails?.reason || null;
   const transientMessage = detectTransient(normalized, transientKeywords);
 
   const result = {
@@ -142,12 +178,16 @@ export async function analyzeScreenshot(imagePath, opts = {}) {
     normalizedText: normalized,
     plates,
     errorMessage,
+    errorCode,
+    errorReason,
     transientMessage,
   };
   logger?.info('ocr.done', {
     imagePath,
     platesCount: plates.length,
     errorMessage: errorMessage || null,
+    errorCode,
+    errorReason,
     transientMessage: transientMessage || null,
   });
   return result;

@@ -145,6 +145,8 @@ class ProcessPlacasZeroKmOcrJob implements ShouldQueue
         $known = [
             'FICHA CADASTRAL JA EXISTENTE',
             'FICHA CADASTRAL JA EXISTE',
+            'FICHA JA EXISTENTE',
+            'FICHA JA EXISTE',
             'ERRO',
             'NAO EXISTE',
             'INDEFERIDO',
@@ -157,7 +159,21 @@ class ProcessPlacasZeroKmOcrJob implements ShouldQueue
             }
         }
 
+        if (
+            preg_match('/\b[A-Z0-9]{3,6}-\d{2,4}\b/', $text, $codeMatch) &&
+            (
+                strpos($text, 'FICHA') !== false ||
+                strpos($text, 'CADASTRAL') !== false ||
+                strpos($text, 'EXIST') !== false ||
+                strpos($text, 'NEGAD') !== false ||
+                strpos($text, 'INDEFERID') !== false ||
+                strpos($text, 'ERRO') !== false ||
+                strpos($text, 'CANCELAR') !== false
+            )
+        ) {
+            return 'ERRO DE MODAL (' . $codeMatch[0] . ')';
+        }
+
         return null;
     }
 }
-
