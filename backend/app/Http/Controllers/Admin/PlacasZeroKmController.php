@@ -81,17 +81,25 @@ class PlacasZeroKmController extends Controller
     public function consultar(Request $request): JsonResponse
     {
         $cpfCgc = preg_replace('/\D/', '', (string) $request->input('cpf_cgc', ''));
+        $nome = trim((string) $request->input('nome', ''));
         $chassi = strtoupper(preg_replace('/[^A-Za-z0-9]/', '', (string) $request->input('chassi', '')));
         $numeros = strtoupper(preg_replace('/[^A-Z0-9]/', '', (string) $request->input('numeros', '')));
         $numeroTentativa = (string) ((int) $request->input('numero_tentativa', 3));
-        $tipoRestricao = (string) $request->input('tipo_restricao_financeira', '-1');
-        $placaEscolhaAnterior = normalize_plate((string) $request->input('placa_escolha_anterior', ''));
+        $tipoRestricao = '-1';
+        $placaEscolhaAnterior = '';
         $debug = filter_var($request->input('debug', false), FILTER_VALIDATE_BOOLEAN);
 
         if ($cpfCgc === '' || !in_array(strlen($cpfCgc), [11, 14], true)) {
             return response()->json([
                 'success' => false,
                 'error' => 'Informe um CPF/CNPJ válido.',
+            ], Response::HTTP_UNPROCESSABLE_ENTITY);
+        }
+
+        if ($nome === '') {
+            return response()->json([
+                'success' => false,
+                'error' => 'Informe o nome.',
             ], Response::HTTP_UNPROCESSABLE_ENTITY);
         }
 
@@ -164,6 +172,7 @@ class PlacasZeroKmController extends Controller
             $payload = [
                 'method' => 'pesquisarPlaca',
                 'cpfCgcProprietario' => $cpfCgc,
+                'nome' => $nome,
                 'tipoRestricaoFinanceira' => $tipoRestricao,
                 'chassi' => $chassi,
                 'cpfCgcProprietarioFormatado' => $this->formatCpfCnpj($cpfCgc),

@@ -78,26 +78,6 @@
             gap: 6px;
         }
 
-        .placa-zero-km__plate-field {
-            display: grid;
-            gap: 8px;
-        }
-
-        .placa-zero-km__plate-options {
-            display: flex;
-            gap: 10px;
-            flex-wrap: wrap;
-        }
-
-        .placa-zero-km__plate-option {
-            display: inline-flex;
-            align-items: center;
-            gap: 8px;
-            font-size: 13px;
-            color: var(--text-muted);
-            font-weight: 600;
-        }
-
         .placa-zero-km__field label {
             font-size: 13px;
             font-weight: 600;
@@ -221,8 +201,19 @@
                         <input id="cpfCgc" name="cpf_cgc" type="text" placeholder="Somente números" required>
                     </div>
                     <div class="placa-zero-km__field">
+                        <label for="nome">Nome</label>
+                        <input id="nome" name="nome" type="text" placeholder="Nome do proprietário" required>
+                    </div>
+                </div>
+
+                <div class="placa-zero-km__row">
+                    <div class="placa-zero-km__field">
                         <label for="chassi">Chassi</label>
                         <input id="chassi" name="chassi" type="text" placeholder="Ex.: 94DFAAP16TB015294" required>
+                    </div>
+                    <div class="placa-zero-km__field">
+                        <label for="numeroTentativa">Número de tentativas</label>
+                        <input id="numeroTentativa" name="numero_tentativa" type="number" min="1" max="3" value="3">
                     </div>
                 </div>
 
@@ -231,35 +222,6 @@
                         <label for="numeros">Complemento (opcional)</label>
                         <input id="numeros" name="numeros" type="text" maxlength="4" placeholder="Ex.: 1A23">
                     </div>
-                    <div class="placa-zero-km__field">
-                        <label for="numeroTentativa">Número de tentativas</label>
-                        <input id="numeroTentativa" name="numero_tentativa" type="number" min="1" max="3" value="3">
-                    </div>
-                    <div class="placa-zero-km__field">
-                        <label for="placaEscolhaAnterior">Placa escolhida anteriormente (opcional)</label>
-                        <div class="placa-zero-km__plate-field">
-                            <div class="placa-zero-km__plate-options">
-                                <label class="placa-zero-km__plate-option">
-                                    <input type="radio" name="placa_escolha_anterior_format" value="antiga">
-                                    <span>Antiga (ABC-1234)</span>
-                                </label>
-                                <label class="placa-zero-km__plate-option">
-                                    <input type="radio" name="placa_escolha_anterior_format" value="mercosul">
-                                    <span>Mercosul (ABC-1D23)</span>
-                                </label>
-                            </div>
-                            <input id="placaEscolhaAnterior" name="placa_escolha_anterior" type="text" maxlength="8" placeholder="Opcional: selecione o padrão da placa" disabled>
-                        </div>
-                    </div>
-                </div>
-
-                <div class="placa-zero-km__field">
-                    <label for="tipoRestricao">Restrição financeira</label>
-                    <select id="tipoRestricao" name="tipo_restricao_financeira">
-                        <option value="-1">Todas</option>
-                        <option value="0">Sem restrição</option>
-                        <option value="1">Com restrição</option>
-                    </select>
                 </div>
 
                 <div class="placa-zero-km__actions">
@@ -291,16 +253,6 @@
             const resultCard = document.getElementById('resultCard');
             const platesList = document.getElementById('platesList');
 
-            const PLATE_FORMAT_ANTIGA = 'antiga';
-            const PLATE_FORMAT_MERCOSUL = 'mercosul';
-            const oldPlatePattern = /^[A-Z]{3}-[0-9]{4}$/;
-            const mercosulPlatePattern = /^[A-Z]{3}-[0-9][A-Z0-9][0-9]{2}$/;
-
-            const placaEscolhaAnteriorInput = document.getElementById('placaEscolhaAnterior');
-            const placaEscolhaAnteriorFormatInputs = Array.from(
-                document.querySelectorAll('input[name="placa_escolha_anterior_format"]')
-            );
-
             function normalizeDigits(value) {
                 return (value || '').replace(/\D/g, '');
             }
@@ -308,108 +260,6 @@
             function normalizeUpper(value) {
                 return (value || '').replace(/[^A-Za-z0-9]/g, '').toUpperCase();
             }
-
-            function normalizePlateChars(value) {
-                return (value || '').replace(/[^A-Za-z0-9]/g, '').toUpperCase();
-            }
-
-            function formatPlate(value, format) {
-                const cleaned = normalizePlateChars(value);
-
-                if (format === PLATE_FORMAT_ANTIGA) {
-                    let letters = '';
-                    let digits = '';
-                    for (const char of cleaned) {
-                        if (letters.length < 3) {
-                            if (/[A-Z]/.test(char)) {
-                                letters += char;
-                            }
-                            continue;
-                        }
-                        if (digits.length < 4 && /[0-9]/.test(char)) {
-                            digits += char;
-                        }
-                    }
-                    return letters.length === 3 ? `${letters}-${digits}` : letters;
-                }
-
-                if (format === PLATE_FORMAT_MERCOSUL) {
-                    let letters = '';
-                    let digit = '';
-                    let middle = '';
-                    let lastDigits = '';
-                    for (const char of cleaned) {
-                        if (letters.length < 3) {
-                            if (/[A-Z]/.test(char)) {
-                                letters += char;
-                            }
-                            continue;
-                        }
-                        if (digit === '') {
-                            if (/[0-9]/.test(char)) {
-                                digit = char;
-                            }
-                            continue;
-                        }
-                        if (middle === '') {
-                            if (/[A-Z0-9]/.test(char)) {
-                                middle = char;
-                            }
-                            continue;
-                        }
-                        if (lastDigits.length < 2 && /[0-9]/.test(char)) {
-                            lastDigits += char;
-                        }
-                    }
-                    return letters.length === 3 ? `${letters}-${digit}${middle}${lastDigits}` : letters;
-                }
-
-                return value || '';
-            }
-
-            function isValidPlate(value, format) {
-                const plate = (value || '').toUpperCase();
-                if (format === PLATE_FORMAT_ANTIGA) {
-                    return oldPlatePattern.test(plate);
-                }
-                if (format === PLATE_FORMAT_MERCOSUL) {
-                    return mercosulPlatePattern.test(plate);
-                }
-                return false;
-            }
-
-            function resetPlateFormatField() {
-                placaEscolhaAnteriorFormatInputs.forEach((radio) => {
-                    radio.checked = false;
-                });
-                placaEscolhaAnteriorInput.dataset.plateFormat = '';
-                placaEscolhaAnteriorInput.disabled = true;
-                placaEscolhaAnteriorInput.value = '';
-                placaEscolhaAnteriorInput.placeholder = 'Opcional: selecione o padrão da placa';
-            }
-
-            function applyPlateFormatSelection(format) {
-                placaEscolhaAnteriorInput.dataset.plateFormat = format;
-                placaEscolhaAnteriorInput.disabled = !format;
-                placaEscolhaAnteriorInput.value = '';
-                placaEscolhaAnteriorInput.placeholder = format === PLATE_FORMAT_ANTIGA ? 'ABC-1234' : 'ABC-1D23';
-                if (!placaEscolhaAnteriorInput.disabled) {
-                    setTimeout(() => placaEscolhaAnteriorInput.focus(), 0);
-                }
-            }
-
-            resetPlateFormatField();
-            placaEscolhaAnteriorFormatInputs.forEach((radio) => {
-                radio.addEventListener('change', () => applyPlateFormatSelection(radio.value));
-            });
-            placaEscolhaAnteriorInput.addEventListener('input', () => {
-                const format = placaEscolhaAnteriorInput.dataset.plateFormat;
-                if (!format) {
-                    placaEscolhaAnteriorInput.value = '';
-                    return;
-                }
-                placaEscolhaAnteriorInput.value = formatPlate(placaEscolhaAnteriorInput.value, format);
-            });
 
             function setLoading(loading) {
                 button.disabled = loading;
@@ -448,30 +298,12 @@
                 setError('');
                 setLoading(true);
 
-                const placaEscolhaAnteriorValue = placaEscolhaAnteriorInput.value.trim();
-                if (placaEscolhaAnteriorValue) {
-                    const format = placaEscolhaAnteriorInput.dataset.plateFormat || '';
-                    if (!format) {
-                        setError('Selecione o padrão da placa escolhida anteriormente.');
-                        setLoading(false);
-                        return;
-                    }
-                    const formatted = formatPlate(placaEscolhaAnteriorValue, format);
-                    placaEscolhaAnteriorInput.value = formatted;
-                    if (!isValidPlate(formatted, format)) {
-                        setError('Placa escolhida anteriormente inválida.');
-                        setLoading(false);
-                        return;
-                    }
-                }
-
                 const payload = {
                     cpf_cgc: normalizeDigits(document.getElementById('cpfCgc').value),
+                    nome: (document.getElementById('nome').value || '').trim(),
                     chassi: normalizeUpper(document.getElementById('chassi').value),
                     numeros: normalizeUpper(document.getElementById('numeros').value),
                     numero_tentativa: document.getElementById('numeroTentativa').value,
-                    placa_escolha_anterior: normalizeUpper(document.getElementById('placaEscolhaAnterior').value),
-                    tipo_restricao_financeira: document.getElementById('tipoRestricao').value,
                 };
 
                 try {
