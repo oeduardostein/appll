@@ -117,6 +117,47 @@ Ele:
 - tenta “pegar” 1 pendência por vez;
 - quando não tem nada, espera e tenta de novo.
 
+### Prioridade do `agent:poller` sobre `atualizacaoToken`
+
+Com a integração habilitada (padrão), o próprio `agent:poller` controla o `atualizacaoToken`:
+
+- fila vazia: inicia `npm start` no diretório de token updater;
+- chegou requisição: encerra o token updater e processa a fila;
+- fila voltou a ficar vazia: inicia novamente o token updater.
+
+Variáveis de ambiente:
+
+```
+AGENT_TOKEN_UPDATER_ENABLED=true
+AGENT_TOKEN_UPDATER_DIR=../atualizacaoToken
+AGENT_TOKEN_UPDATER_COMMAND=npm start
+AGENT_TOKEN_UPDATER_IDLE_GRACE_MS=2500
+AGENT_TOKEN_UPDATER_STOP_TIMEOUT_MS=15000
+```
+
+### Preflight por requisição (foco + screenshot + OCR)
+
+Ao capturar uma nova requisição da fila, antes do replay o agente pode:
+
+- focar a janela do e-System (`eSystemDesp.exe`);
+- capturar screenshot de tela cheia;
+- rodar OCR e validar palavras esperadas (ex.: `e-system desp`, `utilitarios`).
+
+Configuração:
+
+```
+AGENT_PREFLIGHT_ENABLED=true
+AGENT_PREFLIGHT_FOCUS_EXE_PATH=C:\SH Sistemas\System Desp SX\eSystemDesp.exe
+AGENT_PREFLIGHT_FOCUS_WAIT_MS=350
+AGENT_PREFLIGHT_REQUIRE_FOCUS=true
+AGENT_PREFLIGHT_OCR_ENABLED=true
+AGENT_PREFLIGHT_EXPECTED_KEYWORDS=e-system desp,utilitarios
+AGENT_PREFLIGHT_MIN_KEYWORD_MATCHES=1
+AGENT_PREFLIGHT_FAIL_IF_NOT_MATCHED=true
+```
+
+Se `AGENT_PREFLIGHT_FAIL_IF_NOT_MATCHED=true`, a requisição é marcada como falha quando o OCR não encontrar os indicadores esperados da tela do e-System.
+
 Se o seu template tem esperas longas entre cliques, use no `.env`:
 
 ```

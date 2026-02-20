@@ -524,13 +524,29 @@ async function focusAndCalibrate(page) {
   await delay(300);
 }
 
+async function getOrCreateContextPage(context) {
+  const pages = context.pages();
+  if (pages.length > 0) {
+    const primary = pages[0];
+    for (let i = 1; i < pages.length; i++) {
+      try {
+        await pages[i].close();
+      } catch (err) {
+        console.warn(`Falha ao fechar aba extra: ${err.message}`);
+      }
+    }
+    return primary;
+  }
+  return context.newPage();
+}
+
 async function recordOnceWithBrowser() {
   console.log(`Abrindo navegador em ${TARGET_URL} para iniciar a gravação...`);
   const context = await chromium.launchPersistentContext(CHROME_PROFILE_DIR, {
     ...CHROME_LAUNCH_OPTS,
     viewport: null
   });
-  const page = await context.newPage();
+  const page = await getOrCreateContextPage(context);
   await page.goto(TARGET_URL);
   await focusAndCalibrate(page);
   await startAutoClickNotification(page, CALIBRATION_FRAME_SELECTOR);
@@ -1086,7 +1102,7 @@ async function automationLoop() {
       ...CHROME_LAUNCH_OPTS,
       viewport: null
     });
-    const page = await context.newPage();
+    const page = await getOrCreateContextPage(context);
     try {
       await runAutomationFlow(page, context);
       const found = await monitorarTempoRestante(page);

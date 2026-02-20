@@ -478,6 +478,19 @@ export function loadAgentConfigFromEnv(env) {
     passwordBeforeEnterMs: Number(env.AGENT_PASSWORD_BEFORE_ENTER_MS || 350),
     appExePath: env.AGENT_APP_EXE_PATH || '',
     appStartWaitMs: Number(env.AGENT_APP_START_WAIT_MS || 7000),
+    preflightEnabled: toBool(env.AGENT_PREFLIGHT_ENABLED, true),
+    preflightFocusExePath:
+      env.AGENT_PREFLIGHT_FOCUS_EXE_PATH
+      || env.AGENT_APP_EXE_PATH
+      || 'C:\\SH Sistemas\\System Desp SX\\eSystemDesp.exe',
+    preflightFocusWaitMs: Number(env.AGENT_PREFLIGHT_FOCUS_WAIT_MS || 350),
+    preflightRequireFocus: toBool(env.AGENT_PREFLIGHT_REQUIRE_FOCUS, true),
+    preflightOcrEnabled: toBool(env.AGENT_PREFLIGHT_OCR_ENABLED, true),
+    preflightExpectedKeywords: parseCsvList(
+      env.AGENT_PREFLIGHT_EXPECTED_KEYWORDS || 'e-system desp,utilitarios'
+    ),
+    preflightMinKeywordMatches: Number(env.AGENT_PREFLIGHT_MIN_KEYWORD_MATCHES || 1),
+    preflightFailIfNotMatched: toBool(env.AGENT_PREFLIGHT_FAIL_IF_NOT_MATCHED, true),
     autoEnterAfterClick: toBool(env.AGENT_AUTO_ENTER_AFTER_CLICK, false),
     autoEnterClickX: Number(env.AGENT_AUTO_ENTER_CLICK_X || 0),
     autoEnterClickY: Number(env.AGENT_AUTO_ENTER_CLICK_Y || 0),

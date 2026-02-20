@@ -36,8 +36,463 @@ function toNonNegativeInt(value, fallback) {
   return Math.floor(parsed);
 }
 
+function toBool(value, fallback = false) {
+  if (value == null) return fallback;
+  const v = String(value).trim().toLowerCase();
+  if (v === '1' || v === 'true' || v === 'yes' || v === 'y') return true;
+  if (v === '0' || v === 'false' || v === 'no' || v === 'n') return false;
+  return fallback;
+}
+
 function psQuote(value) {
   return String(value ?? '').replace(/'/g, "''");
+}
+
+function normalizeForKeywordMatch(value) {
+  return String(value || '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .toUpperCase();
+}
+
+async function focusAppWindowByExePath(appExePath, waitMs = 350, localLogger = null) {
+  if (process.platform !== 'win32') {
+    return {
+      focused: false,
+      reason: 'non_windows',
+      pid: null,
+    };
+  }
+
+  const resolvedExePath = String(appExePath || '').trim();
+  if (!resolvedExePath) {
+    return {
+      focused: false,
+      reason: 'empty_path',
+      pid: null,
+    };
+  }
+
+  const exeName = path.parse(resolvedExePath).name;
+  if (!exeName) {
+    return {
+      focused: false,
+      reason: 'invalid_exe_name',
+      pid: null,
+    };
+  }
+
+  const safePath = psQuote(resolvedExePath);
+  const safeExe = psQuote(exeName);
+  const psScript = [
+    `$targetPath='${safePath}';`,
+    `$targetExe='${safeExe}';`,
+    '$procs=Get-Process -Name $targetExe -ErrorAction SilentlyContinue | Where-Object { $_.MainWindowHandle -ne 0 };',
+    "if (-not $procs) { Write-Output 'NO_PROCESS'; exit 0 }",
+    '$resolvedPath=$null;',
+    'try { if ($targetPath -and (Test-Path $targetPath)) { $resolvedPath=(Resolve-Path $targetPath).Path } } catch {}',
+    '$picked=$null;',
+    'if ($resolvedPath) {',
+    '  foreach ($p in $procs) {',
+    '    try { if ($p.Path -eq $resolvedPath) { $picked=$p; break } } catch {}',
+    '  }',
+    '}',
+    'if (-not $picked) { $picked=$procs | Sort-Object StartTime -Descending | Select-Object -First 1 }',
+    '$shell=New-Object -ComObject WScript.Shell;',
+    '$ok=$shell.AppActivate($picked.Id);',
+    'if ($ok) { Write-Output ("FOCUSED:" + $picked.Id); } else { Write-Output ("NOT_FOCUSED:" + $picked.Id); }',
+  ].join(' ');
+
+  const output = await new Promise((resolve, reject) => {
+    const child = spawn('powershell.exe', [
+      '-NoProfile',
+      '-ExecutionPolicy',
+      'Bypass',
+      '-Command',
+      psScript,
+    ], {
+      windowsHide: true,
+    });
+
+    let stdout = '';
+    let stderr = '';
+    child.stdout.on('data', (chunk) => {
+      stdout += String(chunk || '');
+    });
+    child.stderr.on('data', (chunk) => {
+      stderr += String(chunk || '');
+    });
+    child.on('error', reject);
+    child.on('close', (code) => {
+      if (code !== 0) {
+        reject(new Error(stderr || `Falha no foco do app (code ${code}).`));
+        return;
+      }
+      resolve(String(stdout || '').trim());
+    });
+  });
+
+  const normalizedOutput = String(output || '').trim();
+  if (normalizedOutput === 'NO_PROCESS') {
+    return {
+      focused: false,
+      reason: 'process_not_found',
+      pid: null,
+    };
+  }
+
+  const focusedMatch = normalizedOutput.match(/^FOCUSED:(\d+)$/i);
+  if (focusedMatch) {
+    const pid = Number(focusedMatch[1]);
+    const safeWaitMs = toNonNegativeInt(waitMs, 350);
+    if (safeWaitMs > 0) {
+      await sleep(safeWaitMs);
+    }
+    localLogger?.info?.('preflight.focus.ok', {
+      exePath: resolvedExePath,
+      pid: Number.isFinite(pid) ? pid : null,
+      wait_ms: safeWaitMs,
+    });
+    return {
+      focused: true,
+      reason: 'ok',
+      pid: Number.isFinite(pid) ? pid : null,
+    };
+  }
+
+  const notFocusedMatch = normalizedOutput.match(/^NOT_FOCUSED:(\d+)$/i);
+  if (notFocusedMatch) {
+    const pid = Number(notFocusedMatch[1]);
+    return {
+      focused: false,
+      reason: 'app_activate_failed',
+      pid: Number.isFinite(pid) ? pid : null,
+    };
+  }
+
+  return {
+    focused: false,
+    reason: 'unknown_output',
+    pid: null,
+  };
+}
+
+function resolvePreflightMinMatches(agentCfg, expectedKeywords) {
+  const fallback = expectedKeywords.length > 0 ? 1 : 0;
+  const configured = toNonNegativeInt(agentCfg?.preflightMinKeywordMatches, fallback);
+  return Math.min(configured, expectedKeywords.length);
+}
+
+async function runPreflightFocusAndOcr({
+  requestId,
+  agentCfg,
+  logger: localLogger,
+}) {
+  if (!agentCfg?.preflightEnabled) {
+    return {
+      skipped: true,
+      reason: 'disabled',
+      screenshotPath: null,
+      matchedKeywords: [],
+      requiredMatches: 0,
+    };
+  }
+
+  const focusExePath = String(agentCfg?.preflightFocusExePath || '').trim();
+  const focusWaitMs = toNonNegativeInt(agentCfg?.preflightFocusWaitMs, 350);
+  const requireFocus = Boolean(agentCfg?.preflightRequireFocus);
+  const runOcr = Boolean(agentCfg?.preflightOcrEnabled);
+  const expectedKeywordsRaw = Array.isArray(agentCfg?.preflightExpectedKeywords)
+    ? agentCfg.preflightExpectedKeywords
+    : [];
+  const expectedKeywords = expectedKeywordsRaw
+    .map((item) => String(item || '').trim())
+    .filter(Boolean);
+  const requiredMatches = resolvePreflightMinMatches(agentCfg, expectedKeywords);
+
+  localLogger?.info?.('preflight.begin', {
+    request_id: requestId,
+    focus_exe_path: focusExePath || null,
+    require_focus: requireFocus,
+    ocr_enabled: runOcr,
+    expected_keywords: expectedKeywords,
+    min_keyword_matches: requiredMatches,
+  });
+
+  let focusResult = null;
+  if (focusExePath) {
+    focusResult = await focusAppWindowByExePath(focusExePath, focusWaitMs, localLogger);
+  } else {
+    focusResult = {
+      focused: false,
+      reason: 'focus_path_missing',
+      pid: null,
+    };
+  }
+
+  if (requireFocus && !focusResult?.focused) {
+    throw new Error(
+      `Preflight de foco falhou: ${focusResult?.reason || 'focus_failed'} (exe: ${focusExePath || 'n/a'})`
+    );
+  }
+
+  if (!runOcr) {
+    localLogger?.info?.('preflight.done', {
+      request_id: requestId,
+      screenshot_path: null,
+      ocr_enabled: false,
+      mode: 'focus_only',
+      focus: focusResult,
+    });
+    return {
+      skipped: false,
+      reason: 'focus_only',
+      screenshotPath: null,
+      matchedKeywords: [],
+      requiredMatches: 0,
+    };
+  }
+
+  const screenshotPath = await captureDesktopScreenshot({
+    screenshotsDir: agentCfg?.screenshotsDir,
+    requestId,
+    retryIndex: 97,
+    logger: localLogger,
+  });
+
+  const analysis = await analyzeScreenshot(screenshotPath, {
+    lang: agentCfg?.ocrLang || 'por',
+    logger: localLogger,
+  });
+  const normalizedText = normalizeForKeywordMatch(analysis?.rawText || analysis?.normalizedText || '');
+  const matchedKeywords = expectedKeywords.filter((keyword) =>
+    normalizedText.includes(normalizeForKeywordMatch(keyword))
+  );
+  const isMatched = matchedKeywords.length >= requiredMatches;
+
+  localLogger?.info?.('preflight.ocr.result', {
+    request_id: requestId,
+    screenshot_path: screenshotPath,
+    matched_keywords: matchedKeywords,
+    matched_count: matchedKeywords.length,
+    required_matches: requiredMatches,
+    expected_keywords: expectedKeywords,
+    focus: focusResult,
+  });
+
+  if (agentCfg?.preflightFailIfNotMatched && !isMatched) {
+    throw new Error(
+      `Preflight OCR falhou: esperado >=${requiredMatches} palavra(s)-chave do e-System, encontrado ${matchedKeywords.length}.`
+    );
+  }
+
+  return {
+    skipped: false,
+    reason: 'ok',
+    screenshotPath,
+    matchedKeywords,
+    requiredMatches,
+  };
+}
+
+function resolveTokenUpdaterConfig(env) {
+  const enabled = toBool(env.AGENT_TOKEN_UPDATER_ENABLED, true);
+  const cwdRaw = String(env.AGENT_TOKEN_UPDATER_DIR || '').trim();
+  const cwd = cwdRaw
+    ? path.resolve(process.cwd(), cwdRaw)
+    : path.resolve(process.cwd(), '..', 'atualizacaoToken');
+
+  return {
+    enabled,
+    cwd,
+    command: String(env.AGENT_TOKEN_UPDATER_COMMAND || 'npm start').trim() || 'npm start',
+    idleGraceMs: toNonNegativeInt(env.AGENT_TOKEN_UPDATER_IDLE_GRACE_MS, 2500),
+    stopTimeoutMs: toPositiveInt(env.AGENT_TOKEN_UPDATER_STOP_TIMEOUT_MS, 15000),
+  };
+}
+
+function createTokenUpdaterManager(env, localLogger) {
+  const cfg = resolveTokenUpdaterConfig(env);
+  let child = null;
+  let idleSince = null;
+  let stoppingPromise = null;
+  let starting = false;
+  let disabledByConfigError = false;
+
+  const isRunning = () => Boolean(child && child.exitCode == null && !child.killed);
+
+  const waitForExit = (proc, timeoutMs) => new Promise((resolve) => {
+    if (!proc || proc.exitCode != null) {
+      resolve(true);
+      return;
+    }
+
+    let settled = false;
+    let timer = null;
+    const finish = (value) => {
+      if (settled) return;
+      settled = true;
+      if (timer) clearTimeout(timer);
+      proc.removeListener('exit', onExit);
+      resolve(value);
+    };
+
+    const onExit = () => finish(true);
+    timer = setTimeout(() => finish(false), Math.max(1000, timeoutMs || 10000));
+
+    proc.once('exit', onExit);
+  });
+
+  const killProcessTree = async (pid) => {
+    if (!Number.isInteger(pid) || pid <= 0) return;
+
+    if (process.platform === 'win32') {
+      await new Promise((resolve) => {
+        const killer = spawn('taskkill.exe', ['/PID', String(pid), '/T', '/F'], { windowsHide: true });
+        killer.on('error', () => resolve());
+        killer.on('close', () => resolve());
+      });
+      return;
+    }
+
+    try {
+      process.kill(pid, 'SIGTERM');
+    } catch {
+      // ignore
+    }
+  };
+
+  const stopProcess = async (reason = 'busy') => {
+    idleSince = null;
+
+    if (!cfg.enabled || disabledByConfigError) return;
+    if (!isRunning()) {
+      child = null;
+      return;
+    }
+    if (stoppingPromise) {
+      await stoppingPromise;
+      return;
+    }
+
+    const proc = child;
+    const pid = proc?.pid ?? null;
+    localLogger?.info?.('token_updater.stop.begin', { reason, pid });
+
+    stoppingPromise = (async () => {
+      try {
+        await killProcessTree(pid);
+        const exited = await waitForExit(proc, cfg.stopTimeoutMs);
+        if (!exited && process.platform !== 'win32') {
+          try {
+            process.kill(pid, 'SIGKILL');
+          } catch {
+            // ignore
+          }
+          await waitForExit(proc, 3000);
+        }
+      } finally {
+        if (child === proc) child = null;
+      }
+    })();
+
+    try {
+      await stoppingPromise;
+      localLogger?.info?.('token_updater.stop.done', { reason, pid });
+    } finally {
+      stoppingPromise = null;
+    }
+  };
+
+  const onQueueBusy = async (reason = 'queue_busy') => {
+    await stopProcess(reason);
+  };
+
+  const onQueueEmpty = async (reason = 'queue_empty') => {
+    if (!cfg.enabled || disabledByConfigError) return;
+
+    if (!idleSince) {
+      idleSince = Date.now();
+      localLogger?.debug?.('token_updater.idle.begin', { reason, idleGraceMs: cfg.idleGraceMs });
+    }
+
+    if (isRunning()) return;
+    if (starting || stoppingPromise) return;
+    if (Date.now() - idleSince < cfg.idleGraceMs) return;
+
+    starting = true;
+    try {
+      const packageJsonPath = path.join(cfg.cwd, 'package.json');
+      try {
+        await fs.access(packageJsonPath);
+      } catch {
+        disabledByConfigError = true;
+        localLogger?.warn?.('token_updater.disabled_missing_package', {
+          cwd: cfg.cwd,
+          packageJsonPath,
+        });
+        return;
+      }
+
+      if (!idleSince) {
+        return;
+      }
+
+      const proc = spawn(cfg.command, {
+        cwd: cfg.cwd,
+        env: process.env,
+        shell: true,
+        windowsHide: true,
+        stdio: 'inherit',
+      });
+
+      child = proc;
+      localLogger?.info?.('token_updater.start', {
+        reason,
+        pid: proc.pid ?? null,
+        cwd: cfg.cwd,
+        command: cfg.command,
+      });
+
+      proc.once('exit', (code, signal) => {
+        if (child === proc) child = null;
+        localLogger?.warn?.('token_updater.exit', {
+          code: code ?? null,
+          signal: signal ?? null,
+        });
+      });
+
+      proc.once('error', (err) => {
+        if (child === proc) child = null;
+        localLogger?.error?.('token_updater.error', {
+          error: String(err?.message || err),
+        });
+      });
+    } finally {
+      starting = false;
+    }
+  };
+
+  const shutdown = async (reason = 'shutdown') => {
+    await stopProcess(reason);
+  };
+
+  localLogger?.info?.('token_updater.config', {
+    enabled: cfg.enabled,
+    cwd: cfg.cwd,
+    command: cfg.command,
+    idleGraceMs: cfg.idleGraceMs,
+    stopTimeoutMs: cfg.stopTimeoutMs,
+  });
+
+  return {
+    enabled: cfg.enabled,
+    onQueueBusy,
+    onQueueEmpty,
+    shutdown,
+  };
 }
 
 async function captureDesktopScreenshot({
@@ -470,7 +925,7 @@ async function runStartupLogin(agentCfg) {
   });
 }
 
-async function processOne(pool, agentCfg) {
+async function processOne(pool, agentCfg, tokenUpdaterManager = null) {
   const connection = await pool.getConnection();
   const finalizeFailure = async (reqId, batchId, errorMessage) => {
     let conn;
@@ -497,6 +952,17 @@ async function processOne(pool, agentCfg) {
     await connection.commit();
 
     if (!req) return false;
+
+    if (tokenUpdaterManager?.enabled) {
+      try {
+        await tokenUpdaterManager.onQueueBusy('request_claimed');
+      } catch (stopErr) {
+        logger?.warn?.('token_updater.stop_before_request_error', {
+          request_id: req.id,
+          error: String(stopErr?.message || stopErr),
+        });
+      }
+    }
 
     let heartbeatTimer = null;
     const startHeartbeat = () => {
@@ -530,6 +996,12 @@ async function processOne(pool, agentCfg) {
     let deferredAppExePath = '';
     let latestScreenshotPath = null;
     try {
+      await runPreflightFocusAndOcr({
+        requestId: req.id,
+        agentCfg,
+        logger,
+      });
+
       logger?.info?.('replay.begin', { request_id: req.id });
       startHeartbeat();
       const shouldRunSeparateLogin = Boolean(agentCfg.loginTemplatePath) && !agentCfg.loginBootstrapOnStart;
@@ -1033,10 +1505,29 @@ async function main() {
   const agentCfg = loadAgentConfigFromEnv(process.env);
   const dbCfg = getMysqlConfigFromEnv(process.env);
   const pool = await createPool(process.env);
+  const tokenUpdaterManager = createTokenUpdaterManager(process.env, logger);
   const basePollMs = toPositiveInt(agentCfg.pollIntervalMs, 5000);
   const maxDbRetryMs = toPositiveInt(process.env.AGENT_DB_MAX_RETRY_MS, 5 * 60 * 1000);
   const authRetryMs = toPositiveInt(process.env.AGENT_DB_AUTH_RETRY_MS, 15 * 60 * 1000);
   let dbRetryCount = 0;
+
+  let shuttingDown = false;
+  const stopTokenUpdaterOnSignal = async (signal) => {
+    if (shuttingDown) return;
+    shuttingDown = true;
+    logger?.info?.('agent.signal', { signal });
+    try {
+      await tokenUpdaterManager.shutdown(`signal_${String(signal || '').toLowerCase() || 'unknown'}`);
+    } finally {
+      process.exit(0);
+    }
+  };
+  process.once('SIGINT', () => {
+    void stopTokenUpdaterOnSignal('SIGINT');
+  });
+  process.once('SIGTERM', () => {
+    void stopTokenUpdaterOnSignal('SIGTERM');
+  });
 
   logger?.info?.('agent.start', {
     template: agentCfg.templatePath,
@@ -1048,6 +1539,13 @@ async function main() {
     dbPort: dbCfg.port,
     dbDatabase: dbCfg.database,
     dbUser: dbCfg.user,
+    preflightEnabled: Boolean(agentCfg.preflightEnabled),
+    preflightFocusExePath: agentCfg.preflightFocusExePath || null,
+    preflightRequireFocus: Boolean(agentCfg.preflightRequireFocus),
+    preflightOcrEnabled: Boolean(agentCfg.preflightOcrEnabled),
+    preflightExpectedKeywords: agentCfg.preflightExpectedKeywords || [],
+    preflightMinKeywordMatches: agentCfg.preflightMinKeywordMatches,
+    preflightFailIfNotMatched: Boolean(agentCfg.preflightFailIfNotMatched),
   });
 
   await runStartupLogin(agentCfg);
@@ -1069,11 +1567,13 @@ async function main() {
   // Loop: tenta processar 1 por vez; se não tiver, dorme e tenta de novo.
   for (;;) {
     try {
-      const did = await processOne(pool, agentCfg);
+      const did = await processOne(pool, agentCfg, tokenUpdaterManager);
       dbRetryCount = 0;
       if (!did) {
+        await tokenUpdaterManager.onQueueEmpty('queue_empty');
         await sleep(basePollMs);
       } else {
+        await tokenUpdaterManager.onQueueBusy('request_processed');
         // processou 1 item; tenta o próximo “logo em seguida”
         await sleep(250);
       }
