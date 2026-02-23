@@ -281,8 +281,6 @@ function isConfusablePair(a, b) {
     '5:S', 'S:5', '5:8', '8:5',
     '6:G', 'G:6',
     '8:B', 'B:8', '8:3', '3:8',
-    'U:V', 'V:U',
-    'E:F', 'F:E',
   ]);
   return pairs.has(`${a}:${b}`);
 }

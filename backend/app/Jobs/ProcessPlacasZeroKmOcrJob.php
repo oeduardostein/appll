@@ -529,10 +529,6 @@ class ProcessPlacasZeroKmOcrJob implements ShouldQueue
             '8' => ['B', '5', '3'],
             'B' => ['8'],
             '3' => ['8'],
-            'U' => ['V'],
-            'V' => ['U'],
-            'E' => ['F'],
-            'F' => ['E'],
         ];
 
         return in_array($b, $map[$a] ?? [], true);
