@@ -50,18 +50,21 @@ class ProcessPlacasZeroKmOcrJob implements ShouldQueue
         $fullPath = Storage::disk($this->disk)->path($this->path);
         $lang = (string) config('services.placas0km_ocr.lang', 'por');
         $bin = (string) config('services.placas0km_ocr.tesseract', 'tesseract');
+        $maxPlates = max(1, (int) config('services.placas0km_ocr.max_plates', 18));
 
-        $text = $this->runTesseract($bin, $fullPath, $lang);
-        if ($text === null) {
+        $textPasses = $this->runTesseractPasses($bin, $fullPath, $lang);
+        if (empty($textPasses)) {
             Log::warning('OCR: falha ao executar tesseract', [
                 'request_id' => $this->requestId,
             ]);
             return;
         }
 
-        $normalized = $this->normalizeText($text);
-        $plates = $this->extractPlates($normalized);
-        $errorMessage = $this->detectError($normalized);
+        $text = $textPasses[0];
+        $combinedText = implode("\n", $textPasses);
+        $combinedNormalized = $this->normalizeText($combinedText);
+        $plates = $this->aggregatePlatesFromPasses($textPasses, $maxPlates);
+        $errorMessage = $this->detectError($combinedNormalized);
 
         $payload = $req->response_payload ?? [];
         if (!is_array($payload)) {
@@ -73,7 +76,7 @@ class ProcessPlacasZeroKmOcrJob implements ShouldQueue
         }
         $data['ocr'] = [
             'text' => $text,
-            'normalized_text' => $normalized,
+            'normalized_text' => $combinedNormalized,
             'plates' => $plates,
             'error_message' => $errorMessage,
         ];
@@ -91,9 +94,57 @@ class ProcessPlacasZeroKmOcrJob implements ShouldQueue
         $req->save();
     }
 
-    private function runTesseract(string $bin, string $path, string $lang): ?string
+    /**
+     * @return string[]
+     */
+    private function runTesseractPasses(string $bin, string $path, string $lang): array
     {
-        $cmd = escapeshellcmd($bin) . ' ' . escapeshellarg($path) . ' stdout -l ' . escapeshellarg($lang) . ' 2>&1';
+        $passes = [
+            [
+                '--psm', '6',
+                '-c', 'tessedit_char_whitelist=ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-',
+                '-c', 'preserve_interword_spaces=1',
+            ],
+            [
+                '--psm', '11',
+                '-c', 'tessedit_char_whitelist=ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-',
+                '-c', 'preserve_interword_spaces=1',
+            ],
+            [],
+        ];
+
+        $texts = [];
+        foreach ($passes as $extraArgs) {
+            $text = $this->runSingleTesseractPass($bin, $path, $lang, $extraArgs);
+            if ($text === null) {
+                continue;
+            }
+            if ($text === '') {
+                continue;
+            }
+            $texts[] = $text;
+        }
+
+        return array_values(array_unique($texts));
+    }
+
+    /**
+     * @param string[] $extraArgs
+     */
+    private function runSingleTesseractPass(string $bin, string $path, string $lang, array $extraArgs = []): ?string
+    {
+        $baseParts = [
+            escapeshellcmd($bin),
+            escapeshellarg($path),
+            'stdout',
+            '-l',
+            escapeshellarg($lang),
+        ];
+        foreach ($extraArgs as $arg) {
+            $baseParts[] = escapeshellarg((string) $arg);
+        }
+
+        $cmd = implode(' ', $baseParts) . ' 2>&1';
         $output = [];
         $exitCode = 1;
         @exec($cmd, $output, $exitCode);
@@ -121,23 +172,370 @@ class ProcessPlacasZeroKmOcrJob implements ShouldQueue
      */
     private function extractPlates(string $text): array
     {
+        $seen = [];
         $plates = [];
 
-        $patterns = [
-            '/[A-Z]{3}-\\d{4}/',       // ABC-1234
-            '/[A-Z]{3}-\\d[A-Z]\\d{2}/', // UFY-9A48
-            '/[A-Z]{3}\\d[A-Z]\\d{2}/',  // UFY9A48
+        $addPlate = function (?string $plate) use (&$seen, &$plates): void {
+            if (!$plate) {
+                return;
+            }
+            if (isset($seen[$plate])) {
+                return;
+            }
+            $seen[$plate] = true;
+            $plates[] = $plate;
+        };
+
+        $strictPatterns = [
+            '/\b[A-Z]{3}[-\s]?\d{4}\b/u',
+            '/\b[A-Z]{3}[-\s]?\d[A-Z]\d{2}\b/u',
         ];
 
-        foreach ($patterns as $rx) {
-            if (preg_match_all($rx, $text, $m)) {
-                foreach ($m[0] as $p) {
-                    $plates[] = $p;
-                }
+        foreach ($strictPatterns as $pattern) {
+            if (!preg_match_all($pattern, $text, $matches)) {
+                continue;
+            }
+            foreach (($matches[0] ?? []) as $rawCandidate) {
+                $addPlate($this->normalizePlateCandidate((string) $rawCandidate));
             }
         }
 
-        return array_values(array_unique($plates));
+        if (preg_match_all('/\b[A-Z0-9]{3}[-\s]?[A-Z0-9]{4}\b/u', $text, $matches)) {
+            foreach (($matches[0] ?? []) as $rawCandidate) {
+                $rawCandidate = (string) $rawCandidate;
+                $compact = preg_replace('/[^A-Z0-9]/', '', strtoupper($rawCandidate)) ?? '';
+                if ($compact === '') {
+                    continue;
+                }
+                if (strlen($compact) !== 7) {
+                    continue;
+                }
+                preg_match_all('/\d/', $compact, $digitMatches);
+                $digitCount = count($digitMatches[0] ?? []);
+                $hasSeparator = preg_match('/[-\s]/', $rawCandidate) === 1;
+                if (!$hasSeparator) {
+                    if (!preg_match('/^[A-Z]/', $compact)) {
+                        continue;
+                    }
+                    $first3 = substr($compact, 0, 3);
+                    preg_match_all('/[A-Z]/', $first3, $first3Letters);
+                    if (count($first3Letters[0] ?? []) < 2) {
+                        continue;
+                    }
+                }
+                if (!$hasSeparator && $digitCount < 2) {
+                    continue;
+                }
+                if ($hasSeparator && $digitCount < 1) {
+                    continue;
+                }
+                $addPlate($this->normalizePlateCandidate($rawCandidate));
+            }
+        }
+
+        if (preg_match_all('/[A-Z0-9]{3}-[A-Z0-9]{4}/u', $text, $matches)) {
+            foreach (($matches[0] ?? []) as $chunk) {
+                $addPlate($this->normalizePlateCandidate((string) $chunk));
+            }
+        }
+
+        return $plates;
+    }
+
+    private function normalizePlateCandidate(string $rawCandidate): ?string
+    {
+        $compact = preg_replace('/[^A-Z0-9]/', '', strtoupper($rawCandidate)) ?? '';
+        if (strlen($compact) !== 7) {
+            return null;
+        }
+
+        if (preg_match('/^[A-Z]{3}\d[A-Z]\d{2}$/', $compact)) {
+            return $this->formatPlate($compact);
+        }
+
+        if (preg_match('/^[A-Z]{3}\d{4}$/', $compact)) {
+            return $this->formatPlate($compact);
+        }
+
+        $mercosul = $this->normalizeMercosulPlate($compact);
+        if ($mercosul !== null) {
+            return $this->formatPlate($mercosul);
+        }
+
+        $classic = $this->normalizeClassicPlate($compact);
+        if ($classic !== null) {
+            return $this->formatPlate($classic);
+        }
+
+        return null;
+    }
+
+    private function normalizeClassicPlate(string $compact): ?string
+    {
+        if (strlen($compact) !== 7) {
+            return null;
+        }
+
+        $out = '';
+        for ($i = 0; $i < 3; $i++) {
+            $letter = $this->coerceLetter($compact[$i]);
+            if ($letter === null) {
+                return null;
+            }
+            $out .= $letter;
+        }
+
+        for ($i = 3; $i < 7; $i++) {
+            $digit = $this->coerceDigit($compact[$i]);
+            if ($digit === null) {
+                return null;
+            }
+            $out .= $digit;
+        }
+
+        if (!preg_match('/^[A-Z]{3}\d{4}$/', $out)) {
+            return null;
+        }
+
+        return $out;
+    }
+
+    private function normalizeMercosulPlate(string $compact): ?string
+    {
+        if (strlen($compact) !== 7) {
+            return null;
+        }
+
+        $p0 = $this->coerceLetter($compact[0]);
+        $p1 = $this->coerceLetter($compact[1]);
+        $p2 = $this->coerceLetter($compact[2]);
+        $p3 = $this->coerceDigit($compact[3]);
+        $p4 = $this->coerceLetter($compact[4]);
+        $p5 = $this->coerceDigit($compact[5]);
+        $p6 = $this->coerceDigit($compact[6]);
+
+        if ($p0 === null || $p1 === null || $p2 === null || $p3 === null || $p4 === null || $p5 === null || $p6 === null) {
+            return null;
+        }
+
+        $out = $p0 . $p1 . $p2 . $p3 . $p4 . $p5 . $p6;
+        if (!preg_match('/^[A-Z]{3}\d[A-Z]\d{2}$/', $out)) {
+            return null;
+        }
+
+        return $out;
+    }
+
+    private function coerceLetter(string $char): ?string
+    {
+        $upper = strtoupper($char);
+        if ($upper === '') {
+            return null;
+        }
+        if (preg_match('/^[A-Z]$/', $upper)) {
+            return $upper;
+        }
+
+        return match ($upper) {
+            '0' => 'O',
+            '1' => 'J',
+            '2' => 'Z',
+            '4' => 'A',
+            '5' => 'S',
+            '6' => 'G',
+            '7' => 'T',
+            '8' => 'B',
+            '9' => 'G',
+            default => null,
+        };
+    }
+
+    private function coerceDigit(string $char): ?string
+    {
+        $upper = strtoupper($char);
+        if ($upper === '') {
+            return null;
+        }
+        if (preg_match('/^\d$/', $upper)) {
+            return $upper;
+        }
+
+        return match ($upper) {
+            'A' => '4',
+            'O', 'Q', 'D' => '0',
+            'I', 'L', 'J', 'T' => '1',
+            'Z' => '2',
+            'S' => '5',
+            'G' => '6',
+            'B' => '8',
+            default => null,
+        };
+    }
+
+    private function formatPlate(string $compact): string
+    {
+        return substr($compact, 0, 3) . '-' . substr($compact, 3);
+    }
+
+    /**
+     * @param string[] $textPasses
+     * @return string[]
+     */
+    private function aggregatePlatesFromPasses(array $textPasses, int $maxPlates = 18): array
+    {
+        $weights = [3, 2, 1];
+        $stats = [];
+
+        foreach ($textPasses as $idx => $text) {
+            $normalized = $this->normalizeText((string) $text);
+            if ($normalized === '') {
+                continue;
+            }
+
+            $passKey = 'p' . $idx;
+            $weight = $weights[$idx] ?? 1;
+            $plates = $this->extractPlates($normalized);
+            foreach ($plates as $plate) {
+                if (!isset($stats[$plate])) {
+                    $stats[$plate] = [
+                        'plate' => $plate,
+                        'score' => 0,
+                        'hits' => 0,
+                        'passes' => [],
+                    ];
+                }
+
+                $stats[$plate]['score'] += $weight;
+                $stats[$plate]['hits'] += 1;
+                $stats[$plate]['passes'][$passKey] = true;
+            }
+        }
+
+        if (empty($stats)) {
+            return [];
+        }
+
+        $ranked = array_values($stats);
+        usort($ranked, static function (array $a, array $b): int {
+            $aPassCount = count($a['passes'] ?? []);
+            $bPassCount = count($b['passes'] ?? []);
+            if ($aPassCount !== $bPassCount) {
+                return $bPassCount <=> $aPassCount;
+            }
+
+            $aScore = (int) ($a['score'] ?? 0);
+            $bScore = (int) ($b['score'] ?? 0);
+            if ($aScore !== $bScore) {
+                return $bScore <=> $aScore;
+            }
+
+            $aHits = (int) ($a['hits'] ?? 0);
+            $bHits = (int) ($b['hits'] ?? 0);
+            if ($aHits !== $bHits) {
+                return $bHits <=> $aHits;
+            }
+
+            return strcmp((string) ($a['plate'] ?? ''), (string) ($b['plate'] ?? ''));
+        });
+
+        $supported = array_values(array_filter($ranked, static fn(array $row): bool => count($row['passes'] ?? []) >= 2));
+        $phases = [$supported, $ranked];
+        $selected = [];
+        foreach ($phases as $phase) {
+            foreach ($phase as $candidate) {
+                if (count($selected) >= $maxPlates) {
+                    break 2;
+                }
+
+                $plate = (string) ($candidate['plate'] ?? '');
+                if ($plate === '') {
+                    continue;
+                }
+
+                $isVariant = false;
+                foreach ($selected as $chosen) {
+                    if ($this->areLikelyVariantPlates((string) $chosen['plate'], $plate)) {
+                        $isVariant = true;
+                        break;
+                    }
+                }
+                if ($isVariant) {
+                    continue;
+                }
+
+                $selected[] = $candidate;
+            }
+        }
+
+        return array_values(array_map(
+            static fn(array $row): string => (string) ($row['plate'] ?? ''),
+            $selected
+        ));
+    }
+
+    private function areLikelyVariantPlates(string $a, string $b): bool
+    {
+        $compactA = preg_replace('/[^A-Z0-9]/', '', strtoupper($a)) ?? '';
+        $compactB = preg_replace('/[^A-Z0-9]/', '', strtoupper($b)) ?? '';
+        if (strlen($compactA) !== 7 || strlen($compactB) !== 7) {
+            return false;
+        }
+
+        $hardDiffs = 0;
+        $hasAnyDiff = false;
+        for ($i = 0; $i < 7; $i++) {
+            $ca = $compactA[$i];
+            $cb = $compactB[$i];
+            if ($ca === $cb) {
+                continue;
+            }
+            $hasAnyDiff = true;
+            if (!$this->isConfusablePair($ca, $cb)) {
+                $hardDiffs += 1;
+            }
+        }
+
+        if (!$hasAnyDiff) {
+            return true;
+        }
+
+        return $hardDiffs <= 1;
+    }
+
+    private function isConfusablePair(string $a, string $b): bool
+    {
+        if ($a === $b) {
+            return true;
+        }
+
+        $map = [
+            '0' => ['O', 'Q', 'D'],
+            'O' => ['0'],
+            'Q' => ['0'],
+            'D' => ['0'],
+            '1' => ['I', 'L', 'J', 'T'],
+            'I' => ['1'],
+            'L' => ['1'],
+            'J' => ['1'],
+            'T' => ['1'],
+            '2' => ['Z'],
+            'Z' => ['2'],
+            '4' => ['A'],
+            'A' => ['4'],
+            '5' => ['S', '8'],
+            'S' => ['5'],
+            '6' => ['G'],
+            'G' => ['6'],
+            '8' => ['B', '5', '3'],
+            'B' => ['8'],
+            '3' => ['8'],
+            'U' => ['V'],
+            'V' => ['U'],
+            'E' => ['F'],
+            'F' => ['E'],
+        ];
+
+        return in_array($b, $map[$a] ?? [], true);
     }
 
     private function detectError(string $text): ?string

@@ -47,6 +47,7 @@ return [
         'enabled' => env('PLACAS0KM_OCR_ENABLED', false),
         'lang' => env('PLACAS0KM_OCR_LANG', 'por'),
         'tesseract' => env('PLACAS0KM_OCR_TESSERACT', 'tesseract'),
+        'max_plates' => env('PLACAS0KM_OCR_MAX_PLATES', 18),
     ],
 
     'placas0km' => [
