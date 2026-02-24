@@ -441,6 +441,10 @@ export function loadAgentConfigFromEnv(env) {
   const templatePaths = parseCsvList(env.AGENT_TEMPLATE_PATHS);
   const passwordInputModeRaw = String(env.AGENT_PASSWORD_INPUT_MODE || 'paste').trim().toLowerCase();
   const passwordInputMode = passwordInputModeRaw === 'type' ? 'type' : 'paste';
+  const ocrProviderRaw = String(env.AGENT_OCR_PROVIDER || 'local').trim().toLowerCase();
+  const ocrProvider = ocrProviderRaw === 'openai' ? 'openai' : 'local';
+  const preflightOcrProviderRaw = String(env.AGENT_PREFLIGHT_OCR_PROVIDER || 'local').trim().toLowerCase();
+  const preflightOcrProvider = preflightOcrProviderRaw === 'openai' ? 'openai' : 'local';
   return {
     templatePath,
     templatePaths: templatePaths.length ? templatePaths : [templatePath],
@@ -463,7 +467,14 @@ export function loadAgentConfigFromEnv(env) {
     screenshotCropH: Number(env.AGENT_SCREENSHOT_CROP_H || 0),
     stopAtScreenshot: toBool(env.AGENT_TEMPLATE_STOP_AT_SCREENSHOT, true),
     ocrEnabled: toBool(env.AGENT_OCR_ENABLED, true),
+    ocrProvider,
     ocrLang: env.AGENT_OCR_LANG || 'por',
+    ocrMaxPlates: Number(env.AGENT_OCR_MAX_PLATES || 18),
+    ocrOpenAiApiKey: env.AGENT_OPENAI_API_KEY || env.OPENAI_API_KEY || '',
+    ocrOpenAiModel: env.AGENT_OPENAI_MODEL || 'gpt-4.1-mini',
+    ocrOpenAiBaseUrl: env.AGENT_OPENAI_BASE_URL || 'https://api.openai.com/v1',
+    ocrOpenAiTimeoutMs: Number(env.AGENT_OPENAI_TIMEOUT_MS || 30000),
+    ocrOpenAiFallbackLocal: toBool(env.AGENT_OPENAI_FALLBACK_LOCAL, true),
     transientRetryEnabled: toBool(env.AGENT_TRANSIENT_RETRY_ENABLED, true),
     transientRetryWaitMs: Number(env.AGENT_TRANSIENT_RETRY_WAIT_MS || 8000),
     transientRetryMaxRetries: Number(env.AGENT_TRANSIENT_RETRY_MAX_RETRIES || 6),
@@ -486,6 +497,7 @@ export function loadAgentConfigFromEnv(env) {
     preflightFocusWaitMs: Number(env.AGENT_PREFLIGHT_FOCUS_WAIT_MS || 350),
     preflightRequireFocus: toBool(env.AGENT_PREFLIGHT_REQUIRE_FOCUS, true),
     preflightOcrEnabled: toBool(env.AGENT_PREFLIGHT_OCR_ENABLED, true),
+    preflightOcrProvider,
     preflightExpectedKeywords: parseCsvList(
       env.AGENT_PREFLIGHT_EXPECTED_KEYWORDS || 'e-system desp,utilitarios'
     ),

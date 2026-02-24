@@ -1,4 +1,5 @@
 import { createWorker } from 'tesseract.js';
+import { readFile } from 'node:fs/promises';
 
 let sharedWorker = null;
 let sharedWorkerLang = null;
@@ -422,6 +423,196 @@ async function recognizeWithPasses(worker, imagePath, logger = null) {
   return results;
 }
 
+function collectOpenAiResponseText(payload) {
+  if (typeof payload?.output_text === 'string' && payload.output_text.trim() !== '') {
+    return payload.output_text.trim();
+  }
+
+  const chunks = [];
+  const outputItems = Array.isArray(payload?.output) ? payload.output : [];
+  for (const item of outputItems) {
+    const content = Array.isArray(item?.content) ? item.content : [];
+    for (const part of content) {
+      if (typeof part?.text === 'string' && part.text.trim() !== '') {
+        chunks.push(part.text.trim());
+      } else if (typeof part?.json === 'string' && part.json.trim() !== '') {
+        chunks.push(part.json.trim());
+      }
+    }
+  }
+
+  return chunks.join('\n').trim();
+}
+
+function parseJsonFromText(text) {
+  const src = String(text || '').trim();
+  if (!src) return null;
+
+  const fenced = src.match(/```(?:json)?\s*([\s\S]*?)```/i);
+  if (fenced?.[1]) {
+    try {
+      return JSON.parse(fenced[1].trim());
+    } catch {
+      // noop
+    }
+  }
+
+  try {
+    return JSON.parse(src);
+  } catch {
+    // noop
+  }
+
+  const firstBrace = src.indexOf('{');
+  const lastBrace = src.lastIndexOf('}');
+  if (firstBrace >= 0 && lastBrace > firstBrace) {
+    const sliced = src.slice(firstBrace, lastBrace + 1);
+    try {
+      return JSON.parse(sliced);
+    } catch {
+      // noop
+    }
+  }
+
+  return null;
+}
+
+function buildOpenAiPrompt(maxPlates) {
+  return [
+    'Extraia apenas placas de veículo visíveis na grade/lista da tela.',
+    'Ignore texto fora da lista, botões, rodapé e placa destacada grande.',
+    'Não invente placas.',
+    'Responda somente JSON no schema solicitado.',
+    `No máximo ${maxPlates} placas.`,
+  ].join(' ');
+}
+
+function normalizeOpenAiPlates(candidatePlates, maxPlates) {
+  const out = [];
+  const seen = new Set();
+
+  for (const raw of Array.isArray(candidatePlates) ? candidatePlates : []) {
+    const normalized = normalizePlateCandidate(raw);
+    if (!normalized || seen.has(normalized)) continue;
+    seen.add(normalized);
+    out.push(normalized);
+    if (out.length >= maxPlates) break;
+  }
+
+  return out;
+}
+
+async function analyzeWithOpenAi(imagePath, opts = {}) {
+  const logger = opts.logger || null;
+  const apiKey = String(opts.openAiApiKey || '').trim();
+  const model = String(opts.openAiModel || 'gpt-4.1-mini').trim() || 'gpt-4.1-mini';
+  const baseUrl = String(opts.openAiBaseUrl || 'https://api.openai.com/v1').replace(/\/+$/, '');
+  const timeoutMsRaw = Number(opts.openAiTimeoutMs);
+  const timeoutMs = Number.isFinite(timeoutMsRaw) && timeoutMsRaw > 0 ? Math.floor(timeoutMsRaw) : 30000;
+  const maxPlatesRaw = Number(opts.maxPlates);
+  const maxPlates = Number.isFinite(maxPlatesRaw) && maxPlatesRaw > 0 ? Math.floor(maxPlatesRaw) : 18;
+
+  if (!apiKey) {
+    throw new Error('AGENT_OPENAI_API_KEY não configurada.');
+  }
+  if (typeof fetch !== 'function') {
+    throw new Error('Ambiente Node sem fetch global. Atualize para Node 18+.');
+  }
+
+  const imageBuffer = await readFile(imagePath);
+  const ext = String(imagePath || '').toLowerCase();
+  const mimeType = ext.endsWith('.jpg') || ext.endsWith('.jpeg') ? 'image/jpeg' : 'image/png';
+  const imageB64 = imageBuffer.toString('base64');
+
+  const body = {
+    model,
+    input: [
+      {
+        role: 'system',
+        content: [{ type: 'input_text', text: buildOpenAiPrompt(maxPlates) }],
+      },
+      {
+        role: 'user',
+        content: [
+          { type: 'input_text', text: 'Retorne as placas visíveis na lista, sem duplicar.' },
+          { type: 'input_image', image_url: `data:${mimeType};base64,${imageB64}` },
+        ],
+      },
+    ],
+    text: {
+      format: {
+        type: 'json_schema',
+        name: 'plates_ocr',
+        strict: true,
+        schema: {
+          type: 'object',
+          additionalProperties: false,
+          properties: {
+            plates: {
+              type: 'array',
+              maxItems: maxPlates,
+              items: { type: 'string' },
+            },
+            error_message: {
+              type: ['string', 'null'],
+            },
+          },
+          required: ['plates', 'error_message'],
+        },
+      },
+    },
+    max_output_tokens: 300,
+  };
+
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), timeoutMs);
+  let response;
+  try {
+    response = await fetch(`${baseUrl}/responses`, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(body),
+      signal: controller.signal,
+    });
+  } finally {
+    clearTimeout(timeout);
+  }
+
+  const payload = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    const msg = String(payload?.error?.message || `OpenAI HTTP ${response.status}`);
+    throw new Error(msg);
+  }
+
+  const rawModelText = collectOpenAiResponseText(payload);
+  const parsed = parseJsonFromText(rawModelText) || {};
+  const normalizedText = normalizeText(
+    [
+      Array.isArray(parsed?.plates) ? parsed.plates.join(' ') : '',
+      typeof parsed?.error_message === 'string' ? parsed.error_message : '',
+    ].join(' ')
+  );
+  const normalizedPlates = normalizeOpenAiPlates(parsed?.plates, maxPlates);
+
+  logger?.info?.('ocr.openai.done', {
+    imagePath,
+    model,
+    platesCount: normalizedPlates.length,
+  });
+
+  return {
+    rawText: rawModelText || JSON.stringify(parsed),
+    normalizedText,
+    plates: normalizedPlates,
+    providerErrorMessage: typeof parsed?.error_message === 'string' && parsed.error_message.trim() !== ''
+      ? parsed.error_message.trim()
+      : null,
+  };
+}
+
 function detectErrorDetails(text, customKeywords = []) {
   const known = [
     'FICHA CADASTRAL JA EXISTENTE',
@@ -541,39 +732,88 @@ async function getSharedWorker(lang, logger = null) {
 }
 
 export async function analyzeScreenshot(imagePath, opts = {}) {
+  const providerRaw = String(opts.provider || 'local').trim().toLowerCase();
+  const provider = providerRaw === 'openai' ? 'openai' : 'local';
   const lang = opts.lang || 'por';
   const logger = opts.logger || null;
   const transientKeywords = Array.isArray(opts.transientKeywords) ? opts.transientKeywords : [];
   const errorKeywords = Array.isArray(opts.errorKeywords) ? opts.errorKeywords : [];
-  logger?.info('ocr.start', { imagePath, lang });
-  const worker = await getSharedWorker(lang, logger);
+  const maxPlatesRaw = Number(opts.maxPlates);
+  const maxPlates = Number.isFinite(maxPlatesRaw) && maxPlatesRaw > 0 ? Math.floor(maxPlatesRaw) : 18;
+  logger?.info('ocr.start', { imagePath, lang, provider, maxPlates });
 
-  const passResults = await recognizeWithPasses(worker, imagePath, logger);
-  const primaryData = passResults[0]?.data || {};
-  const rawText = primaryData?.text || '';
+  const runLocalOcr = async () => {
+    const worker = await getSharedWorker(lang, logger);
+    const passResults = await recognizeWithPasses(worker, imagePath, logger);
+    const primaryData = passResults[0]?.data || {};
+    const rawText = primaryData?.text || '';
 
-  const collector = createPlateCollector();
-  const normalizedParts = [];
-  for (const passResult of passResults) {
-    const passName = String(passResult?.name || 'unknown');
-    const passData = passResult?.data || {};
-    const passRawText = passData?.text || '';
-    const passNormalizedText = normalizeText(passRawText);
-    if (passNormalizedText) {
-      normalizedParts.push(passNormalizedText);
+    const collector = createPlateCollector();
+    const normalizedParts = [];
+    for (const passResult of passResults) {
+      const passName = String(passResult?.name || 'unknown');
+      const passData = passResult?.data || {};
+      const passRawText = passData?.text || '';
+      const passNormalizedText = normalizeText(passRawText);
+      if (passNormalizedText) {
+        normalizedParts.push(passNormalizedText);
+      }
+      extractPlates(passNormalizedText, {
+        bump: (plate, meta = null) => collector.bump(plate, { ...(meta || {}), pass: passName }),
+      });
+      extractPlatesFromWords(passData?.words, {
+        bump: (plate, meta = null) => collector.bump(plate, { ...(meta || {}), pass: passName }),
+      });
     }
-    extractPlates(passNormalizedText, {
-      bump: (plate, meta = null) => collector.bump(plate, { ...(meta || {}), pass: passName }),
-    });
-    extractPlatesFromWords(passData?.words, {
-      bump: (plate, meta = null) => collector.bump(plate, { ...(meta || {}), pass: passName }),
-    });
-  }
-  const normalized = normalizedParts.join(' ').trim();
-  const plates = collector.values({ maxPlates: opts.maxPlates || 18 });
+    const normalized = normalizedParts.join(' ').trim();
+    const plates = collector.values({ maxPlates });
+    return { rawText, normalized, plates, providerErrorMessage: null };
+  };
 
-  const errorDetails = detectErrorDetails(normalized, errorKeywords);
-  const errorMessage = errorDetails?.message || null;
+  let rawText = '';
+  let normalized = '';
+  let plates = [];
+  let providerErrorMessage = null;
+
+  if (provider === 'openai') {
+    try {
+      const openAiResult = await analyzeWithOpenAi(imagePath, {
+        ...opts,
+        logger,
+        maxPlates,
+      });
+      rawText = openAiResult.rawText || '';
+      normalized = openAiResult.normalizedText || '';
+      plates = Array.isArray(openAiResult.plates) ? openAiResult.plates : [];
+      providerErrorMessage = openAiResult.providerErrorMessage || null;
+    } catch (err) {
+      const fallbackLocal = opts.openAiFallbackLocal !== false;
+      logger?.warn?.('ocr.openai.error', {
+        imagePath,
+        error: String(err?.message || err),
+        fallbackLocal,
+      });
+      if (!fallbackLocal) {
+        throw err;
+      }
+      const localResult = await runLocalOcr();
+      rawText = localResult.rawText || '';
+      normalized = localResult.normalized || '';
+      plates = localResult.plates || [];
+      providerErrorMessage = null;
+    }
+  } else {
+    const localResult = await runLocalOcr();
+    rawText = localResult.rawText || '';
+    normalized = localResult.normalized || '';
+    plates = localResult.plates || [];
+    providerErrorMessage = null;
+  }
+
+  // No provider OpenAI, evitamos inferir erro por palavra-chave em texto JSON
+  // (ex.: "error_message"), pois isso gera falso positivo de "ERRO".
+  const errorDetails = provider === 'openai' ? null : detectErrorDetails(normalized, errorKeywords);
+  const errorMessage = providerErrorMessage || errorDetails?.message || null;
   const errorCode = errorDetails?.code || null;
   const errorReason = errorDetails?.reason || null;
   const transientMessage = detectTransient(normalized, transientKeywords);
@@ -589,6 +829,7 @@ export async function analyzeScreenshot(imagePath, opts = {}) {
   };
   logger?.info('ocr.done', {
     imagePath,
+    provider,
     platesCount: plates.length,
     errorMessage: errorMessage || null,
     errorCode,
@@ -599,6 +840,11 @@ export async function analyzeScreenshot(imagePath, opts = {}) {
 }
 
 export async function warmupOcrWorker(opts = {}) {
+  const providerRaw = String(opts.provider || 'local').trim().toLowerCase();
+  const provider = providerRaw === 'openai' ? 'openai' : 'local';
+  if (provider !== 'local') {
+    return;
+  }
   const lang = opts.lang || 'por';
   const logger = opts.logger || null;
   await getSharedWorker(lang, logger);

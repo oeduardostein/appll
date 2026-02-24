@@ -39,6 +39,11 @@ return [
         'key' => env('TWOCAPTCHA_API_KEY'),
     ],
 
+    'openai' => [
+        'key' => env('OPENAI_API_KEY'),
+        'model' => env('OPENAI_MODEL', 'gpt-4.1-mini'),
+    ],
+
     'public_placas0km' => [
         'key' => env('PUBLIC_PLACAS0KM_API_KEY'),
     ],

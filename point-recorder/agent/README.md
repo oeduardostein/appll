@@ -151,6 +151,7 @@ AGENT_PREFLIGHT_FOCUS_EXE_PATH=C:\SH Sistemas\System Desp SX\eSystemDesp.exe
 AGENT_PREFLIGHT_FOCUS_WAIT_MS=350
 AGENT_PREFLIGHT_REQUIRE_FOCUS=true
 AGENT_PREFLIGHT_OCR_ENABLED=true
+AGENT_PREFLIGHT_OCR_PROVIDER=local
 AGENT_PREFLIGHT_EXPECTED_KEYWORDS=e-system desp,utilitarios
 AGENT_PREFLIGHT_MIN_KEYWORD_MATCHES=1
 AGENT_PREFLIGHT_FAIL_IF_NOT_MATCHED=true
@@ -243,7 +244,7 @@ O replay trata automaticamente o documento em 3 campos:
 
 Use TAB na gravação para navegar entre os campos. O agente valida o tamanho e falha com erro claro se não for CPF/CNPJ válido.
 
-## OCR (IA local)
+## OCR (local ou OpenAI)
 
 O agente tenta rodar OCR na imagem e extrair:
 - mensagem de erro (ex: “FICHA CADASTRAL JA EXISTENTE”)
@@ -258,6 +259,22 @@ Quando detectar **erro definitivo de modal** (ex.: ficha já existente, mensagem
 Configuração no `.env`:
 - `AGENT_OCR_ENABLED=true`
 - `AGENT_OCR_LANG=por`
+- `AGENT_OCR_MAX_PLATES=18`
+- `AGENT_OCR_PROVIDER=local` (ou `openai`)
+
+### OCR com OpenAI
+
+Quando `AGENT_OCR_PROVIDER=openai`, o agente envia o screenshot para a API da OpenAI e recebe JSON com as placas.
+
+Variáveis:
+- `AGENT_OPENAI_API_KEY=...` (ou `OPENAI_API_KEY`)
+- `AGENT_OPENAI_MODEL=gpt-4.1-mini`
+- `AGENT_OPENAI_BASE_URL=https://api.openai.com/v1`
+- `AGENT_OPENAI_TIMEOUT_MS=30000`
+- `AGENT_OPENAI_FALLBACK_LOCAL=true` (se OpenAI falhar, tenta OCR local)
+
+Recomendação:
+- mantenha `AGENT_PREFLIGHT_OCR_PROVIDER=local` para o preflight não gerar custo extra em toda requisição.
 
 ### Repetir OCR quando detectar tela sem resposta
 

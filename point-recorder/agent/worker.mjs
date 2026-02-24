@@ -263,7 +263,14 @@ async function runPreflightFocusAndOcr({
   });
 
   const analysis = await analyzeScreenshot(screenshotPath, {
+    provider: agentCfg?.preflightOcrProvider || 'local',
     lang: agentCfg?.ocrLang || 'por',
+    maxPlates: agentCfg?.ocrMaxPlates || 18,
+    openAiApiKey: agentCfg?.ocrOpenAiApiKey || '',
+    openAiModel: agentCfg?.ocrOpenAiModel || '',
+    openAiBaseUrl: agentCfg?.ocrOpenAiBaseUrl || '',
+    openAiTimeoutMs: agentCfg?.ocrOpenAiTimeoutMs || 30000,
+    openAiFallbackLocal: Boolean(agentCfg?.ocrOpenAiFallbackLocal),
     logger: localLogger,
   });
   const normalizedText = normalizeForKeywordMatch(analysis?.rawText || analysis?.normalizedText || '');
@@ -1238,7 +1245,14 @@ async function processOne(pool, agentCfg, tokenUpdaterManager = null) {
 
       if (agentCfg.ocrEnabled && screenshotPath) {
         analysis = await analyzeScreenshot(screenshotPath, {
+          provider: agentCfg.ocrProvider || 'local',
           lang: agentCfg.ocrLang,
+          maxPlates: agentCfg.ocrMaxPlates || 18,
+          openAiApiKey: agentCfg.ocrOpenAiApiKey || '',
+          openAiModel: agentCfg.ocrOpenAiModel || '',
+          openAiBaseUrl: agentCfg.ocrOpenAiBaseUrl || '',
+          openAiTimeoutMs: agentCfg.ocrOpenAiTimeoutMs || 30000,
+          openAiFallbackLocal: Boolean(agentCfg.ocrOpenAiFallbackLocal),
           transientKeywords: agentCfg.transientKeywords,
           errorKeywords: agentCfg.errorKeywords,
           logger,
@@ -1289,7 +1303,14 @@ async function processOne(pool, agentCfg, tokenUpdaterManager = null) {
               }
 
               analysis = await analyzeScreenshot(screenshotPath, {
+                provider: agentCfg.ocrProvider || 'local',
                 lang: agentCfg.ocrLang,
+                maxPlates: agentCfg.ocrMaxPlates || 18,
+                openAiApiKey: agentCfg.ocrOpenAiApiKey || '',
+                openAiModel: agentCfg.ocrOpenAiModel || '',
+                openAiBaseUrl: agentCfg.ocrOpenAiBaseUrl || '',
+                openAiTimeoutMs: agentCfg.ocrOpenAiTimeoutMs || 30000,
+                openAiFallbackLocal: Boolean(agentCfg.ocrOpenAiFallbackLocal),
                 transientKeywords: agentCfg.transientKeywords,
                 errorKeywords: agentCfg.errorKeywords,
                 logger,
@@ -1543,9 +1564,12 @@ async function main() {
     preflightFocusExePath: agentCfg.preflightFocusExePath || null,
     preflightRequireFocus: Boolean(agentCfg.preflightRequireFocus),
     preflightOcrEnabled: Boolean(agentCfg.preflightOcrEnabled),
+    preflightOcrProvider: agentCfg.preflightOcrProvider || 'local',
     preflightExpectedKeywords: agentCfg.preflightExpectedKeywords || [],
     preflightMinKeywordMatches: agentCfg.preflightMinKeywordMatches,
     preflightFailIfNotMatched: Boolean(agentCfg.preflightFailIfNotMatched),
+    ocrProvider: agentCfg.ocrProvider || 'local',
+    ocrModel: agentCfg.ocrProvider === 'openai' ? (agentCfg.ocrOpenAiModel || null) : null,
   });
 
   await runStartupLogin(agentCfg);
@@ -1553,10 +1577,14 @@ async function main() {
   if (agentCfg.ocrEnabled) {
     try {
       await warmupOcrWorker({
+        provider: agentCfg.ocrProvider || 'local',
         lang: agentCfg.ocrLang,
         logger,
       });
-      logger?.info?.('ocr.warmup.ready', { lang: agentCfg.ocrLang });
+      logger?.info?.('ocr.warmup.ready', {
+        provider: agentCfg.ocrProvider || 'local',
+        lang: agentCfg.ocrLang,
+      });
     } catch (warmupErr) {
       logger?.warn?.('ocr.warmup.error', {
         error: String(warmupErr?.message || warmupErr),
