@@ -1,12 +1,24 @@
 @echo off
-setlocal
+setlocal EnableExtensions
 
 REM Ajuste aqui se a pasta do projeto estiver em outro lugar
-set "PROJECT_DIR=%USERPROFILE%\Desktop\teste\point-recorder"
+set "SCRIPT_DIR=%~dp0"
+if "%SCRIPT_DIR:~-1%"=="\" set "SCRIPT_DIR=%SCRIPT_DIR:~0,-1%"
+set "DEFAULT_PROJECT_DIR=%USERPROFILE%\Desktop\teste\appll\point-recorder"
+set "LEGACY_PROJECT_DIR=%USERPROFILE%\Desktop\teste\point-recorder"
+set "PROJECT_DIR="
+if not "%~1"=="" set "PROJECT_DIR=%~1"
+if not defined PROJECT_DIR if exist "%SCRIPT_DIR%\package.json" set "PROJECT_DIR=%SCRIPT_DIR%"
+if not defined PROJECT_DIR if exist "%SCRIPT_DIR%\point-recorder\package.json" set "PROJECT_DIR=%SCRIPT_DIR%\point-recorder"
+if not defined PROJECT_DIR if exist "%DEFAULT_PROJECT_DIR%\package.json" set "PROJECT_DIR=%DEFAULT_PROJECT_DIR%"
+if not defined PROJECT_DIR set "PROJECT_DIR=%LEGACY_PROJECT_DIR%"
+if not exist "%PROJECT_DIR%\package.json" if exist "%PROJECT_DIR%\point-recorder\package.json" set "PROJECT_DIR=%PROJECT_DIR%\point-recorder"
+
 if "%AGENT_TOKEN_UPDATER_ENABLED%"=="" set "AGENT_TOKEN_UPDATER_ENABLED=1"
 if "%AGENT_TOKEN_UPDATER_DIR%"=="" set "AGENT_TOKEN_UPDATER_DIR=..\atualizacaoToken"
 if "%AGENT_TOKEN_UPDATER_IDLE_GRACE_MS%"=="" set "AGENT_TOKEN_UPDATER_IDLE_GRACE_MS=2500"
 if "%AGENT_TOKEN_UPDATER_STOP_TIMEOUT_MS%"=="" set "AGENT_TOKEN_UPDATER_STOP_TIMEOUT_MS=15000"
+if "%CHROME_CHANNEL%"=="" set "CHROME_CHANNEL=chrome"
 if "%AGENT_PREFLIGHT_ENABLED%"=="" set "AGENT_PREFLIGHT_ENABLED=1"
 if "%AGENT_PREFLIGHT_FOCUS_EXE_PATH%"=="" set "AGENT_PREFLIGHT_FOCUS_EXE_PATH=C:\SH Sistemas\System Desp SX\eSystemDesp.exe"
 if "%AGENT_PREFLIGHT_FOCUS_WAIT_MS%"=="" set "AGENT_PREFLIGHT_FOCUS_WAIT_MS=350"
@@ -18,6 +30,12 @@ if "%AGENT_PREFLIGHT_FAIL_IF_NOT_MATCHED%"=="" set "AGENT_PREFLIGHT_FAIL_IF_NOT_
 set "LOCK_DIR=%USERPROFILE%\Desktop\teste\agent-shared.lock"
 set "WAIT_SECONDS=5"
 set "EXIT_CODE=0"
+
+call :pre_cleanup
+if errorlevel 1 (
+  set "EXIT_CODE=1"
+  goto finish
+)
 
 if /i not "%SKIP_SHARED_LOCK%"=="1" (
   call :acquire_lock
@@ -37,6 +55,18 @@ cd
 echo [INFO] Token updater integrado:
 echo [INFO]   AGENT_TOKEN_UPDATER_ENABLED=%AGENT_TOKEN_UPDATER_ENABLED%
 echo [INFO]   AGENT_TOKEN_UPDATER_DIR=%AGENT_TOKEN_UPDATER_DIR%
+echo [INFO] Navegador do token updater:
+echo [INFO]   CHROME_CHANNEL=%CHROME_CHANNEL%
+if defined CHROME_USER_DATA_DIR (
+  echo [INFO]   CHROME_USER_DATA_DIR=%CHROME_USER_DATA_DIR%
+) else (
+  echo [INFO]   CHROME_USER_DATA_DIR=(padrao do atualizacaoToken)
+)
+if defined CHROME_PROFILE_NAME (
+  echo [INFO]   CHROME_PROFILE_NAME=%CHROME_PROFILE_NAME%
+) else (
+  echo [INFO]   CHROME_PROFILE_NAME=(nao definido)
+)
 echo [INFO] Preflight do e-System:
 echo [INFO]   AGENT_PREFLIGHT_ENABLED=%AGENT_PREFLIGHT_ENABLED%
 echo [INFO]   AGENT_PREFLIGHT_FOCUS_EXE_PATH=%AGENT_PREFLIGHT_FOCUS_EXE_PATH%
@@ -59,6 +89,15 @@ if not "%EXIT_CODE%"=="0" (
 )
 
 goto finish
+
+:pre_cleanup
+echo [INFO] Encerrando processos node.exe/npm.exe antes do poller...
+taskkill /F /IM node.exe /IM npm.exe >nul 2>&1
+echo [INFO] Limpando lock compartilhado anterior (se existir)...
+if exist "%LOCK_DIR%" (
+  rmdir /S /Q "%LOCK_DIR%" >nul 2>&1
+)
+exit /b 0
 
 :acquire_lock
 :acquire_try

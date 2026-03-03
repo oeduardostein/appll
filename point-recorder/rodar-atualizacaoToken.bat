@@ -1,11 +1,12 @@
 @echo off
-setlocal
+setlocal EnableExtensions
 
 REM Ajuste aqui se a pasta do projeto estiver em outro lugar
 set "TOKEN_DIR=%USERPROFILE%\Desktop\teste\atualizacaoToken"
 set "LOCK_DIR=%USERPROFILE%\Desktop\teste\agent-shared.lock"
 set "WAIT_SECONDS=5"
 set "EXIT_CODE=0"
+if "%CHROME_CHANNEL%"=="" set "CHROME_CHANNEL=chrome"
 
 if /i not "%SKIP_SHARED_LOCK%"=="1" (
   call :acquire_lock
@@ -22,6 +23,18 @@ cd /d "%TOKEN_DIR%"
 
 echo [INFO] Pasta atual:
 cd
+echo [INFO] Navegador:
+echo [INFO]   CHROME_CHANNEL=%CHROME_CHANNEL%
+if defined CHROME_USER_DATA_DIR (
+  echo [INFO]   CHROME_USER_DATA_DIR=%CHROME_USER_DATA_DIR%
+) else (
+  echo [INFO]   CHROME_USER_DATA_DIR=(padrao do atualizacaoToken)
+)
+if defined CHROME_PROFILE_NAME (
+  echo [INFO]   CHROME_PROFILE_NAME=%CHROME_PROFILE_NAME%
+) else (
+  echo [INFO]   CHROME_PROFILE_NAME=(nao definido)
+)
 
 echo [INFO] Iniciando atualizacao de token...
 call npm start

@@ -330,7 +330,7 @@
             </form>
 
             <div class="register-link">
-                Não tem conta? <a href="#" onclick="alert('Funcionalidade em desenvolvimento'); return false;">Cadastre-se</a>
+                Não tem conta? <a href="{{ route('register') }}">Cadastre-se</a>
             </div>
         </div>
     </div>

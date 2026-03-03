@@ -12,6 +12,26 @@ const REPLAY_INTERVAL_MS = REPLAY_INTERVAL_MINUTES * 60 * 1000;
 const RECORDINGS_DIR = path.join(__dirname, '..', 'recordings');
 const RECORDING_FILE = path.join(RECORDINGS_DIR, 'sequence.json');
 const CHROME_PROFILE_DIR = path.join(__dirname, '..', 'chrome-profile');
+const DEFAULT_CHROME_USER_DATA_DIR = CHROME_PROFILE_DIR;
+const CHROME_USER_DATA_DIR =
+  String(process.env.CHROME_USER_DATA_DIR || DEFAULT_CHROME_USER_DATA_DIR).trim() ||
+  DEFAULT_CHROME_USER_DATA_DIR;
+const CHROME_PROFILE_DIRECTORY = String(
+  process.env.CHROME_PROFILE_NAME || (process.platform === 'win32' ? 'Default' : '')
+).trim();
+const CHROME_PROFILE_DISPLAY_NAME = String(
+  process.env.CHROME_PROFILE_DISPLAY_NAME || (process.platform === 'win32' ? 'LL DESPACHANTE' : '')
+).trim();
+const CHROME_SOURCE_USER_DATA_DIR = String(
+  process.env.CHROME_SOURCE_USER_DATA_DIR || getWindowsChromeDefaultUserDataDir()
+).trim();
+const CHROME_CHANNEL = String(process.env.CHROME_CHANNEL || 'chrome').trim();
+const CHROME_EXECUTABLE_PATH = String(process.env.CHROME_EXECUTABLE_PATH || '').trim();
+const CHROME_LAUNCH_TIMEOUT_MS = parsePositiveInt(process.env.CHROME_LAUNCH_TIMEOUT_MS, 60000);
+const TARGET_NAV_TIMEOUT_MS = parsePositiveInt(process.env.TARGET_NAV_TIMEOUT_MS, 45000);
+const TARGET_NAV_ATTEMPTS = parsePositiveInt(process.env.TARGET_NAV_ATTEMPTS, 3);
+const CHROME_FORCE_SOFTWARE_RENDER =
+  (process.env.CHROME_FORCE_SOFTWARE_RENDER || '1') !== '0';
 const START_DELAY_MS = 1500;
 const REPLAY_X_OFFSET = 0;
 const REPLAY_Y_OFFSET = 0;
@@ -35,6 +55,19 @@ const TEMPO_RESTANTE_INITIAL_WAIT_MS = parsePositiveInt(
   20000
 );
 const TEMPO_RESTANTE_POLL_MS = parsePositiveInt(process.env.TEMPO_RESTANTE_POLL_MS, 1000);
+const BLOCK_EXTERNAL_PAGES = (process.env.BLOCK_EXTERNAL_PAGES || '1') !== '0';
+const ALLOW_EXTENSION_INSTALL_FLOW = (process.env.ALLOW_EXTENSION_INSTALL_FLOW || '1') !== '0';
+const BLOCK_WEBSTORE_REQUESTS = (process.env.BLOCK_WEBSTORE_REQUESTS || '0') !== '0';
+const EXTRA_ALLOWED_PAGE_HOSTS = parseHostsSet(process.env.EXTRA_ALLOWED_PAGE_HOSTS || '');
+const CLOSE_GOOGLE_AUX_WINDOWS = (process.env.CLOSE_GOOGLE_AUX_WINDOWS || '1') !== '0';
+const GOOGLE_AUX_WINDOW_POLL_MS = parsePositiveInt(process.env.GOOGLE_AUX_WINDOW_POLL_MS, 1500);
+const EXTENSION_POPUP_ROBOT_FALLBACK =
+  (process.env.EXTENSION_POPUP_ROBOT_FALLBACK || '1') !== '0';
+const EXTENSION_POPUP_AUTO_CLOSE =
+  (process.env.EXTENSION_POPUP_AUTO_CLOSE || '0') !== '0';
+const BLOCK_EXTENSION_INSTALL_PROMPTS =
+  (process.env.BLOCK_EXTENSION_INSTALL_PROMPTS || '0') !== '0';
+const TARGET_HOSTS = buildTargetHosts(TARGET_URL);
 const CHROME_LAUNCH_OPTS = {
   headless: false,
   chromiumSandbox: false,
@@ -42,13 +75,28 @@ const CHROME_LAUNCH_OPTS = {
     '--no-sandbox',
     '--disable-setuid-sandbox',
     '--disable-dev-shm-usage',
+    '--new-window',
+    '--disable-sync',
+    '--disable-background-networking',
+    '--no-first-run',
+    '--no-default-browser-check',
+    '--disable-session-crashed-bubble',
+    '--hide-crash-restore-bubble',
     '--start-maximized',
     '--disable-features=BlockInsecurePrivateNetworkRequests,PrivateNetworkAccessChecks'
   ]
 };
+if (CHROME_FORCE_SOFTWARE_RENDER) {
+  CHROME_LAUNCH_OPTS.args.push(
+    '--disable-gpu',
+    '--disable-gpu-compositing',
+    '--use-angle=swiftshader'
+  );
+}
 
 ensureDir(RECORDINGS_DIR);
 ensureDir(CHROME_PROFILE_DIR);
+ensureDir(CHROME_USER_DATA_DIR);
 robot.setMouseDelay(0);
 robot.setKeyboardDelay(0);
 
@@ -161,6 +209,234 @@ function parsePositiveInt(value, fallback) {
   return fallback;
 }
 
+function parseHostsSet(value) {
+  return new Set(
+    String(value || '')
+      .split(',')
+      .map((item) => item.trim().toLowerCase())
+      .filter(Boolean)
+  );
+}
+
+function normalizePathForCompare(rawPath) {
+  return String(rawPath || '')
+    .replace(/\//g, '\\')
+    .replace(/\\+$/, '')
+    .toLowerCase();
+}
+
+function getWindowsChromeDefaultUserDataDir() {
+  const localAppData = process.env.LOCALAPPDATA || '';
+  if (!localAppData) return '';
+  return path.join(localAppData, 'Google', 'Chrome', 'User Data');
+}
+
+function isDefaultWindowsChromeUserDataDir(dirPath) {
+  if (process.platform !== 'win32') return false;
+  const expected = normalizePathForCompare(getWindowsChromeDefaultUserDataDir());
+  const current = normalizePathForCompare(dirPath);
+  return Boolean(expected) && current === expected;
+}
+
+function isDefaultUserDataDirDevToolsError(error) {
+  const text = String((error && error.message) || '').toLowerCase();
+  return text.includes('devtools remote debugging requires a non-default data directory');
+}
+
+function normalizeComparableText(value) {
+  return String(value || '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .trim()
+    .toLowerCase();
+}
+
+function compactComparableText(value) {
+  return normalizeComparableText(value).replace(/[^a-z0-9]/g, '');
+}
+
+function readJsonFileSafe(filePath) {
+  try {
+    if (!fs.existsSync(filePath)) return null;
+    return JSON.parse(fs.readFileSync(filePath, 'utf8'));
+  } catch (err) {
+    return null;
+  }
+}
+
+function findProfileDirectoryByDisplayName(userDataDir, displayName) {
+  if (!displayName) return '';
+  const localStatePath = path.join(userDataDir, 'Local State');
+  const localState = readJsonFileSafe(localStatePath);
+  const infoCache = localState && localState.profile && localState.profile.info_cache;
+  if (!infoCache || typeof infoCache !== 'object') return '';
+
+  const desired = normalizeComparableText(displayName);
+  const desiredCompact = compactComparableText(displayName);
+  const entries = Object.entries(infoCache);
+  for (const [profileDir, profileInfo] of entries) {
+    const profileName = normalizeComparableText(profileInfo && profileInfo.name);
+    if (profileName === desired) {
+      return profileDir;
+    }
+  }
+  for (const [profileDir, profileInfo] of entries) {
+    const profileName = normalizeComparableText(profileInfo && profileInfo.name);
+    if (profileName && profileName.includes(desired)) {
+      return profileDir;
+    }
+  }
+
+  // Tenta casar abreviacoes: ex. "LL DESPACHANTE" -> "LLdesp"
+  let bestDir = '';
+  let bestScore = -1;
+  for (const [profileDir, profileInfo] of entries) {
+    const profileCompact = compactComparableText(profileInfo && profileInfo.name);
+    if (!profileCompact || !desiredCompact) continue;
+    if (!(profileCompact.includes(desiredCompact) || desiredCompact.includes(profileCompact))) {
+      continue;
+    }
+    const overlap = Math.min(profileCompact.length, desiredCompact.length);
+    if (overlap > bestScore) {
+      bestScore = overlap;
+      bestDir = profileDir;
+    }
+  }
+  if (bestDir) {
+    return bestDir;
+  }
+
+  return '';
+}
+
+function listProfileDisplayNames(userDataDir) {
+  const localStatePath = path.join(userDataDir, 'Local State');
+  const localState = readJsonFileSafe(localStatePath);
+  const infoCache = localState && localState.profile && localState.profile.info_cache;
+  if (!infoCache || typeof infoCache !== 'object') return [];
+  return Object.entries(infoCache).map(([profileDir, profileInfo]) => ({
+    dir: profileDir,
+    name: String((profileInfo && profileInfo.name) || '').trim()
+  }));
+}
+
+function mergeLocalStateProfileEntry(sourceUserDataDir, targetUserDataDir, profileDirectory) {
+  const sourceLocalStatePath = path.join(sourceUserDataDir, 'Local State');
+  const targetLocalStatePath = path.join(targetUserDataDir, 'Local State');
+  const sourceLocalState = readJsonFileSafe(sourceLocalStatePath);
+  if (!sourceLocalState || !sourceLocalState.profile || !sourceLocalState.profile.info_cache) return;
+  const sourceEntry = sourceLocalState.profile.info_cache[profileDirectory];
+  if (!sourceEntry) return;
+
+  const targetLocalState = readJsonFileSafe(targetLocalStatePath) || {};
+  if (!targetLocalState.profile || typeof targetLocalState.profile !== 'object') {
+    targetLocalState.profile = {};
+  }
+  if (
+    !targetLocalState.profile.info_cache ||
+    typeof targetLocalState.profile.info_cache !== 'object'
+  ) {
+    targetLocalState.profile.info_cache = {};
+  }
+
+  targetLocalState.profile.info_cache[profileDirectory] = sourceEntry;
+  targetLocalState.profile.last_used = profileDirectory;
+  fs.writeFileSync(targetLocalStatePath, JSON.stringify(targetLocalState, null, 2));
+}
+
+function ensureProfileDirectoryAvailable(targetUserDataDir, profileDirectory) {
+  if (!profileDirectory) return '';
+  const targetProfilePath = path.join(targetUserDataDir, profileDirectory);
+  if (fs.existsSync(targetProfilePath)) {
+    return profileDirectory;
+  }
+  return '';
+}
+
+function ensureProfileByDisplayName(targetUserDataDir, displayName, sourceUserDataDir) {
+  if (!displayName) return '';
+
+  const existing = findProfileDirectoryByDisplayName(targetUserDataDir, displayName);
+  const existingAvailable = ensureProfileDirectoryAvailable(targetUserDataDir, existing);
+  if (existingAvailable) {
+    return existingAvailable;
+  }
+
+  const sourceProfileDir = findProfileDirectoryByDisplayName(sourceUserDataDir, displayName);
+  if (!sourceProfileDir) {
+    const knownProfiles = listProfileDisplayNames(sourceUserDataDir)
+      .map((item) => `${item.dir}=>${item.name}`)
+      .join(', ');
+    console.warn(
+      `Perfil "${displayName}" nao encontrado em ${sourceUserDataDir}. Perfis disponiveis: ${
+        knownProfiles || '(nenhum encontrado)'
+      }. Usando perfil configurado.`
+    );
+    return '';
+  }
+
+  const sourceProfilePath = path.join(sourceUserDataDir, sourceProfileDir);
+  const targetProfilePath = path.join(targetUserDataDir, sourceProfileDir);
+  ensureDir(targetUserDataDir);
+
+  if (!fs.existsSync(sourceProfilePath)) {
+    console.warn(`Diretorio do perfil origem nao encontrado: ${sourceProfilePath}`);
+    return '';
+  }
+
+  if (!fs.existsSync(targetProfilePath)) {
+    console.log(
+      `Copiando perfil "${displayName}" (${sourceProfileDir}) para ambiente de automacao...`
+    );
+    try {
+      fs.cpSync(sourceProfilePath, targetProfilePath, { recursive: true });
+    } catch (err) {
+      console.warn(
+        `Falha ao copiar perfil "${displayName}". Feche o Chrome manual e tente novamente. Detalhe: ${err.message}`
+      );
+      return '';
+    }
+  }
+
+  try {
+    mergeLocalStateProfileEntry(sourceUserDataDir, targetUserDataDir, sourceProfileDir);
+  } catch (err) {
+    console.warn(`Falha ao atualizar Local State do perfil importado: ${err.message}`);
+  }
+
+  return sourceProfileDir;
+}
+
+function resolveProfileDirectoryForUserDataDir(userDataDir) {
+  if (CHROME_PROFILE_DISPLAY_NAME) {
+    const resolvedByName = ensureProfileByDisplayName(
+      userDataDir,
+      CHROME_PROFILE_DISPLAY_NAME,
+      CHROME_SOURCE_USER_DATA_DIR
+    );
+    if (resolvedByName) {
+      return resolvedByName;
+    }
+  }
+  return CHROME_PROFILE_DIRECTORY;
+}
+
+function buildTargetHosts(url) {
+  try {
+    const host = new URL(url).hostname.toLowerCase();
+    const set = new Set([host]);
+    if (host.startsWith('www.')) {
+      set.add(host.slice(4));
+    } else {
+      set.add(`www.${host}`);
+    }
+    return set;
+  } catch (err) {
+    console.warn(`TARGET_URL invalida para calculo de host permitido: ${err.message}`);
+    return new Set();
+  }
+}
+
 function normalizeProcessName(value) {
   const raw = String(value || '').trim();
   if (!raw) return 'sdk-desktop';
@@ -173,6 +449,24 @@ function toPowerShellLiteral(value) {
 
 function delay(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function withTimeout(promise, timeoutMs, label) {
+  return new Promise((resolve, reject) => {
+    const timer = setTimeout(() => {
+      reject(new Error(`${label} excedeu ${timeoutMs}ms.`));
+    }, timeoutMs);
+
+    Promise.resolve(promise)
+      .then((value) => {
+        clearTimeout(timer);
+        resolve(value);
+      })
+      .catch((error) => {
+        clearTimeout(timer);
+        reject(error);
+      });
+  });
 }
 
 function runPowerShell(script) {
@@ -193,6 +487,297 @@ function runPowerShell(script) {
   });
 }
 
+function hostMatchesAllowList(hostname, allowList) {
+  if (!hostname) return false;
+  if (allowList.has(hostname)) return true;
+  for (const allowed of allowList) {
+    if (hostname.endsWith(`.${allowed}`)) return true;
+  }
+  return false;
+}
+
+function isAllowedTopLevelPageUrl(rawUrl) {
+  const normalized = String(rawUrl || '').trim().toLowerCase();
+  if (!normalized) return true;
+  if (
+    normalized === 'about:blank' ||
+    normalized.startsWith('about:') ||
+    normalized.startsWith('data:') ||
+    normalized.startsWith('blob:') ||
+    normalized.startsWith('chrome-error://')
+  ) {
+    return true;
+  }
+
+  if (
+    normalized.startsWith('chrome://') ||
+    normalized.startsWith('edge://') ||
+    normalized.startsWith('chrome-extension://')
+  ) {
+    return false;
+  }
+
+  let host;
+  try {
+    host = new URL(rawUrl).hostname.toLowerCase();
+  } catch (err) {
+    return false;
+  }
+
+  if (
+    ALLOW_EXTENSION_INSTALL_FLOW &&
+    (host === 'chrome.google.com' || host === 'chromewebstore.google.com')
+  ) {
+    return true;
+  }
+
+  if (hostMatchesAllowList(host, TARGET_HOSTS)) return true;
+  if (hostMatchesAllowList(host, EXTRA_ALLOWED_PAGE_HOSTS)) return true;
+  return false;
+}
+
+function isBlockedInstallRequestUrl(rawUrl) {
+  const url = String(rawUrl || '').toLowerCase();
+  return (
+    url.includes('chrome.google.com/webstore') ||
+    url.includes('chromewebstore.google.com') ||
+    url.includes('clients2.google.com/service/update2/crx')
+  );
+}
+
+async function installContextGuards(context) {
+  if (!BLOCK_EXTERNAL_PAGES) return;
+
+  const closeIfDisallowed = async (page, reason) => {
+    const currentUrl = page.url();
+    if (isAllowedTopLevelPageUrl(currentUrl)) return;
+    try {
+      console.warn(
+        `Pagina externa bloqueada (${reason}): ${currentUrl || '(url vazia)'}. Fechando automaticamente.`
+      );
+      await page.close({ runBeforeUnload: false });
+    } catch (err) {
+      console.warn(`Falha ao fechar pagina externa: ${err.message}`);
+    }
+  };
+
+  const attachGuard = (page) => {
+    void closeIfDisallowed(page, 'abertura');
+    page.on('framenavigated', (frame) => {
+      if (frame !== page.mainFrame()) return;
+      void closeIfDisallowed(page, 'navegacao');
+    });
+  };
+
+  context.pages().forEach(attachGuard);
+  context.on('page', attachGuard);
+
+  await context.route('**/*', async (route) => {
+    const requestUrl = route.request().url();
+    if (BLOCK_WEBSTORE_REQUESTS && isBlockedInstallRequestUrl(requestUrl)) {
+      console.warn(`Requisicao de extensao/WebStore bloqueada: ${requestUrl}`);
+      await route.abort();
+      return;
+    }
+    await route.continue();
+  });
+}
+
+async function installExtensionPromptBlocker(context) {
+  if (!BLOCK_EXTENSION_INSTALL_PROMPTS) return;
+
+  await context.addInitScript(() => {
+    const blockReason = 'Instalacao de extensao bloqueada pela automacao.';
+
+    function installStub(...args) {
+      const failureCallback = args.find((value) => typeof value === 'function');
+      if (failureCallback) {
+        setTimeout(() => {
+          try {
+            failureCallback(blockReason);
+          } catch (err) {
+            // ignora callback quebrado da pagina
+          }
+        }, 0);
+      }
+      return undefined;
+    }
+
+    function patchChromeWebstoreInstall() {
+      const chromeApi = window.chrome || (window.chrome = {});
+      const webstoreApi = chromeApi.webstore || (chromeApi.webstore = {});
+      try {
+        Object.defineProperty(webstoreApi, 'install', {
+          configurable: true,
+          writable: true,
+          value: installStub
+        });
+      } catch (err) {
+        webstoreApi.install = installStub;
+      }
+    }
+
+    patchChromeWebstoreInstall();
+    setInterval(patchChromeWebstoreInstall, 1000);
+  });
+}
+
+async function launchBrowserContext() {
+  const launchOptions = {
+    ...CHROME_LAUNCH_OPTS,
+    args: [...CHROME_LAUNCH_OPTS.args],
+    viewport: null,
+    timeout: CHROME_LAUNCH_TIMEOUT_MS
+  };
+
+  if (CHROME_EXECUTABLE_PATH) {
+    launchOptions.executablePath = CHROME_EXECUTABLE_PATH;
+  } else if (CHROME_CHANNEL) {
+    launchOptions.channel = CHROME_CHANNEL;
+  }
+
+  const browserDescriptor = CHROME_EXECUTABLE_PATH
+    ? `executablePath=${CHROME_EXECUTABLE_PATH}`
+    : `channel=${CHROME_CHANNEL || 'chromium_padrao'}`;
+  let userDataDirInUse = CHROME_USER_DATA_DIR;
+  let profileDirectoryInUse = resolveProfileDirectoryForUserDataDir(userDataDirInUse);
+  launchOptions.args = CHROME_LAUNCH_OPTS.args.filter(
+    (arg) => !String(arg).startsWith('--profile-directory=')
+  );
+  if (profileDirectoryInUse) {
+    launchOptions.args.push(`--profile-directory=${profileDirectoryInUse}`);
+  }
+  console.log(
+    `Iniciando navegador (${browserDescriptor}, userDataDir=${userDataDirInUse}${
+      profileDirectoryInUse ? `, profile=${profileDirectoryInUse}` : ''
+    }).`
+  );
+
+  let context;
+  let launchError = null;
+  try {
+    context = await chromium.launchPersistentContext(userDataDirInUse, launchOptions);
+  } catch (err) {
+    launchError = err;
+    const canFallbackToIsolatedProfile =
+      isDefaultWindowsChromeUserDataDir(userDataDirInUse) || isDefaultUserDataDirDevToolsError(err);
+    if (!canFallbackToIsolatedProfile) {
+      throw new Error(
+        `Falha ao iniciar Chrome (${browserDescriptor}, profile=${profileDirectoryInUse || 'padrao'}). ` +
+          `Detalhe: ${err.message}`
+      );
+    }
+
+    userDataDirInUse = CHROME_PROFILE_DIR;
+    ensureDir(userDataDirInUse);
+    profileDirectoryInUse = resolveProfileDirectoryForUserDataDir(userDataDirInUse);
+    launchOptions.args = CHROME_LAUNCH_OPTS.args.filter(
+      (arg) => !String(arg).startsWith('--profile-directory=')
+    );
+    if (profileDirectoryInUse) {
+      launchOptions.args.push(`--profile-directory=${profileDirectoryInUse}`);
+    }
+    console.warn(
+      'Chrome bloqueou o perfil padrao para automacao. Tentando novamente com perfil isolado: ' +
+        userDataDirInUse +
+        (profileDirectoryInUse ? ` (profile=${profileDirectoryInUse})` : '')
+    );
+    try {
+      context = await chromium.launchPersistentContext(userDataDirInUse, launchOptions);
+    } catch (fallbackErr) {
+      throw new Error(
+        `Falha ao iniciar Chrome (${browserDescriptor}) no perfil padrao e no perfil isolado. ` +
+          `Erro padrao: ${err.message}. Erro isolado: ${fallbackErr.message}`
+      );
+    }
+  }
+
+  if (launchError && userDataDirInUse === CHROME_PROFILE_DIR) {
+    console.log('Navegador iniciado com perfil isolado de automacao.');
+  }
+  console.log('Navegador iniciado. Aplicando guardas de contexto...');
+  await installExtensionPromptBlocker(context);
+  await installContextGuards(context);
+  try {
+    await getOrCreateContextPage(context, { timeoutMs: 5000 });
+  } catch (err) {
+    console.warn(`Falha ao preparar segunda aba na inicializacao: ${err.message}`);
+  }
+  return context;
+}
+
+function isBlankLikeUrl(rawUrl) {
+  const normalized = String(rawUrl || '').trim().toLowerCase();
+  if (!normalized) return true;
+  return normalized === 'about:blank' || normalized.startsWith('about:');
+}
+
+async function navigateToTarget(initialPage, context) {
+  const waitForTarget = (page) =>
+    page.waitForURL(
+      (url) => {
+        try {
+          const host = url.hostname.toLowerCase();
+          return hostMatchesAllowList(host, TARGET_HOSTS);
+        } catch (err) {
+          return false;
+        }
+      },
+      { timeout: TARGET_NAV_TIMEOUT_MS }
+    );
+
+  const maxAttempts = Math.max(1, TARGET_NAV_ATTEMPTS);
+  let page = initialPage;
+  let lastError = null;
+
+  for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
+    console.log(`Navegando para ${TARGET_URL} (tentativa ${attempt}/${maxAttempts})...`);
+
+    try {
+      await page.bringToFront();
+    } catch (err) {
+      console.warn(`Falha ao trazer aba para frente: ${err.message}`);
+    }
+
+    try {
+      await page.goto(TARGET_URL, { waitUntil: 'domcontentloaded', timeout: TARGET_NAV_TIMEOUT_MS });
+      await waitForTarget(page);
+      if (isBlankLikeUrl(page.url())) {
+        throw new Error('A pagina permaneceu em branco apos o goto.');
+      }
+      console.log(`Navegacao concluida em: ${page.url()}`);
+      return page;
+    } catch (firstErr) {
+      lastError = firstErr;
+      console.warn(`Navegacao inicial falhou (${firstErr.message}). Tentando forcar location.href...`);
+      try {
+        await page.evaluate((url) => {
+          window.location.href = url;
+        }, TARGET_URL);
+        await waitForTarget(page);
+        if (isBlankLikeUrl(page.url())) {
+          throw new Error('A pagina permaneceu em branco apos location.href.');
+        }
+        console.log(`Navegacao concluida em: ${page.url()}`);
+        return page;
+      } catch (secondErr) {
+        lastError = secondErr;
+        console.warn(`Falha na tentativa ${attempt}: ${secondErr.message}`);
+      }
+    }
+
+    if (attempt < maxAttempts) {
+      page = await getOrCreateContextPage(context, { forceNew: true });
+    }
+  }
+
+  const currentUrl = page && !page.isClosed() ? page.url() : '(aba indisponivel)';
+  throw new Error(
+    `Nao foi possivel navegar para ${TARGET_URL} apos ${maxAttempts} tentativa(s). ` +
+      `Ultima URL: ${currentUrl}. Detalhe: ${lastError ? lastError.message : 'sem detalhes'}`
+  );
+}
+
 async function focusSdkDesktopWindow() {
   const script = `
 $processName = ${toPowerShellLiteral(SDK_MONITOR_PROCESS_NAME)}
@@ -207,6 +792,82 @@ if ($activated) { Write-Output $target.Id }
   const pid = Number(output);
   if (!Number.isInteger(pid) || pid <= 0) return null;
   return pid;
+}
+
+async function closeGoogleAuxWindows() {
+  const script = `
+$targets = Get-Process -ErrorAction SilentlyContinue | Where-Object {
+  $_.MainWindowHandle -ne 0 -and
+  $_.ProcessName -match '^Google' -and
+  $_.ProcessName -notmatch '^(chrome|chromium)$'
+}
+foreach ($p in $targets) {
+  try {
+    if (-not $p.CloseMainWindow()) {
+      Stop-Process -Id $p.Id -Force -ErrorAction Stop
+    } else {
+      Start-Sleep -Milliseconds 300
+      if (-not $p.HasExited) {
+        Stop-Process -Id $p.Id -Force -ErrorAction Stop
+      }
+    }
+    Write-Output "$($p.ProcessName):$($p.Id)"
+  } catch {
+    # ignora falhas individuais
+  }
+}
+`;
+  const output = await runPowerShell(script);
+  if (!output) return [];
+  return output
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter(Boolean);
+}
+
+function startGoogleAuxWindowMonitor() {
+  if (!CLOSE_GOOGLE_AUX_WINDOWS) {
+    return () => {};
+  }
+
+  if (process.platform !== 'win32') {
+    console.log('Monitor de janelas Google desativado: recurso disponivel apenas no Windows.');
+    return () => {};
+  }
+
+  let stopped = false;
+  let isHandling = false;
+
+  const tick = async () => {
+    if (stopped || isHandling) return;
+    isHandling = true;
+    try {
+      const closed = await closeGoogleAuxWindows();
+      if (closed.length > 0) {
+        console.log(`Janelas Google auxiliares fechadas: ${closed.join(', ')}`);
+      }
+    } catch (err) {
+      console.warn(`Falha ao fechar janelas Google auxiliares: ${err.message}`);
+    } finally {
+      isHandling = false;
+    }
+  };
+
+  const interval = setInterval(() => {
+    void tick();
+  }, GOOGLE_AUX_WINDOW_POLL_MS);
+
+  if (typeof interval.unref === 'function') {
+    interval.unref();
+  }
+
+  console.log(`Monitor de janelas Google ativo (varredura: ${GOOGLE_AUX_WINDOW_POLL_MS}ms).`);
+  void tick();
+
+  return () => {
+    stopped = true;
+    clearInterval(interval);
+  };
 }
 
 function startSdkDesktopWindowMonitor() {
@@ -524,30 +1185,95 @@ async function focusAndCalibrate(page) {
   await delay(300);
 }
 
-async function getOrCreateContextPage(context) {
-  const pages = context.pages();
-  if (pages.length > 0) {
-    const primary = pages[0];
-    for (let i = 1; i < pages.length; i++) {
-      try {
-        await pages[i].close();
-      } catch (err) {
-        console.warn(`Falha ao fechar aba extra: ${err.message}`);
-      }
-    }
-    return primary;
+async function tryOpenNewTabByKeyboard(context, basePage) {
+  const shortcut = process.platform === 'darwin' ? 'Meta+T' : 'Control+T';
+  try {
+    await basePage.bringToFront();
+  } catch (err) {
+    console.warn(`Falha ao focar aba base para atalho de nova aba: ${err.message}`);
   }
-  return context.newPage();
+
+  let waitNewPage = context.waitForEvent('page', { timeout: 4000 }).catch(() => null);
+  try {
+    await basePage.keyboard.press(shortcut);
+  } catch (err) {
+    console.warn(`Falha ao abrir nova aba via Playwright (${shortcut}): ${err.message}`);
+  }
+  let created = await waitNewPage;
+  if (created) return created;
+
+  if (EXTENSION_POPUP_ROBOT_FALLBACK) {
+    const modifier = process.platform === 'darwin' ? 'command' : 'control';
+    waitNewPage = context.waitForEvent('page', { timeout: 4000 }).catch(() => null);
+    try {
+      robot.keyTap('t', modifier);
+    } catch (err) {
+      console.warn(`Falha ao abrir nova aba via RobotJS (${modifier}+t): ${err.message}`);
+    }
+    created = await waitNewPage;
+  }
+  return created;
+}
+
+async function getOrCreateContextPage(context, options = {}) {
+  const forceNew = options.forceNew === true;
+  const timeoutMs = parsePositiveInt(options.timeoutMs, 8000);
+  const openPages = () => context.pages().filter((candidate) => !candidate.isClosed());
+
+  if (!forceNew) {
+    const pages = openPages();
+    if (pages.length >= 2) {
+      const secondTab = pages[1];
+      try {
+        await secondTab.bringToFront();
+      } catch (err) {
+        console.warn(`Falha ao trazer a segunda aba para frente: ${err.message}`);
+      }
+      console.log('Usando segunda aba de automacao.');
+      return secondTab;
+    }
+  }
+
+  const currentPages = openPages();
+  const basePage = currentPages[0] || null;
+  let newPage = null;
+  try {
+    newPage = await withTimeout(context.newPage(), timeoutMs, 'Abertura de nova aba');
+  } catch (err) {
+    console.warn(`Falha ao abrir nova aba via API: ${err.message}`);
+  }
+
+  if (!newPage && basePage) {
+    newPage = await tryOpenNewTabByKeyboard(context, basePage);
+  }
+
+  if (!newPage) {
+    if (basePage) {
+      try {
+        await basePage.bringToFront();
+      } catch (err) {
+        console.warn(`Falha ao trazer aba base para frente: ${err.message}`);
+      }
+      console.warn('Seguindo com aba base por falta de segunda aba.');
+      return basePage;
+    }
+    throw new Error('Nenhuma aba disponivel para automacao.');
+  }
+
+  try {
+    await newPage.bringToFront();
+  } catch (err) {
+    console.warn(`Falha ao trazer a nova aba para frente: ${err.message}`);
+  }
+  console.log('Aba de automacao criada. Executando fluxo nela.');
+  return newPage;
 }
 
 async function recordOnceWithBrowser() {
   console.log(`Abrindo navegador em ${TARGET_URL} para iniciar a gravação...`);
-  const context = await chromium.launchPersistentContext(CHROME_PROFILE_DIR, {
-    ...CHROME_LAUNCH_OPTS,
-    viewport: null
-  });
-  const page = await getOrCreateContextPage(context);
-  await page.goto(TARGET_URL);
+  const context = await launchBrowserContext();
+  let page = await getOrCreateContextPage(context);
+  page = await navigateToTarget(page, context);
   await focusAndCalibrate(page);
   await startAutoClickNotification(page, CALIBRATION_FRAME_SELECTOR);
   const calibrationPoint = await getCalibrationPoint(
@@ -793,61 +1519,20 @@ async function performDomClick(page, event) {
   }
 }
 
-async function digitarCPFNoCampo(page) {
+async function digitarNoCampoComPlaywright(page, selector, valor, delayMs = 90) {
   const frame = await getFrameFromSelector(page, CALIBRATION_FRAME_SELECTOR);
   const target = frame || page;
-  await target.waitForSelector('#cpf', { state: 'visible', timeout: 15000 });
-  await target.evaluate(() => {
-    return new Promise((resolve) => {
-      const campo = document.querySelector('#cpf');
-      if (!campo) {
-        console.error("Campo com ID 'cpf' nao encontrado.");
-        resolve();
-        return;
-      }
+  const locator = target.locator(selector).first();
+  await locator.waitFor({ state: 'visible', timeout: 15000 });
+  await locator.click({ timeout: 5000 });
+  await locator.fill('');
+  await locator.type(String(valor), { delay: delayMs });
+  await page.keyboard.press('Tab');
+  await delay(150);
+}
 
-      const valor = '44922011811';
-      campo.value = '';
-
-      let i = 0;
-      const intervalo = setInterval(() => {
-        if (i < valor.length) {
-          const char = valor[i];
-          campo.value += char;
-
-          const eventoKeyDown = new KeyboardEvent('keydown', {
-            key: char,
-            code: `Digit${char}`,
-            keyCode: char.charCodeAt(0),
-            which: char.charCodeAt(0),
-            bubbles: true,
-            cancelable: true
-          });
-          campo.dispatchEvent(eventoKeyDown);
-
-          const eventoInput = new Event('input', { bubbles: true });
-          campo.dispatchEvent(eventoInput);
-
-          const eventoKeyUp = new KeyboardEvent('keyup', {
-            key: char,
-            code: `Digit${char}`,
-            keyCode: char.charCodeAt(0),
-            which: char.charCodeAt(0),
-            bubbles: true,
-            cancelable: true
-          });
-          campo.dispatchEvent(eventoKeyUp);
-
-          i++;
-        } else {
-          clearInterval(intervalo);
-          const eventoChange = new Event('change', { bubbles: true });
-          campo.dispatchEvent(eventoChange);
-          resolve();
-        }
-      }, 50);
-    });
-  });
+async function digitarCPFNoCampo(page) {
+  await digitarNoCampoComPlaywright(page, '#cpf', '44922011811', 85);
 }
 
 async function clicarContinuar(page) {
@@ -860,60 +1545,7 @@ async function clicarContinuar(page) {
 }
 
 async function digitarSenhaNoCampo(page) {
-  const frame = await getFrameFromSelector(page, CALIBRATION_FRAME_SELECTOR);
-  const target = frame || page;
-  await target.waitForSelector('#senha', { state: 'visible', timeout: 15000 });
-  await target.evaluate(() => {
-    return new Promise((resolve) => {
-      const campo = document.querySelector('#senha');
-      if (!campo) {
-        console.error("Campo com ID 'senha' nao encontrado.");
-        resolve();
-        return;
-      }
-
-      const valor = '220775Ari*';
-      campo.value = '';
-
-      let i = 0;
-      const intervalo = setInterval(() => {
-        if (i < valor.length) {
-          const char = valor[i];
-          campo.value += char;
-
-          const eventoKeyDown = new KeyboardEvent('keydown', {
-            key: char,
-            code: `Key${char.toUpperCase()}`,
-            keyCode: char.charCodeAt(0),
-            which: char.charCodeAt(0),
-            bubbles: true,
-            cancelable: true
-          });
-          campo.dispatchEvent(eventoKeyDown);
-
-          const eventoInput = new Event('input', { bubbles: true });
-          campo.dispatchEvent(eventoInput);
-
-          const eventoKeyUp = new KeyboardEvent('keyup', {
-            key: char,
-            code: `Key${char.toUpperCase()}`,
-            keyCode: char.charCodeAt(0),
-            which: char.charCodeAt(0),
-            bubbles: true,
-            cancelable: true
-          });
-          campo.dispatchEvent(eventoKeyUp);
-
-          i++;
-        } else {
-          clearInterval(intervalo);
-          const eventoChange = new Event('change', { bubbles: true });
-          campo.dispatchEvent(eventoChange);
-          resolve();
-        }
-      }, 50);
-    });
-  });
+  await digitarNoCampoComPlaywright(page, '#senha', '220775Ari*', 95);
 }
 
 
@@ -924,6 +1556,47 @@ async function clicarEntrar(page) {
   const target = frame || page;
   await target.waitForSelector(selector, { state: 'visible', timeout: 15000 });
   await target.click(selector);
+}
+
+async function pressionarEnterParaFecharPopupExtensao(page) {
+  if (!EXTENSION_POPUP_AUTO_CLOSE) {
+    return;
+  }
+
+  try {
+    await page.bringToFront();
+  } catch (err) {
+    console.warn(`Falha ao trazer aba para frente antes do Enter: ${err.message}`);
+  }
+
+  try {
+    await page.evaluate(() => window.focus());
+  } catch (err) {
+    console.warn(`Falha ao focar pagina antes do Enter: ${err.message}`);
+  }
+
+  await delay(300);
+  try {
+    await page.keyboard.press('Escape', { delay: 60 });
+  } catch (err) {
+    console.warn(`Falha ao enviar Esc via Playwright: ${err.message}`);
+  }
+
+  if (EXTENSION_POPUP_ROBOT_FALLBACK) {
+    robot.keyTap('escape');
+  }
+
+  await delay(250);
+  try {
+    await page.keyboard.press('Enter', { delay: 80 });
+  } catch (err) {
+    console.warn(`Falha ao enviar Enter via Playwright: ${err.message}`);
+  }
+
+  if (EXTENSION_POPUP_ROBOT_FALLBACK) {
+    robot.keyTap('enter');
+  }
+  await delay(300);
 }
 
 async function clicarSeExistir(page, selector, timeoutMs) {
@@ -1045,22 +1718,27 @@ async function monitorarTempoRestante(page) {
 }
 
 async function runAutomationFlow(page, context) {
-  await page.goto(TARGET_URL);
+  page = await navigateToTarget(page, context);
   await focusAndCalibrate(page);
   await startAutoClickNotification(page, CALIBRATION_FRAME_SELECTOR);
   await delay(START_DELAY_MS);
   console.log('Etapa: aguardo inicial + CPF');
   await delay(3000);
   await digitarCPFNoCampo(page);
+  console.log('Etapa: fechamento preventivo de popup da extensao');
+  await pressionarEnterParaFecharPopupExtensao(page);
   console.log('Etapa: clique em continuar');
   await clicarContinuar(page);
   console.log('Etapa: aguardo pos-continuar');
   await delay(5000);
+  await pressionarEnterParaFecharPopupExtensao(page);
   console.log('Etapa: aguardo + senha');
   await delay(3000);
   await digitarSenhaNoCampo(page);
   console.log('Etapa: clique em entrar');
   await clicarEntrar(page);
+  console.log('Etapa: Enter para fechar popup da extensao');
+  await pressionarEnterParaFecharPopupExtensao(page);
   console.log('Etapa: aguardo pos-entrar');
   await delay(5000);
   console.log('Etapa: clique opcional');
@@ -1098,10 +1776,7 @@ async function runAutomationFlow(page, context) {
 async function automationLoop() {
   while (true) {
     console.log('Abrindo navegador para executar automacao...');
-    const context = await chromium.launchPersistentContext(CHROME_PROFILE_DIR, {
-      ...CHROME_LAUNCH_OPTS,
-      viewport: null
-    });
+    const context = await launchBrowserContext();
     const page = await getOrCreateContextPage(context);
     try {
       await runAutomationFlow(page, context);
@@ -1123,6 +1798,7 @@ async function automationLoop() {
 
 async function main() {
   const stopSdkDesktopWindowMonitor = startSdkDesktopWindowMonitor();
+  const stopGoogleAuxWindowMonitor = startGoogleAuxWindowMonitor();
   try {
     const mode = (process.argv[2] || 'auto').toLowerCase();
     if (mode === 'record') {
@@ -1139,6 +1815,7 @@ async function main() {
 
     await automationLoop();
   } finally {
+    stopGoogleAuxWindowMonitor();
     stopSdkDesktopWindowMonitor();
   }
 }
