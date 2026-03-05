@@ -309,14 +309,26 @@ function resolveTokenUpdaterConfig(env) {
   const cwdRaw = String(env.AGENT_TOKEN_UPDATER_DIR || '').trim();
   const cwd = cwdRaw
     ? path.resolve(process.cwd(), cwdRaw)
-    : path.resolve(process.cwd(), '..', 'atualizacaoToken');
+    : path.resolve(process.cwd());
+  const restartInitialBackoffMs = toPositiveInt(
+    env.AGENT_TOKEN_UPDATER_RESTART_INITIAL_BACKOFF_MS,
+    10000
+  );
+  const restartMaxBackoffMs = Math.max(
+    restartInitialBackoffMs,
+    toPositiveInt(env.AGENT_TOKEN_UPDATER_RESTART_MAX_BACKOFF_MS, 300000)
+  );
 
   return {
     enabled,
     cwd,
-    command: String(env.AGENT_TOKEN_UPDATER_COMMAND || 'npm start').trim() || 'npm start',
+    command: String(env.AGENT_TOKEN_UPDATER_COMMAND || 'npm run token:refresh').trim()
+      || 'npm run token:refresh',
     idleGraceMs: toNonNegativeInt(env.AGENT_TOKEN_UPDATER_IDLE_GRACE_MS, 2500),
     stopTimeoutMs: toPositiveInt(env.AGENT_TOKEN_UPDATER_STOP_TIMEOUT_MS, 15000),
+    minUptimeMs: toNonNegativeInt(env.AGENT_TOKEN_UPDATER_MIN_UPTIME_MS, 8000),
+    restartInitialBackoffMs,
+    restartMaxBackoffMs,
   };
 }
 
@@ -327,6 +339,10 @@ function createTokenUpdaterManager(env, localLogger) {
   let stoppingPromise = null;
   let starting = false;
   let disabledByConfigError = false;
+  let consecutiveFailures = 0;
+  let nextStartAllowedAt = 0;
+  let lastBackoffLogAt = 0;
+  const intentionallyStoppingPids = new Set();
 
   const isRunning = () => Boolean(child && child.exitCode == null && !child.killed);
 
@@ -386,6 +402,9 @@ function createTokenUpdaterManager(env, localLogger) {
 
     const proc = child;
     const pid = proc?.pid ?? null;
+    if (Number.isInteger(pid) && pid > 0) {
+      intentionallyStoppingPids.add(pid);
+    }
     localLogger?.info?.('token_updater.stop.begin', { reason, pid });
 
     stoppingPromise = (async () => {
@@ -402,6 +421,9 @@ function createTokenUpdaterManager(env, localLogger) {
         }
       } finally {
         if (child === proc) child = null;
+        if (Number.isInteger(pid) && pid > 0) {
+          intentionallyStoppingPids.delete(pid);
+        }
       }
     })();
 
@@ -415,6 +437,9 @@ function createTokenUpdaterManager(env, localLogger) {
 
   const onQueueBusy = async (reason = 'queue_busy') => {
     await stopProcess(reason);
+    idleSince = null;
+    consecutiveFailures = 0;
+    nextStartAllowedAt = 0;
   };
 
   const onQueueEmpty = async (reason = 'queue_empty') => {
@@ -428,6 +453,18 @@ function createTokenUpdaterManager(env, localLogger) {
     if (isRunning()) return;
     if (starting || stoppingPromise) return;
     if (Date.now() - idleSince < cfg.idleGraceMs) return;
+    if (nextStartAllowedAt > Date.now()) {
+      const now = Date.now();
+      if (now - lastBackoffLogAt >= 5000) {
+        lastBackoffLogAt = now;
+        localLogger?.debug?.('token_updater.start.backoff', {
+          reason,
+          wait_ms: nextStartAllowedAt - now,
+          consecutive_failures: consecutiveFailures,
+        });
+      }
+      return;
+    }
 
     starting = true;
     try {
@@ -456,6 +493,8 @@ function createTokenUpdaterManager(env, localLogger) {
       });
 
       child = proc;
+      const startedAt = Date.now();
+      let lifecycleHandled = false;
       localLogger?.info?.('token_updater.start', {
         reason,
         pid: proc.pid ?? null,
@@ -463,11 +502,56 @@ function createTokenUpdaterManager(env, localLogger) {
         command: cfg.command,
       });
 
+      const applyOutcome = (outcome) => {
+        if (lifecycleHandled) return;
+        lifecycleHandled = true;
+
+        const stoppedByManager =
+          Number.isInteger(outcome?.pid) && intentionallyStoppingPids.has(outcome.pid);
+        if (stoppedByManager) {
+          return;
+        }
+
+        const uptimeMs = Math.max(0, Date.now() - startedAt);
+        const exitedWithFailure =
+          outcome?.type === 'error' ||
+          outcome?.code !== 0 ||
+          outcome?.signal != null ||
+          uptimeMs < cfg.minUptimeMs;
+
+        if (!exitedWithFailure) {
+          consecutiveFailures = 0;
+          nextStartAllowedAt = 0;
+          return;
+        }
+
+        consecutiveFailures += 1;
+        const backoffMs = Math.min(
+          cfg.restartMaxBackoffMs,
+          cfg.restartInitialBackoffMs * (2 ** Math.max(0, consecutiveFailures - 1))
+        );
+        nextStartAllowedAt = Date.now() + backoffMs;
+        localLogger?.warn?.('token_updater.restart_backoff', {
+          consecutive_failures: consecutiveFailures,
+          backoff_ms: backoffMs,
+          uptime_ms: uptimeMs,
+          code: outcome?.code ?? null,
+          signal: outcome?.signal ?? null,
+          reason: outcome?.type || 'exit',
+        });
+      };
+
       proc.once('exit', (code, signal) => {
         if (child === proc) child = null;
         localLogger?.warn?.('token_updater.exit', {
           code: code ?? null,
           signal: signal ?? null,
+        });
+        applyOutcome({
+          type: 'exit',
+          code: code ?? null,
+          signal: signal ?? null,
+          pid: proc.pid ?? null,
         });
       });
 
@@ -475,6 +559,12 @@ function createTokenUpdaterManager(env, localLogger) {
         if (child === proc) child = null;
         localLogger?.error?.('token_updater.error', {
           error: String(err?.message || err),
+        });
+        applyOutcome({
+          type: 'error',
+          code: null,
+          signal: null,
+          pid: proc.pid ?? null,
         });
       });
     } finally {
@@ -492,6 +582,9 @@ function createTokenUpdaterManager(env, localLogger) {
     command: cfg.command,
     idleGraceMs: cfg.idleGraceMs,
     stopTimeoutMs: cfg.stopTimeoutMs,
+    minUptimeMs: cfg.minUptimeMs,
+    restartInitialBackoffMs: cfg.restartInitialBackoffMs,
+    restartMaxBackoffMs: cfg.restartMaxBackoffMs,
   });
 
   return {

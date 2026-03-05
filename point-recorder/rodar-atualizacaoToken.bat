@@ -2,11 +2,16 @@
 setlocal EnableExtensions
 
 REM Ajuste aqui se a pasta do projeto estiver em outro lugar
-set "TOKEN_DIR=%USERPROFILE%\Desktop\teste\atualizacaoToken"
+set "TOKEN_DIR=%USERPROFILE%\Desktop\teste\point-recorder"
 set "LOCK_DIR=%USERPROFILE%\Desktop\teste\agent-shared.lock"
 set "WAIT_SECONDS=5"
 set "EXIT_CODE=0"
-if "%CHROME_CHANNEL%"=="" set "CHROME_CHANNEL=chrome"
+if "%AGENT_TOKEN_UPDATER_COMMAND%"=="" set "AGENT_TOKEN_UPDATER_COMMAND=npm run token:refresh"
+if "%TOKEN_REFRESH_BROWSER_CHANNEL%"=="" set "TOKEN_REFRESH_BROWSER_CHANNEL=chrome"
+if /I "%TOKEN_REFRESH_BROWSER_EXECUTABLE_PATH%"=="%USERPROFILE%\Desktop\Firefox.exe" (
+  echo [WARN] TOKEN_REFRESH_BROWSER_EXECUTABLE_PATH aponta para launcher da Area de Trabalho. Ignorando.
+  set "TOKEN_REFRESH_BROWSER_EXECUTABLE_PATH="
+)
 
 if /i not "%SKIP_SHARED_LOCK%"=="1" (
   call :acquire_lock
@@ -24,24 +29,26 @@ cd /d "%TOKEN_DIR%"
 echo [INFO] Pasta atual:
 cd
 echo [INFO] Navegador:
-echo [INFO]   CHROME_CHANNEL=%CHROME_CHANNEL%
-if defined CHROME_USER_DATA_DIR (
-  echo [INFO]   CHROME_USER_DATA_DIR=%CHROME_USER_DATA_DIR%
+echo [INFO]   TOKEN_REFRESH_BROWSER_CHANNEL=%TOKEN_REFRESH_BROWSER_CHANNEL%
+if defined TOKEN_REFRESH_BROWSER_EXECUTABLE_PATH (
+  echo [INFO]   TOKEN_REFRESH_BROWSER_EXECUTABLE_PATH=%TOKEN_REFRESH_BROWSER_EXECUTABLE_PATH%
 ) else (
-  echo [INFO]   CHROME_USER_DATA_DIR=(padrao do atualizacaoToken)
+  echo [INFO]   TOKEN_REFRESH_BROWSER_EXECUTABLE_PATH=(nao definido, usando channel^)
 )
-if defined CHROME_PROFILE_NAME (
-  echo [INFO]   CHROME_PROFILE_NAME=%CHROME_PROFILE_NAME%
+if defined TOKEN_REFRESH_USER_DATA_DIR (
+  echo [INFO]   TOKEN_REFRESH_USER_DATA_DIR=%TOKEN_REFRESH_USER_DATA_DIR%
 ) else (
-  echo [INFO]   CHROME_PROFILE_NAME=(nao definido)
+  echo [INFO]   TOKEN_REFRESH_USER_DATA_DIR=(padrao local do point-recorder^)
 )
+echo [INFO] Comando:
+echo [INFO]   AGENT_TOKEN_UPDATER_COMMAND=%AGENT_TOKEN_UPDATER_COMMAND%
 
 echo [INFO] Iniciando atualizacao de token...
-call npm start
+call %AGENT_TOKEN_UPDATER_COMMAND%
 set "EXIT_CODE=%ERRORLEVEL%"
 
 if not "%EXIT_CODE%"=="0" (
-  echo [ERRO] O comando npm start encerrou com codigo %EXIT_CODE%.
+  echo [ERRO] O comando %AGENT_TOKEN_UPDATER_COMMAND% encerrou com codigo %EXIT_CODE%.
 )
 
 goto finish

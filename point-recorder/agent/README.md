@@ -117,11 +117,11 @@ Ele:
 - tenta “pegar” 1 pendência por vez;
 - quando não tem nada, espera e tenta de novo.
 
-### Prioridade do `agent:poller` sobre `atualizacaoToken`
+### Prioridade do `agent:poller` sobre o refresh de token
 
-Com a integração habilitada (padrão), o próprio `agent:poller` controla o `atualizacaoToken`:
+Com a integração habilitada (padrão), o próprio `agent:poller` controla o processo de refresh de token:
 
-- fila vazia: inicia `npm start` no diretório de token updater;
+- fila vazia: inicia `npm run token:refresh` no diretório configurado;
 - chegou requisição: encerra o token updater e processa a fila;
 - fila voltou a ficar vazia: inicia novamente o token updater.
 
@@ -129,10 +129,30 @@ Variáveis de ambiente:
 
 ```
 AGENT_TOKEN_UPDATER_ENABLED=true
-AGENT_TOKEN_UPDATER_DIR=../atualizacaoToken
-AGENT_TOKEN_UPDATER_COMMAND=npm start
+AGENT_TOKEN_UPDATER_DIR=.
+AGENT_TOKEN_UPDATER_COMMAND=npm run token:refresh
 AGENT_TOKEN_UPDATER_IDLE_GRACE_MS=2500
 AGENT_TOKEN_UPDATER_STOP_TIMEOUT_MS=15000
+AGENT_TOKEN_UPDATER_MIN_UPTIME_MS=8000
+AGENT_TOKEN_UPDATER_RESTART_INITIAL_BACKOFF_MS=10000
+AGENT_TOKEN_UPDATER_RESTART_MAX_BACKOFF_MS=300000
+```
+
+Configuração do fluxo de refresh de token:
+
+```
+TOKEN_REFRESH_TARGET_URL=https://www.e-crvsp.sp.gov.br/
+TOKEN_REFRESH_UPDATE_URL=https://applldespachante.skalacode.com/api/update-token
+TOKEN_REFRESH_CPF=seu_cpf
+TOKEN_REFRESH_PIN=1234
+TOKEN_REFRESH_LOOP_ENABLED=true
+TOKEN_REFRESH_INTERVAL_MS=600000
+TOKEN_REFRESH_RETRY_DELAY_MS=30000
+TOKEN_REFRESH_NAV_TIMEOUT_MS=45000
+TOKEN_REFRESH_POST_LOGIN_WAIT_MS=2000
+TOKEN_REFRESH_BROWSER_CHANNEL=chrome
+TOKEN_REFRESH_BROWSER_EXECUTABLE_PATH=
+TOKEN_REFRESH_USER_DATA_DIR=
 ```
 
 ### Preflight por requisição (foco + screenshot + OCR)

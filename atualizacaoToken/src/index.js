@@ -2,7 +2,7 @@ const fs = require('fs');
 const path = require('path');
 const readline = require('readline');
 const { execFile } = require('child_process');
-const { chromium } = require('playwright');
+const { firefox } = require('playwright');
 const { uIOhook, UiohookKey } = require('uiohook-napi');
 const robot = require('robotjs');
 
@@ -11,7 +11,7 @@ const REPLAY_INTERVAL_MINUTES = Number(process.env.REPLAY_INTERVAL_MINUTES || 10
 const REPLAY_INTERVAL_MS = REPLAY_INTERVAL_MINUTES * 60 * 1000;
 const RECORDINGS_DIR = path.join(__dirname, '..', 'recordings');
 const RECORDING_FILE = path.join(RECORDINGS_DIR, 'sequence.json');
-const CHROME_PROFILE_DIR = path.join(__dirname, '..', 'chrome-profile');
+const CHROME_PROFILE_DIR = path.join(__dirname, '..', 'firefox-profile');
 const DEFAULT_CHROME_USER_DATA_DIR = CHROME_PROFILE_DIR;
 const CHROME_USER_DATA_DIR =
   String(process.env.CHROME_USER_DATA_DIR || DEFAULT_CHROME_USER_DATA_DIR).trim() ||
@@ -25,8 +25,8 @@ const CHROME_PROFILE_DISPLAY_NAME = String(
 const CHROME_SOURCE_USER_DATA_DIR = String(
   process.env.CHROME_SOURCE_USER_DATA_DIR || getWindowsChromeDefaultUserDataDir()
 ).trim();
-const CHROME_CHANNEL = String(process.env.CHROME_CHANNEL || 'chrome').trim();
-const CHROME_EXECUTABLE_PATH = String(process.env.CHROME_EXECUTABLE_PATH || '').trim();
+const CHROME_CHANNEL = String(process.env.CHROME_CHANNEL || 'firefox').trim();
+const CHROME_EXECUTABLE_PATH = sanitizeExecutablePath(process.env.CHROME_EXECUTABLE_PATH || '');
 const CHROME_LAUNCH_TIMEOUT_MS = parsePositiveInt(process.env.CHROME_LAUNCH_TIMEOUT_MS, 60000);
 const TARGET_NAV_TIMEOUT_MS = parsePositiveInt(process.env.TARGET_NAV_TIMEOUT_MS, 45000);
 const TARGET_NAV_ATTEMPTS = parsePositiveInt(process.env.TARGET_NAV_ATTEMPTS, 3);
@@ -70,29 +70,9 @@ const BLOCK_EXTENSION_INSTALL_PROMPTS =
 const TARGET_HOSTS = buildTargetHosts(TARGET_URL);
 const CHROME_LAUNCH_OPTS = {
   headless: false,
-  chromiumSandbox: false,
-  args: [
-    '--no-sandbox',
-    '--disable-setuid-sandbox',
-    '--disable-dev-shm-usage',
-    '--new-window',
-    '--disable-sync',
-    '--disable-background-networking',
-    '--no-first-run',
-    '--no-default-browser-check',
-    '--disable-session-crashed-bubble',
-    '--hide-crash-restore-bubble',
-    '--start-maximized',
-    '--disable-features=BlockInsecurePrivateNetworkRequests,PrivateNetworkAccessChecks'
-  ]
+  args: ['-new-window']
 };
-if (CHROME_FORCE_SOFTWARE_RENDER) {
-  CHROME_LAUNCH_OPTS.args.push(
-    '--disable-gpu',
-    '--disable-gpu-compositing',
-    '--use-angle=swiftshader'
-  );
-}
+let skipCustomExecutablePath = false;
 
 ensureDir(RECORDINGS_DIR);
 ensureDir(CHROME_PROFILE_DIR);
@@ -207,6 +187,13 @@ function parsePositiveInt(value, fallback) {
   const parsed = Number(value);
   if (Number.isFinite(parsed) && parsed > 0) return parsed;
   return fallback;
+}
+
+function sanitizeExecutablePath(value) {
+  return String(value || '')
+    .replace(/[\u200e\u200f\u202a-\u202e\u2066-\u2069]/g, '')
+    .trim()
+    .replace(/^"(.*)"$/, '$1');
 }
 
 function parseHostsSet(value) {
@@ -623,76 +610,97 @@ async function installExtensionPromptBlocker(context) {
 }
 
 async function launchBrowserContext() {
-  const launchOptions = {
-    ...CHROME_LAUNCH_OPTS,
-    args: [...CHROME_LAUNCH_OPTS.args],
-    viewport: null,
-    timeout: CHROME_LAUNCH_TIMEOUT_MS
-  };
+  const useCustomChannel =
+    Boolean(CHROME_CHANNEL) &&
+    !['firefox', 'default', 'auto'].includes(String(CHROME_CHANNEL).toLowerCase());
+  const launchModes = [];
+  if (CHROME_EXECUTABLE_PATH && !skipCustomExecutablePath) {
+    launchModes.push({
+      type: 'executable',
+      name: `executablePath=${CHROME_EXECUTABLE_PATH}`,
+      apply: (options) => {
+        options.executablePath = CHROME_EXECUTABLE_PATH;
+      }
+    });
+  }
+  if (!CHROME_EXECUTABLE_PATH && useCustomChannel) {
+    launchModes.push({
+      type: 'channel',
+      name: `channel=${CHROME_CHANNEL}`,
+      apply: (options) => {
+        options.channel = CHROME_CHANNEL;
+      }
+    });
+  }
+  launchModes.push({
+    type: 'bundle',
+    name: 'playwright_firefox_bundle',
+    apply: () => {}
+  });
 
-  if (CHROME_EXECUTABLE_PATH) {
-    launchOptions.executablePath = CHROME_EXECUTABLE_PATH;
-  } else if (CHROME_CHANNEL) {
-    launchOptions.channel = CHROME_CHANNEL;
+  const candidateUserDataDirs = [CHROME_USER_DATA_DIR];
+  if (normalizePathForCompare(CHROME_USER_DATA_DIR) !== normalizePathForCompare(CHROME_PROFILE_DIR)) {
+    candidateUserDataDirs.push(CHROME_PROFILE_DIR);
   }
 
-  const browserDescriptor = CHROME_EXECUTABLE_PATH
-    ? `executablePath=${CHROME_EXECUTABLE_PATH}`
-    : `channel=${CHROME_CHANNEL || 'chromium_padrao'}`;
-  let userDataDirInUse = CHROME_USER_DATA_DIR;
-  let profileDirectoryInUse = resolveProfileDirectoryForUserDataDir(userDataDirInUse);
-  launchOptions.args = CHROME_LAUNCH_OPTS.args.filter(
-    (arg) => !String(arg).startsWith('--profile-directory=')
-  );
-  if (profileDirectoryInUse) {
-    launchOptions.args.push(`--profile-directory=${profileDirectoryInUse}`);
-  }
-  console.log(
-    `Iniciando navegador (${browserDescriptor}, userDataDir=${userDataDirInUse}${
-      profileDirectoryInUse ? `, profile=${profileDirectoryInUse}` : ''
-    }).`
-  );
+  let context = null;
+  let startedWithIsolatedProfile = false;
+  let lastLaunchError = null;
 
-  let context;
-  let launchError = null;
-  try {
-    context = await chromium.launchPersistentContext(userDataDirInUse, launchOptions);
-  } catch (err) {
-    launchError = err;
-    const canFallbackToIsolatedProfile =
-      isDefaultWindowsChromeUserDataDir(userDataDirInUse) || isDefaultUserDataDirDevToolsError(err);
-    if (!canFallbackToIsolatedProfile) {
-      throw new Error(
-        `Falha ao iniciar Chrome (${browserDescriptor}, profile=${profileDirectoryInUse || 'padrao'}). ` +
-          `Detalhe: ${err.message}`
-      );
-    }
-
-    userDataDirInUse = CHROME_PROFILE_DIR;
+  for (const userDataDirInUse of candidateUserDataDirs) {
+    const isolatedProfileInUse =
+      normalizePathForCompare(userDataDirInUse) === normalizePathForCompare(CHROME_PROFILE_DIR);
     ensureDir(userDataDirInUse);
-    profileDirectoryInUse = resolveProfileDirectoryForUserDataDir(userDataDirInUse);
-    launchOptions.args = CHROME_LAUNCH_OPTS.args.filter(
-      (arg) => !String(arg).startsWith('--profile-directory=')
-    );
-    if (profileDirectoryInUse) {
-      launchOptions.args.push(`--profile-directory=${profileDirectoryInUse}`);
+    for (const mode of launchModes) {
+      const launchOptions = {
+        ...CHROME_LAUNCH_OPTS,
+        args: [...CHROME_LAUNCH_OPTS.args],
+        viewport: null,
+        timeout: CHROME_LAUNCH_TIMEOUT_MS
+      };
+      mode.apply(launchOptions);
+      console.log(
+        `Iniciando Firefox (${mode.name}, userDataDir=${userDataDirInUse}).`
+      );
+
+      try {
+        context = await firefox.launchPersistentContext(userDataDirInUse, launchOptions);
+        startedWithIsolatedProfile = isolatedProfileInUse;
+        if (mode.name !== 'playwright_firefox_bundle') {
+          console.log(`Firefox iniciado com ${mode.name}.`);
+        } else {
+          console.log('Firefox iniciado com navegador gerenciado pelo Playwright.');
+        }
+        break;
+      } catch (err) {
+        lastLaunchError = err;
+        if (mode.type === 'executable') {
+          skipCustomExecutablePath = true;
+          console.warn(
+            'O executablePath configurado falhou e sera ignorado nos proximos ciclos deste processo.'
+          );
+        }
+        console.warn(
+          `Falha ao iniciar Firefox (${mode.name}, userDataDir=${userDataDirInUse}): ${err.message}`
+        );
+      }
     }
-    console.warn(
-      'Chrome bloqueou o perfil padrao para automacao. Tentando novamente com perfil isolado: ' +
-        userDataDirInUse +
-        (profileDirectoryInUse ? ` (profile=${profileDirectoryInUse})` : '')
-    );
-    try {
-      context = await chromium.launchPersistentContext(userDataDirInUse, launchOptions);
-    } catch (fallbackErr) {
-      throw new Error(
-        `Falha ao iniciar Chrome (${browserDescriptor}) no perfil padrao e no perfil isolado. ` +
-          `Erro padrao: ${err.message}. Erro isolado: ${fallbackErr.message}`
+    if (context) break;
+    if (!isolatedProfileInUse) {
+      console.warn(
+        'Nenhuma estrategia funcionou com o perfil configurado. Tentando com perfil isolado...'
       );
     }
   }
 
-  if (launchError && userDataDirInUse === CHROME_PROFILE_DIR) {
+  if (!context) {
+    throw new Error(
+      `Falha ao iniciar Firefox em todas as estrategias. ` +
+        `Detalhe: ${lastLaunchError ? lastLaunchError.message : 'sem detalhes'}`
+    );
+  }
+
+  if (startedWithIsolatedProfile) {
     console.log('Navegador iniciado com perfil isolado de automacao.');
   }
   console.log('Navegador iniciado. Aplicando guardas de contexto...');
