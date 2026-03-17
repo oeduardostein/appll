@@ -1,9 +1,11 @@
+import 'dotenv/config';
 import process from 'node:process';
 import fs from 'node:fs';
 import path from 'node:path';
 import http from 'node:http';
 import https from 'node:https';
 import { chromium } from 'playwright';
+import robot from 'robotjs';
 
 function toPositiveInt(value, fallback) {
   const parsed = Number(value);
@@ -32,8 +34,29 @@ function sanitizeExecutablePath(value) {
     .replace(/^"(.*)"$/, '$1');
 }
 
+let stopRequested = false;
+
+function requestStop(signal) {
+  if (stopRequested) return;
+  stopRequested = true;
+  console.log(`[token-refresh] Sinal ${signal} recebido. Encerrando...`);
+}
+
 function delay(ms) {
-  return new Promise((resolve) => setTimeout(resolve, ms));
+  const step = 200;
+  let remaining = Number(ms) || 0;
+  return new Promise((resolve) => {
+    const tick = () => {
+      if (stopRequested || remaining <= 0) {
+        resolve();
+        return;
+      }
+      const slice = Math.min(step, remaining);
+      remaining -= slice;
+      setTimeout(tick, slice);
+    };
+    tick();
+  });
 }
 
 function ensureDir(dirPath) {
@@ -88,26 +111,14 @@ function postJson(url, payload) {
   });
 }
 
-async function getViewportBounds(page) {
-  return page.evaluate(() => {
-    const dpr = window.devicePixelRatio || 1;
-    const innerLeft = window.screenX + (window.outerWidth - window.innerWidth) / 2;
-    const innerTop = window.screenY + (window.outerHeight - window.innerHeight);
-    return {
-      left: Math.round(innerLeft * dpr),
-      top: Math.round(innerTop * dpr),
-      right: Math.round((innerLeft + window.innerWidth) * dpr),
-      bottom: Math.round((innerTop + window.innerHeight) * dpr),
-      dpr,
-    };
-  });
+function nativeClick(x, y) {
+  robot.moveMouseSmooth(x, y);
+  robot.mouseClick('left', false);
 }
 
-function globalToViewport(point, viewportBounds) {
-  return {
-    x: Math.round(point.x - viewportBounds.left),
-    y: Math.round(point.y - viewportBounds.top),
-  };
+function nativeType(text) {
+  if (!text) return;
+  robot.typeString(text);
 }
 
 function extractSessionToken(cookies) {
@@ -133,6 +144,8 @@ const INTERVAL_MS = toPositiveInt(process.env.TOKEN_REFRESH_INTERVAL_MS, 10 * 60
 const RETRY_DELAY_MS = toPositiveInt(process.env.TOKEN_REFRESH_RETRY_DELAY_MS, 30 * 1000);
 const NAV_TIMEOUT_MS = toPositiveInt(process.env.TOKEN_REFRESH_NAV_TIMEOUT_MS, 45 * 1000);
 const POST_LOGIN_WAIT_MS = toNonNegativeInt(process.env.TOKEN_REFRESH_POST_LOGIN_WAIT_MS, 2000);
+const USE_EXISTING_CHROME = toBool(process.env.TOKEN_REFRESH_USE_EXISTING_CHROME, false);
+const CDP_URL = String(process.env.TOKEN_REFRESH_CDP_URL || 'http://127.0.0.1:9222').trim();
 const BROWSER_CHANNEL = String(
   process.env.TOKEN_REFRESH_BROWSER_CHANNEL || process.env.CHROME_CHANNEL || 'chrome'
 ).trim();
@@ -144,8 +157,13 @@ const BROWSER_USER_DATA_DIR = String(
     path.resolve(process.cwd(), 'token-refresh-profile')
 ).trim();
 
+const DEFAULT_FLOW_FILE = path.resolve(process.cwd(), 'recordings/token-flow.jsonl');
+const FLOW_FILE = String(process.env.TOKEN_REFRESH_FLOW_FILE || DEFAULT_FLOW_FILE).trim();
+const FLOW_FILE_ENABLED = toBool(process.env.TOKEN_REFRESH_FLOW_FILE_ENABLED, true);
+
 const FLOW_STEPS = [
-  { kind: 'click', x: 352, y: 349, label: 'campo cpf' },
+  { kind: 'click', x: 1510, y: 115, label: 'clique inicial' },
+  { kind: 'click', x: 274, y: 467, label: 'campo cpf' },
   { kind: 'type', text: () => USER_CPF, label: 'digitar cpf' },
   { kind: 'wait', ms: 2000, label: 'aguardo apos cpf' },
   { kind: 'click', x: 407, y: 386, label: 'botao continuar' },
@@ -163,45 +181,147 @@ const FLOW_STEPS = [
   { kind: 'click', x: 681, y: 646, label: 'acao final' },
 ];
 
+function parseFlowFileContent(content) {
+  const trimmed = String(content || '').trim();
+  if (!trimmed) return [];
+  if (trimmed.startsWith('[')) {
+    const parsed = JSON.parse(trimmed);
+    return Array.isArray(parsed) ? parsed : [];
+  }
+  return trimmed
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter(Boolean)
+    .map((line) => JSON.parse(line));
+}
+
+function buildStepsFromRecords(records) {
+  const events = records.filter(
+    (rec) =>
+      (rec?.type === 'click' || rec?.type === 'mark') &&
+      Number.isFinite(rec?.x) &&
+      Number.isFinite(rec?.y)
+  );
+
+  let prevT = 0;
+  const steps = [];
+
+  for (const event of events) {
+    if (Number.isFinite(event.t)) {
+      const delta = Math.max(0, event.t - prevT);
+      if (delta > 0) {
+        steps.push({ kind: 'wait', ms: delta, label: `aguardo ${delta}ms` });
+      }
+      prevT = event.t;
+    }
+
+    if (event.type === 'click') {
+      steps.push({ kind: 'click', x: event.x, y: event.y, label: 'click gravado' });
+      continue;
+    }
+
+    if (event.type === 'mark') {
+      if (event.label === 'cpf') {
+        steps.push({ kind: 'type', text: () => USER_CPF, label: 'digitar cpf' });
+      } else if (event.label === 'pin') {
+        steps.push({ kind: 'type', text: () => PIN_CODE, label: 'digitar pin' });
+      }
+    }
+  }
+
+  return steps;
+}
+
+function resolveFlowSteps() {
+  if (!FLOW_FILE_ENABLED) {
+    console.log('[token-refresh] Fluxo gravado desativado; usando passos fixos.');
+    return FLOW_STEPS;
+  }
+
+  if (!fs.existsSync(FLOW_FILE)) {
+    if (process.env.TOKEN_REFRESH_FLOW_FILE) {
+      throw new Error(`Arquivo de fluxo nao encontrado: ${FLOW_FILE}`);
+    }
+    console.log('[token-refresh] Fluxo gravado nao encontrado; usando passos fixos.');
+    return FLOW_STEPS;
+  }
+
+  const content = fs.readFileSync(FLOW_FILE, 'utf8');
+  const records = parseFlowFileContent(content);
+  const steps = buildStepsFromRecords(records);
+
+  if (!steps.length) {
+    throw new Error(`Arquivo de fluxo vazio/sem passos validos: ${FLOW_FILE}`);
+  }
+
+  console.log(`[token-refresh] Usando fluxo gravado: ${FLOW_FILE} (passos=${steps.length}).`);
+  return steps;
+}
+
 async function runFlowCycle() {
   if (!USER_CPF) {
     throw new Error('TOKEN_REFRESH_CPF nao definido.');
   }
 
-  ensureDir(BROWSER_USER_DATA_DIR);
+  const flowSteps = resolveFlowSteps();
 
-  const launchOptions = {
-    headless: false,
-    viewport: null,
-    args: ['--start-maximized', '--new-window'],
-    timeout: NAV_TIMEOUT_MS,
-  };
+  let context;
+  let browser;
+  let shouldCloseContext = false;
+  let createdPage;
 
-  if (BROWSER_EXECUTABLE_PATH) {
-    launchOptions.executablePath = BROWSER_EXECUTABLE_PATH;
-  } else if (BROWSER_CHANNEL) {
-    launchOptions.channel = BROWSER_CHANNEL;
+  if (USE_EXISTING_CHROME) {
+    console.log(`[token-refresh] Usando sessao do Chrome existente via CDP: ${CDP_URL}.`);
+    browser = await chromium.connectOverCDP(CDP_URL);
+    const contexts = browser.contexts();
+    if (contexts.length > 0) {
+      context = contexts[0];
+    } else {
+      console.warn(
+        '[token-refresh] Nenhum contexto existente encontrado no Chrome remoto; criando novo contexto (sem cookies existentes).'
+      );
+      context = await browser.newContext();
+    }
+  } else {
+    ensureDir(BROWSER_USER_DATA_DIR);
+
+    const launchOptions = {
+      headless: false,
+      viewport: null,
+      args: ['--start-maximized', '--new-window'],
+      timeout: NAV_TIMEOUT_MS,
+    };
+
+    if (BROWSER_EXECUTABLE_PATH) {
+      launchOptions.executablePath = BROWSER_EXECUTABLE_PATH;
+    } else if (BROWSER_CHANNEL) {
+      launchOptions.channel = BROWSER_CHANNEL;
+    }
+
+    console.log(
+      `[token-refresh] Iniciando Chrome (${BROWSER_EXECUTABLE_PATH ? `executablePath=${BROWSER_EXECUTABLE_PATH}` : `channel=${BROWSER_CHANNEL || 'padrao'}`}).`
+    );
+
+    context = await chromium.launchPersistentContext(BROWSER_USER_DATA_DIR, launchOptions);
+    shouldCloseContext = true;
   }
 
-  console.log(
-    `[token-refresh] Iniciando Chrome (${BROWSER_EXECUTABLE_PATH ? `executablePath=${BROWSER_EXECUTABLE_PATH}` : `channel=${BROWSER_CHANNEL || 'padrao'}`}).`
-  );
-
-  const context = await chromium.launchPersistentContext(BROWSER_USER_DATA_DIR, launchOptions);
   try {
     const pages = context.pages().filter((page) => !page.isClosed());
-    const page = pages[0] || (await context.newPage());
+    const page = USE_EXISTING_CHROME ? await context.newPage() : pages[0] || (await context.newPage());
+    createdPage = page;
 
     await page.bringToFront();
     await page.goto(TARGET_URL, { waitUntil: 'domcontentloaded', timeout: NAV_TIMEOUT_MS });
     await delay(1500);
+    robot.setMouseDelay(60);
+    robot.setKeyboardDelay(80);
 
-    const viewportBounds = await getViewportBounds(page);
-    console.log(
-      `[token-refresh] Viewport absoluto: left=${viewportBounds.left} top=${viewportBounds.top} right=${viewportBounds.right} bottom=${viewportBounds.bottom} dpr=${viewportBounds.dpr}`
-    );
-
-    for (const step of FLOW_STEPS) {
+    for (const step of flowSteps) {
+      if (stopRequested) {
+        console.log('[token-refresh] Encerrando ciclo por solicitacao.');
+        return;
+      }
       if (step.kind === 'wait') {
         console.log(`[token-refresh] Esperando ${step.ms}ms (${step.label}).`);
         await delay(step.ms);
@@ -209,23 +329,30 @@ async function runFlowCycle() {
       }
 
       if (step.kind === 'click') {
-        const target = globalToViewport(step, viewportBounds);
-        console.log(
-          `[token-refresh] Clique ${step.label}: global(${step.x},${step.y}) -> viewport(${target.x},${target.y})`
-        );
-        await page.mouse.click(target.x, target.y, { delay: 60 });
+        console.log(`[token-refresh] Clique ${step.label}: screen(${step.x},${step.y})`);
+        nativeClick(step.x, step.y);
         continue;
       }
 
       if (step.kind === 'type') {
         const text = String(step.text()).trim();
         console.log(`[token-refresh] Digitando (${step.label}): ${text.length} caracteres.`);
-        await page.keyboard.type(text, { delay: 80 });
+        nativeType(text);
       }
+    }
+
+    if (stopRequested) {
+      console.log('[token-refresh] Encerrando ciclo por solicitacao.');
+      return;
     }
 
     if (POST_LOGIN_WAIT_MS > 0) {
       await delay(POST_LOGIN_WAIT_MS);
+    }
+
+    if (stopRequested) {
+      console.log('[token-refresh] Encerrando ciclo por solicitacao.');
+      return;
     }
 
     const cookies = await context.cookies();
@@ -243,23 +370,33 @@ async function runFlowCycle() {
 
     console.log(`[token-refresh] Token atualizado com sucesso (status=${response.status}).`);
   } finally {
-    await context.close();
+    if (createdPage && !createdPage.isClosed()) {
+      await createdPage.close();
+    }
+    if (shouldCloseContext && context) {
+      await context.close();
+    }
+    if (!shouldCloseContext && browser && typeof browser.disconnect === 'function') {
+      await browser.disconnect();
+    }
   }
 }
 
 async function main() {
   console.log('[token-refresh] Rotina iniciada.');
   console.log(
-    `[token-refresh] Config: loop=${LOOP_ENABLED} interval_ms=${INTERVAL_MS} retry_ms=${RETRY_DELAY_MS} target=${TARGET_URL}`
+    `[token-refresh] Config: loop=${LOOP_ENABLED} interval_ms=${INTERVAL_MS} retry_ms=${RETRY_DELAY_MS} target=${TARGET_URL} input=nativo chrome_existente=${USE_EXISTING_CHROME} cdp_url=${CDP_URL} flow_file=${FLOW_FILE_ENABLED ? FLOW_FILE : 'desativado'}`
   );
 
   while (true) {
+    if (stopRequested) break;
     try {
       await runFlowCycle();
-      if (!LOOP_ENABLED) break;
+      if (!LOOP_ENABLED || stopRequested) break;
       console.log(`[token-refresh] Aguardando ${INTERVAL_MS}ms para novo ciclo...`);
       await delay(INTERVAL_MS);
     } catch (err) {
+      if (stopRequested) break;
       console.error(`[token-refresh] Erro no ciclo: ${err.message}`);
       if (!LOOP_ENABLED) {
         throw err;
@@ -274,3 +411,6 @@ main().catch((err) => {
   console.error('[token-refresh] Erro fatal:', err);
   process.exit(1);
 });
+
+process.on('SIGINT', () => requestStop('SIGINT'));
+process.on('SIGTERM', () => requestStop('SIGTERM'));

@@ -9,15 +9,21 @@
     "record:template": "node record-template.js",
     "calibrate:template": "node agent/calibrate.mjs",
     "pick:points": "node agent/pick-points.mjs",
+    "record:flow": "node agent/record-flow.mjs",
     "token:refresh": "node agent/token-refresh.mjs",
+    "token:updater": "node agent/token-updater-ecrv.mjs",
+    "token:ecrv": "node agent/token-refresh-ecrv.js",
     "agent:poller": "node agent/poller.mjs",
-    "agent:worker": "node agent/worker.mjs"
+    "agent:worker": "node agent/worker.mjs",
+    "login:esystem": "node agent/run-esystem-login.mjs"
   },
   "dependencies": {
     "clipboardy": "^4.0.0",
     "dotenv": "^16.4.5",
     "mysql2": "^3.14.0",
+    "puppeteer": "^23.11.1",
     "playwright": "^1.57.0",
+    "robotjs": "^0.6.0",
     "tesseract.js": "^5.1.1",
     "uiohook-napi": "^1.0.0"
   }

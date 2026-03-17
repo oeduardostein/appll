@@ -2,53 +2,56 @@
 setlocal EnableExtensions
 
 REM Ajuste aqui se a pasta do projeto estiver em outro lugar
-set "TOKEN_DIR=%USERPROFILE%\Desktop\teste\point-recorder"
+set "CLICK_AUTOMATION_DIR=%USERPROFILE%\Desktop\teste\appll\click-automation"
+set "LEGACY_CLICK_DIR=%USERPROFILE%\Desktop\teste\click-automation"
 set "LOCK_DIR=%USERPROFILE%\Desktop\teste\agent-shared.lock"
 set "WAIT_SECONDS=5"
 set "EXIT_CODE=0"
-if "%AGENT_TOKEN_UPDATER_COMMAND%"=="" set "AGENT_TOKEN_UPDATER_COMMAND=npm run token:refresh"
-if "%TOKEN_REFRESH_BROWSER_CHANNEL%"=="" set "TOKEN_REFRESH_BROWSER_CHANNEL=chrome"
-if /I "%TOKEN_REFRESH_BROWSER_EXECUTABLE_PATH%"=="%USERPROFILE%\Desktop\Firefox.exe" (
-  echo [WARN] TOKEN_REFRESH_BROWSER_EXECUTABLE_PATH aponta para launcher da Area de Trabalho. Ignorando.
-  set "TOKEN_REFRESH_BROWSER_EXECUTABLE_PATH="
+
+REM Tentar encontrar o click-automation
+if not exist "%CLICK_AUTOMATION_DIR%\package.json" (
+  if exist "%LEGACY_CLICK_DIR%\package.json" (
+    set "CLICK_AUTOMATION_DIR=%LEGACY_CLICK_DIR%"
+  )
 )
 
 if /i not "%SKIP_SHARED_LOCK%"=="1" (
   call :acquire_lock
 )
 
-if not exist "%TOKEN_DIR%\package.json" (
-  echo [ERRO] Nao encontrei package.json em:
-  echo %TOKEN_DIR%
+if not exist "%CLICK_AUTOMATION_DIR%\package.json" (
+  echo [ERRO] Nao encontrei package.json do click-automation em:
+  echo [ERRO]   %CLICK_AUTOMATION_DIR%
+  echo [ERRO]   %LEGACY_CLICK_DIR%
   set "EXIT_CODE=1"
   goto finish
 )
 
-cd /d "%TOKEN_DIR%"
+cd /d "%CLICK_AUTOMATION_DIR%"
 
+echo [INFO] ============================================================
+echo [INFO] ATUALIZACAO DE TOKEN (E-CRV SP)
+echo [INFO] ============================================================
 echo [INFO] Pasta atual:
 cd
-echo [INFO] Navegador:
-echo [INFO]   TOKEN_REFRESH_BROWSER_CHANNEL=%TOKEN_REFRESH_BROWSER_CHANNEL%
-if defined TOKEN_REFRESH_BROWSER_EXECUTABLE_PATH (
-  echo [INFO]   TOKEN_REFRESH_BROWSER_EXECUTABLE_PATH=%TOKEN_REFRESH_BROWSER_EXECUTABLE_PATH%
-) else (
-  echo [INFO]   TOKEN_REFRESH_BROWSER_EXECUTABLE_PATH=(nao definido, usando channel^)
-)
-if defined TOKEN_REFRESH_USER_DATA_DIR (
-  echo [INFO]   TOKEN_REFRESH_USER_DATA_DIR=%TOKEN_REFRESH_USER_DATA_DIR%
-) else (
-  echo [INFO]   TOKEN_REFRESH_USER_DATA_DIR=(padrao local do point-recorder^)
-)
-echo [INFO] Comando:
-echo [INFO]   AGENT_TOKEN_UPDATER_COMMAND=%AGENT_TOKEN_UPDATER_COMMAND%
+echo [INFO] Pasta do click-automation: %CLICK_AUTOMATION_DIR%
+echo [INFO] ============================================================
 
-echo [INFO] Iniciando atualizacao de token...
-call %AGENT_TOKEN_UPDATER_COMMAND%
+echo [INFO] Instalando dependencias...
+call npm install
+if errorlevel 1 (
+  echo [WARN] Falha no npm install. Tentando executar anyway...
+)
+
+echo [INFO] Executando automacao do E-CRV (login + captura JSESSIONID^)...
+call npm run ecrv
 set "EXIT_CODE=%ERRORLEVEL%"
 
 if not "%EXIT_CODE%"=="0" (
-  echo [ERRO] O comando %AGENT_TOKEN_UPDATER_COMMAND% encerrou com codigo %EXIT_CODE%.
+  echo [ERRO] A automacao do E-CRV encerrou com codigo %EXIT_CODE%.
+) else (
+  echo [INFO] Automacao do E-CRV concluida com sucesso!
+  echo [INFO] JSESSIONID foi capturado e salvo no banco de dados.
 )
 
 goto finish

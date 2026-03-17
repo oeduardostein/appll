@@ -14,16 +14,16 @@ if not defined PROJECT_DIR if exist "%DEFAULT_PROJECT_DIR%\package.json" set "PR
 if not defined PROJECT_DIR set "PROJECT_DIR=%LEGACY_PROJECT_DIR%"
 if not exist "%PROJECT_DIR%\package.json" if exist "%PROJECT_DIR%\point-recorder\package.json" set "PROJECT_DIR=%PROJECT_DIR%\point-recorder"
 
-if "%AGENT_TOKEN_UPDATER_ENABLED%"=="" set "AGENT_TOKEN_UPDATER_ENABLED=1"
-if "%AGENT_TOKEN_UPDATER_DIR%"=="" set "AGENT_TOKEN_UPDATER_DIR=."
-if "%AGENT_TOKEN_UPDATER_COMMAND%"=="" set "AGENT_TOKEN_UPDATER_COMMAND=npm run token:refresh"
-if "%AGENT_TOKEN_UPDATER_IDLE_GRACE_MS%"=="" set "AGENT_TOKEN_UPDATER_IDLE_GRACE_MS=2500"
-if "%AGENT_TOKEN_UPDATER_STOP_TIMEOUT_MS%"=="" set "AGENT_TOKEN_UPDATER_STOP_TIMEOUT_MS=15000"
-if "%TOKEN_REFRESH_BROWSER_CHANNEL%"=="" set "TOKEN_REFRESH_BROWSER_CHANNEL=chrome"
-if /I "%TOKEN_REFRESH_BROWSER_EXECUTABLE_PATH%"=="%USERPROFILE%\Desktop\Firefox.exe" (
-  echo [WARN] TOKEN_REFRESH_BROWSER_EXECUTABLE_PATH aponta para launcher da Area de Trabalho. Ignorando.
-  set "TOKEN_REFRESH_BROWSER_EXECUTABLE_PATH="
-)
+REM Configuracao do Token Updater E-CRV
+if "%TOKEN_UPDATER_ENABLED%"=="" set "TOKEN_UPDATER_ENABLED=1"
+if "%TOKEN_UPDATER_START_MODE%"=="" set "TOKEN_UPDATER_START_MODE=after-poller"
+if "%TOKEN_UPDATER_INITIAL_DELAY_MS%"=="" set "TOKEN_UPDATER_INITIAL_DELAY_MS=10000"
+
+REM Configuracao do click-automation (E-CRV) - login inicial
+if "%CLICK_AUTOMATION_ENABLED%"=="" set "CLICK_AUTOMATION_ENABLED=0"
+if "%CLICK_AUTOMATION_DIR%"=="" set "CLICK_AUTOMATION_DIR=%USERPROFILE%\Desktop\teste\appll\click-automation"
+
+REM Preflight do e-System
 if "%AGENT_PREFLIGHT_ENABLED%"=="" set "AGENT_PREFLIGHT_ENABLED=1"
 if "%AGENT_PREFLIGHT_FOCUS_EXE_PATH%"=="" set "AGENT_PREFLIGHT_FOCUS_EXE_PATH=C:\SH Sistemas\System Desp SX\eSystemDesp.exe"
 if "%AGENT_PREFLIGHT_FOCUS_WAIT_MS%"=="" set "AGENT_PREFLIGHT_FOCUS_WAIT_MS=350"
@@ -32,6 +32,7 @@ if "%AGENT_PREFLIGHT_OCR_ENABLED%"=="" set "AGENT_PREFLIGHT_OCR_ENABLED=0"
 if "%AGENT_PREFLIGHT_EXPECTED_KEYWORDS%"=="" set "AGENT_PREFLIGHT_EXPECTED_KEYWORDS=e-system desp,utilitarios"
 if "%AGENT_PREFLIGHT_MIN_KEYWORD_MATCHES%"=="" set "AGENT_PREFLIGHT_MIN_KEYWORD_MATCHES=1"
 if "%AGENT_PREFLIGHT_FAIL_IF_NOT_MATCHED%"=="" set "AGENT_PREFLIGHT_FAIL_IF_NOT_MATCHED=0"
+
 set "LOCK_DIR=%USERPROFILE%\Desktop\teste\agent-shared.lock"
 set "WAIT_SECONDS=5"
 set "EXIT_CODE=0"
@@ -57,33 +58,78 @@ cd /d "%PROJECT_DIR%"
 
 echo [INFO] Pasta atual:
 cd
-echo [INFO] Token updater integrado:
-echo [INFO]   AGENT_TOKEN_UPDATER_ENABLED=%AGENT_TOKEN_UPDATER_ENABLED%
-echo [INFO]   AGENT_TOKEN_UPDATER_DIR=%AGENT_TOKEN_UPDATER_DIR%
-echo [INFO]   AGENT_TOKEN_UPDATER_COMMAND=%AGENT_TOKEN_UPDATER_COMMAND%
-echo [INFO] Navegador do token updater:
-echo [INFO]   TOKEN_REFRESH_BROWSER_CHANNEL=%TOKEN_REFRESH_BROWSER_CHANNEL%
-if defined TOKEN_REFRESH_BROWSER_EXECUTABLE_PATH (
-  echo [INFO]   TOKEN_REFRESH_BROWSER_EXECUTABLE_PATH=%TOKEN_REFRESH_BROWSER_EXECUTABLE_PATH%
-) else (
-  echo [INFO]   TOKEN_REFRESH_BROWSER_EXECUTABLE_PATH=(nao definido, usando channel^)
-)
-if defined TOKEN_REFRESH_USER_DATA_DIR (
-  echo [INFO]   TOKEN_REFRESH_USER_DATA_DIR=%TOKEN_REFRESH_USER_DATA_DIR%
-) else (
-  echo [INFO]   TOKEN_REFRESH_USER_DATA_DIR=(padrao local do point-recorder^)
-)
+echo [INFO] ============================================================
+echo [INFO] TOKEN UPDATER E-CRV:
+echo [INFO]   TOKEN_UPDATER_ENABLED=%TOKEN_UPDATER_ENABLED%
+echo [INFO]   TOKEN_UPDATER_START_MODE=%TOKEN_UPDATER_START_MODE%
+echo [INFO]   TOKEN_UPDATER_INITIAL_DELAY_MS=%TOKEN_UPDATER_INITIAL_DELAY_MS%
+echo [INFO] ============================================================
+echo [INFO] CLICK AUTOMATION (login inicial):
+echo [INFO]   CLICK_AUTOMATION_ENABLED=%CLICK_AUTOMATION_ENABLED%
+echo [INFO]   CLICK_AUTOMATION_DIR=%CLICK_AUTOMATION_DIR%
+echo [INFO] ============================================================
 echo [INFO] Preflight do e-System:
 echo [INFO]   AGENT_PREFLIGHT_ENABLED=%AGENT_PREFLIGHT_ENABLED%
 echo [INFO]   AGENT_PREFLIGHT_FOCUS_EXE_PATH=%AGENT_PREFLIGHT_FOCUS_EXE_PATH%
 echo [INFO]   AGENT_PREFLIGHT_OCR_ENABLED=%AGENT_PREFLIGHT_OCR_ENABLED%
+echo [INFO] ============================================================
 
-echo [INFO] Instalando dependencias...
+echo [INFO] Instalando dependencias do point-recorder...
 call npm install
 if errorlevel 1 (
-  echo [ERRO] Falha no npm install.
+  echo [ERRO] Falha no npm install do point-recorder.
   set "EXIT_CODE=1"
   goto finish
+)
+
+REM Login inicial no E-CRV (opcional - se quiser fazer login antes de tudo)
+if /i "%CLICK_AUTOMATION_ENABLED%"=="1" (
+  echo [INFO] ============================================================
+  echo [INFO] EXECUTANDO LOGIN INICIAL NO E-CRV
+  echo [INFO] ============================================================
+
+  if exist "%CLICK_AUTOMATION_DIR%\package.json" (
+    echo [INFO] Instalando dependencias do click-automation...
+    cd /d "%CLICK_AUTOMATION_DIR%"
+    call npm install
+    if errorlevel 1 (
+      echo [WARN] Falha no npm install do click-automation. Continuando anyway...
+    )
+
+    echo [INFO] Executando login inicial no E-CRV...
+    call npm run ecrv
+    if errorlevel 1 (
+      echo [WARN] O login inicial falhou, o token updater tentara novamente...
+    ) else (
+      echo [INFO] Login inicial concluido com sucesso!
+    )
+  ) else (
+    echo [WARN] Click-automation nao encontrado em: %CLICK_AUTOMATION_DIR%
+  )
+
+  cd /d "%PROJECT_DIR%"
+)
+
+echo [INFO] ============================================================
+echo [INFO] INICIANDO AGENT POLLER (consulta de placas^)
+echo [INFO] ============================================================
+
+REM Iniciar o Token Updater EM PARALELO (como processo separado)
+set "TOKEN_UPDATER_PID="
+if /i "%TOKEN_UPDATER_ENABLED%"=="1" (
+  echo [INFO] ============================================================
+  echo [INFO] INICIANDO TOKEN UPDATER E-CRV (paralelo^)
+  echo [INFO] ============================================================
+
+  start /MIN "" cmd /c "node \"%PROJECT_DIR%\agent\token-updater-ecrv.mjs\""
+
+  echo [INFO] Token Updater iniciado em background
+  echo [INFO] ============================================================
+
+  REM Aguardar um pouco para o token updater inicializar
+  echo [INFO] Aguardando %TOKEN_UPDATER_INITIAL_DELAY_MS%ms para o Token Updater inicializar...
+  set /a "WAIT_SEC=%TOKEN_UPDATER_INITIAL_DELAY_MS% / 1000"
+  timeout /t %WAIT_SEC% /nobreak >nul
 )
 
 echo [INFO] Iniciando agent poller...
@@ -123,6 +169,13 @@ echo [INFO] Lock compartilhado liberado.
 exit /b 0
 
 :finish
+echo [INFO] ============================================================
+echo [INFO] Encerrando processos...
+echo [INFO] ============================================================
+
+REM Encerrar Token Updater se estiver rodando
+taskkill /F /IM node.exe >nul 2>&1
+
 if /i not "%SKIP_SHARED_LOCK%"=="1" (
   call :release_lock
 )

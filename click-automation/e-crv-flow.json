@@ -1,0 +1,211 @@
+[
+  {
+    "id": 1,
+    "action": "wait",
+    "ms": 2000,
+    "description": "Aguardar Chrome abrir"
+  },
+  {
+    "id": 1.5,
+    "x": 591,
+    "y": 570,
+    "action": "click",
+    "description": "Clique inicial apos abrir E-CRV"
+  },
+  {
+    "id": 2,
+    "x": 591,
+    "y": 570,
+    "action": "click",
+    "description": "Clique inicial apos abrir E-CRV"
+  },
+  {
+    "id": 2.5,
+    "x": 1010,
+    "y": 574,
+    "action": "click",
+    "description": "Clique inicial apos abrir E-CRV"
+  },
+  {
+    "id": 3,
+    "action": "wait",
+    "ms": 2000,
+    "description": "Aguardar apos clique inicial"
+  },
+  {
+    "id": 4,
+    "x": 333,
+    "y": 412,
+    "action": "click",
+    "description": "Clicar no campo CPF"
+  },
+  {
+    "id": 5,
+    "action": "paste",
+    "value": "44922011811",
+    "description": "Colar CPF"
+  },
+  {
+    "id": 6,
+    "x": 326,
+    "y": 459,
+    "action": "click",
+    "description": "Clicar para confirmar CPF"
+  },
+  {
+    "id": 7,
+    "x": 715,
+    "y": 604,
+    "action": "click",
+    "description": "Clicar para avancar"
+  },
+  {
+    "id": 8,
+    "action": "wait",
+    "ms": 15000,
+    "description": "Esperar 15 segundos"
+  },
+  {
+    "id": 9,
+    "x": 1013,
+    "y": 652,
+    "action": "click",
+    "description": "Clicar para continuar"
+  },
+  {
+    "id": 10,
+    "action": "wait",
+    "ms": 5000,
+    "description": "Esperar 5 segundos"
+  },
+  {
+    "id": 11,
+    "x": 886,
+    "y": 356,
+    "action": "click",
+    "description": "Clicar no campo PIN"
+  },
+  {
+    "id": 12,
+    "action": "wait",
+    "ms": 5000,
+    "description": "Esperar 5 segundos"
+  },
+  {
+    "id": 13,
+    "x": 750,
+    "y": 406,
+    "action": "click",
+    "description": "Clicar para posicionar no PIN"
+  },
+  {
+    "id": 14,
+    "action": "wait",
+    "ms": 5000,
+    "description": "Esperar 5 segundos"
+  },
+  {
+    "id": 15,
+    "action": "type",
+    "value": "1234",
+    "description": "Digitar PIN"
+  },
+  {
+    "id": 16,
+    "x": 789,
+    "y": 466,
+    "action": "click",
+    "description": "Clicar para confirmar PIN"
+  },
+  {
+    "id": 17,
+    "action": "wait",
+    "ms": 25000,
+    "description": "Esperar 25 segundos (apos login)"
+  },
+  {
+    "id": 18,
+    "x": 936,
+    "y": 489,
+    "action": "click",
+    "description": "Clique pos-login 1"
+  },
+  {
+    "id": 19,
+    "action": "wait",
+    "ms": 1000,
+    "description": "Aguardar 1 segundo"
+  },
+  {
+    "id": 20,
+    "x": 897,
+    "y": 468,
+    "action": "click",
+    "description": "Clique pos-login 2"
+  },
+  {
+    "id": 21,
+    "action": "wait",
+    "ms": 5000,
+    "description": "Aguardar 5 segundos"
+  },
+  {
+    "id": 22,
+    "x": 930,
+    "y": 210,
+    "action": "click",
+    "description": "Clicar no cancelar"
+  },
+  {
+    "id": 23,
+    "action": "wait",
+    "ms": 5000,
+    "description": "Esperar 5 segundos"
+  },
+  {
+    "id": 24,
+    "x": 673,
+    "y": 644,
+    "action": "click",
+    "description": "Clicar para finalizar"
+  },
+  {
+    "id": 25,
+    "action": "wait",
+    "ms": 2000,
+    "description": "Esperar 2 segundos"
+  },
+  {
+    "id": 26,
+    "x": 754,
+    "y": 401,
+    "action": "click",
+    "description": "Clicar no campo PIN"
+  },
+  {
+    "id": 27,
+    "action": "wait",
+    "ms": 500,
+    "description": "Aguardar"
+  },
+  {
+    "id": 28,
+    "action": "type",
+    "value": "1234",
+    "description": "Digitar PIN novamente"
+  },
+  {
+    "id": 29,
+    "x": 782,
+    "y": 460,
+    "action": "click",
+    "description": "Clicar no continuar"
+  },
+   
+  {
+    "id": 30,
+    "action": "wait",
+    "ms": 2000,
+    "description": "Aguardar apos digitar PIN"
+  }
+]

@@ -1,10 +1,18 @@
 /* eslint-disable no-console */
 
+require('dotenv/config');
+
 const fs = require('node:fs');
 const path = require('node:path');
 
 function parseArgs(argv) {
-  const args = { out: 'recordings/session.json', format: 'json', help: false };
+  const args = {
+    out: 'recordings/session.json',
+    format: 'json',
+    help: false,
+    openUrl: process.env.RECORD_OPEN_URL || '',
+    openChrome: false
+  };
 
   for (let i = 2; i < argv.length; i++) {
     const raw = argv[i];
@@ -24,6 +32,11 @@ function parseArgs(argv) {
     } else if (key === 'format') {
       args.format = (inlineValue ?? (hasSeparateValue ? next : args.format)).toLowerCase();
       if (hasSeparateValue) i++;
+    } else if (key === 'open-url') {
+      args.openUrl = inlineValue ?? (hasSeparateValue ? next : args.openUrl);
+      if (hasSeparateValue) i++;
+    } else if (key === 'open-chrome') {
+      args.openChrome = true;
     }
   }
 
@@ -65,9 +78,11 @@ function printHelp() {
   console.log('Uso: node record.js [--out <arquivo>] [--format json|jsonl]');
   console.log('Ex:  node record.js --out recordings/sessao.json --format json');
   console.log('Ex:  node record.js --out recordings/sessao.jsonl --format jsonl');
+  console.log('Ex:  node record.js --open-url https://www.e-crvsp.sp.gov.br/');
+  console.log('Ex:  node record.js --open-chrome --open-url https://www.e-crvsp.sp.gov.br/');
 }
 
-const { out, format, help } = parseArgs(process.argv);
+const { out, format, help, openUrl, openChrome } = parseArgs(process.argv);
 
 if (help) {
   printHelp();
@@ -111,6 +126,32 @@ console.log('Gravando teclado...');
 console.log(`Arquivo: ${outPath}`);
 console.log(`Formato: ${format}`);
 console.log('Parar: Ctrl+C');
+
+function openChromeWithUrl(url) {
+  const targetUrl = url && String(url).trim() ? String(url).trim() : 'https://www.e-crvsp.sp.gov.br/';
+  const userDataDir = String(process.env.RECORD_CHROME_USER_DATA_DIR || '').trim();
+  const profileDir = String(process.env.RECORD_CHROME_PROFILE_DIR || '').trim();
+  const chromeArgs = [];
+  if (userDataDir) chromeArgs.push(`--user-data-dir=${userDataDir}`);
+  if (profileDir) chromeArgs.push(`--profile-directory=${profileDir}`);
+
+  if (process.platform === 'win32') {
+    const { spawn } = require('node:child_process');
+    const child = spawn('cmd', ['/c', 'start', '""', 'chrome', ...chromeArgs, targetUrl], {
+      windowsHide: false,
+      detached: true,
+      stdio: 'ignore'
+    });
+    child.unref();
+    return;
+  }
+
+  console.warn('Abertura automatica do Chrome suportada apenas no Windows.');
+}
+
+if (openChrome || process.env.RECORD_OPEN_CHROME === '1' || process.env.RECORD_OPEN_CHROME === 'true') {
+  openChromeWithUrl(openUrl);
+}
 
 function writeRecord(record) {
   if (format === 'jsonl') {
