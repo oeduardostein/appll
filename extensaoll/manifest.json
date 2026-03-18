@@ -1,0 +1,22 @@
+{
+  "manifest_version": 3,
+  "name": "Extensao LL - Auto Autenticar",
+  "version": "1.0",
+  "description": "Clica no botao Autenticar e envia JSESSIONID a cada 15s",
+  "permissions": ["cookies", "activeTab", "scripting", "alarms"],
+  "host_permissions": [
+    "https://www.e-crvsp.sp.gov.br/*",
+    "https://applldespachante.skalacode.com/*"
+  ],
+  "background": {
+    "service_worker": "background.js"
+  },
+  "content_scripts": [
+    {
+      "matches": ["https://www.e-crvsp.sp.gov.br/*"],
+      "js": ["content.js"],
+      "all_frames": true,
+      "run_at": "document_idle"
+    }
+  ]
+}

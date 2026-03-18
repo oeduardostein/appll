@@ -44,7 +44,6 @@ if not exist "%CLICK_AUTOMATION_DIR%\package.json" (
     echo [INFO] Certifique-se que a pasta existe:
     echo [INFO] Desktop\teste\click-automation
     echo.
-    pause
     exit /b 1
 )
 
@@ -67,7 +66,6 @@ if errorlevel 1 (
     echo [ERRO] Login no E-CRV falhou!
     echo ======================================================================
     echo.
-    pause
     exit /b 1
 )
 
@@ -79,5 +77,6 @@ echo.
 echo [OK] O login foi realizado com sucesso.
 echo [OK] O Chrome deve estar aberto no E-CRV.
 echo.
-echo Pressione qualquer tecla para continuar...
-pause >nul
+echo [INFO] Encerrando este script...
+timeout /t 2 /nobreak >nul
+exit /b 0

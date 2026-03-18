@@ -33,7 +33,6 @@ where node >nul 2>&1
 if errorlevel 1 (
     echo [ERRO] Node.js nao encontrado!
     echo [INFO] Instale em: https://nodejs.org/
-    pause
     exit /b 1
 )
 
@@ -53,7 +52,6 @@ echo.
 cd /d "%POINT_RECORDER_DIR%"
 if not exist "package.json" (
     echo [ERRO] package.json nao encontrado em: %CD%
-    pause
     exit /b 1
 )
 
@@ -66,7 +64,6 @@ call npm install
 if errorlevel 1 (
     echo.
     echo [ERRO] npm install do point-recorder falhou!
-    pause
     exit /b 1
 )
 
@@ -111,5 +108,6 @@ echo ======================================================================
 echo    TODAS AS DEPENDENCIAS INSTALADAS!
 echo ======================================================================
 echo.
-echo Pressione qualquer tecla para continuar...
-pause >nul
+echo [INFO] Encerrando este script...
+timeout /t 2 /nobreak >nul
+exit /b 0

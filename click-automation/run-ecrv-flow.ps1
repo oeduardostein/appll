@@ -279,16 +279,18 @@ Write-Host "Abrindo DevTools (F12)..."
 [System.Windows.Forms.SendKeys]::SendWait("{F12}")
 Start-Sleep -Seconds 1
 
-Write-Host "Clique 1: (1222, 102)"
-MouseClick 1222 102
+Write-Host "Clique 1: (767, 389)"
+MouseClick 767 389
 Start-Sleep -Seconds 1
 
-Write-Host "Clique 2: (1090, 200)"
-MouseClick 1090 200
+Write-Host "Clique 2: (1093, 204)"
+ShowDebugMarker 1093 204 "Clique 2" 1000
+MouseClick 1093 204
 Start-Sleep -Seconds 1
 
-Write-Host "Duplo clique: (1026, 564)"
-MouseDoubleClick 1026 564
+Write-Host "Duplo clique: (1018, 624)"
+ShowDebugMarker 1018 624 "Duplo clique" 1000
+MouseDoubleClick 1018 624
 Start-Sleep -Milliseconds 400
 
 Write-Host "Copiando valor selecionado (Ctrl+C)..."

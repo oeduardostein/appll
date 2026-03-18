@@ -39,7 +39,6 @@ if not exist "%ESYSTEM_EXE_PATH%" (
     echo [INFO] Edite este arquivo e altere ESYSTEM_EXE_PATH
     echo [INFO] Ou faca login manualmente.
     echo.
-    pause
     exit /b 1
 )
 
@@ -47,7 +46,6 @@ REM Verificar Node.js
 where node >nul 2>&1
 if errorlevel 1 (
     echo [ERRO] Node.js nao encontrado!
-    pause
     exit /b 1
 )
 
@@ -99,7 +97,6 @@ if errorlevel 1 (
     echo [INFO] O e-System esta aberto, mas o login nao foi completo.
     echo [INFO] Faca o login manualmente.
     echo.
-    pause
     exit /b 1
 )
 
@@ -111,5 +108,6 @@ echo.
 echo [OK] O e-System esta aberto e logado.
 echo [OK] Os 2 cliques pos-login foram executados.
 echo.
-echo Pressione qualquer tecla para continuar...
-pause >nul
+echo [INFO] Encerrando este script...
+timeout /t 2 /nobreak >nul
+exit /b 0
