@@ -24,6 +24,25 @@ function parseCsvList(value) {
     .filter(Boolean);
 }
 
+function parseOptionalPath(value, fallback = '') {
+  if (value == null) return fallback;
+  const normalized = String(value).trim();
+  if (!normalized) return '';
+  const lower = normalized.toLowerCase();
+  if (
+    lower === '0'
+    || lower === 'false'
+    || lower === 'off'
+    || lower === 'none'
+    || lower === 'null'
+    || lower === 'disabled'
+    || lower === 'no'
+  ) {
+    return '';
+  }
+  return normalized;
+}
+
 function parseClickPoints(value) {
   if (value == null) return [];
   const raw = String(value).trim();
@@ -439,6 +458,10 @@ export async function replayTemplate({
 export function loadAgentConfigFromEnv(env) {
   const templatePath = env.AGENT_TEMPLATE_PATH || 'recordings/template.json';
   const templatePaths = parseCsvList(env.AGENT_TEMPLATE_PATHS);
+  const disableLoginTemplate = toBool(env.AGENT_DISABLE_LOGIN_TEMPLATE, false);
+  const loginTemplatePath = disableLoginTemplate
+    ? ''
+    : parseOptionalPath(env.AGENT_LOGIN_TEMPLATE_PATH, '');
   const passwordInputModeRaw = String(env.AGENT_PASSWORD_INPUT_MODE || 'paste').trim().toLowerCase();
   const passwordInputMode = passwordInputModeRaw === 'type' ? 'type' : 'paste';
   const ocrProviderRaw = String(env.AGENT_OCR_PROVIDER || 'local').trim().toLowerCase();
@@ -460,7 +483,7 @@ export function loadAgentConfigFromEnv(env) {
     replayVisualShowCard: toBool(env.AGENT_REPLAY_VISUAL_SHOW_CARD, true),
     preReplayWaitMs: Number(env.AGENT_PRE_REPLAY_WAIT_MS || 0),
     postLoginWaitMs: Number(env.AGENT_POST_LOGIN_WAIT_MS || 0),
-    loginTemplatePath: env.AGENT_LOGIN_TEMPLATE_PATH || '',
+    loginTemplatePath,
     loginBootstrapOnStart: toBool(env.AGENT_LOGIN_BOOTSTRAP_ON_START, true),
     betweenTemplatesWaitMs: Number(env.AGENT_BETWEEN_TEMPLATES_WAIT_MS || 0),
     screenshotCropW: Number(env.AGENT_SCREENSHOT_CROP_W || 0),
