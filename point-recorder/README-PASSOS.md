@@ -20,7 +20,7 @@ Menu interativo com opções:
 | **`1-instalar-dependencias.bat`** | 📦 `npm install` nas duas pastas |
 | **`2-login-esystem.bat`** | 💻 Abre e-System E executa login automático (senha + 2 cliques) |
 | **`3-login-ecrv.bat`** | 🌐 Abre e faz login no E-CRV |
-| **`4-iniciar-poller-e-refresh.bat`** | 🔄 Poller + Token Refresh juntos |
+| **`4-iniciar-poller.bat`** | 🔄 Poller + Keep-Alive do E-CRV juntos |
 
 ## 🔄 Fluxo Completo
 
@@ -64,7 +64,7 @@ Escolha a opção [1] para tudo
 1. Duplo clique em: 1-instalar-dependencias.bat
 2. Depois: 2-login-esystem.bat
 3. Depois: 3-login-ecrv.bat
-4. Depois: 4-iniciar-poller-e-refresh.bat
+4. Depois: 4-iniciar-poller.bat
 ```
 
 ### Opção 3 - Uso diário
@@ -88,7 +88,7 @@ O login usa o template definido em `AGENT_LOGIN_TEMPLATE_PATH` (no .env) e a sen
 ## 🔧 Configurações
 
 ### Alterar CPF/PIN do E-CRV
-Edite os arquivos `3-login-ecrv.bat` e `4-iniciar-poller-e-refresh.bat`:
+Edite os arquivos `3-login-ecrv.bat` e `4-iniciar-poller.bat`:
 ```bat
 set "ECRV_CPF=44922011811"
 set "ECRV_PIN=1234"
@@ -101,9 +101,9 @@ set "ESYSTEM_EXE_PATH=C:\SH Sistemas\System Desp SX\eSystemDesp.exe"
 ```
 
 ### Alterar intervalo do Token Refresh
-Edite `4-iniciar-poller-e-refresh.bat`:
+Edite `4-iniciar-poller.bat`:
 ```bat
-set "TOKEN_REFRESH_INTERVAL=5"
+set "TOKEN_UPDATER_SESSION_REFRESH_INTERVAL_MS=300000"
 ```
 
 ## ⚠️ Troubleshooting

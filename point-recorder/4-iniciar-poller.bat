@@ -2,14 +2,11 @@
 setlocal EnableExtensions
 
 REM ============================================================
-REM PASSO 4: INICIAR APENAS AGENT POLLER
-REM
-REM Fluxo novo:
-REM   - O refresh do E-CRV fica por conta da extensao.
-REM   - Este script executa somente o agent:poller.
-REM   - O poller NAO deve fazer login no e-System.
-REM   - O poller deve apenas focar a janela do e-System e consultar.
-REM
+REM PASSO 4: INICIAR AGENT POLLER + KEEP-ALIVE E-CRV
+REM   - Mantem JSESSIONID ativo no E-CRV e no banco
+REM   - Usa a janela do Chrome ja aberta (sem abrir outra)
+REM   - Poller NAO faz login automatico no e-System
+REM   - Poller apenas foca e-System e processa consultas
 REM ============================================================
 
 set "SCRIPT_DIR=%~dp0"
@@ -23,19 +20,22 @@ if not exist "%POINT_RECORDER_DIR%\package.json" (
 cls
 echo.
 echo ======================================================================
-echo    PASSO 4: APENAS AGENT POLLER
+echo    PASSO 4: AGENT POLLER + KEEP-ALIVE E-CRV
 echo ======================================================================
 echo.
 echo Point-Recorder: %POINT_RECORDER_DIR%
 echo.
 echo Este script ira executar:
 echo.
-echo   1. AGENT POLLER (primeiro plano)
+echo   1. TOKEN UPDATER E-CRV (em paralelo - modo always)
+echo      - Mantem sessao ativa
+echo      - Atualiza JSESSIONID no banco
+echo.
+echo   2. AGENT POLLER (primeiro plano)
 echo      - Aguarda consultas de placas
 echo      - Foca a janela do e-System
 echo      - Processa as solicitacoes
 echo.
-echo [IMPORTANTE] Refresh do E-CRV desativado neste passo.
 echo [IMPORTANTE] Login automatico do e-System desativado neste passo.
 echo.
 echo Pressione Ctrl+C para encerrar tudo.
@@ -59,7 +59,7 @@ if not exist "%POINT_RECORDER_DIR%\package.json" (
 cd /d "%POINT_RECORDER_DIR%"
 
 REM ============================================================
-REM OVERRIDES DO POLLER (apenas foco + consulta)
+REM OVERRIDES DO POLLER (foco + consulta + keep-alive E-CRV)
 REM ============================================================
 
 echo ======================================================================
@@ -67,9 +67,24 @@ echo [1/2] Aplicando configuracao de execucao...
 echo ======================================================================
 echo.
 
-REM Desabilita qualquer atualizacao automatica do E-CRV no worker.
-set "AGENT_TOKEN_UPDATER_ENABLED=false"
-set "AGENT_TOKEN_UPDATER_COMMAND="
+REM Keep-alive do E-CRV junto do poller.
+set "AGENT_TOKEN_UPDATER_ENABLED=true"
+set "AGENT_TOKEN_UPDATER_COMMAND=npm run token:updater"
+set "AGENT_TOKEN_UPDATER_MODE=always"
+set "AGENT_TOKEN_UPDATER_START_ON_BOOT=true"
+if "%AGENT_TOKEN_UPDATER_IDLE_GRACE_MS%"=="" set "AGENT_TOKEN_UPDATER_IDLE_GRACE_MS=1000"
+
+REM Credenciais/intervalos do updater E-CRV (pode sobrescrever por variavel de ambiente).
+if "%ECRV_CPF%"=="" set "ECRV_CPF=44922011811"
+if "%ECRV_PIN%"=="" set "ECRV_PIN=1234"
+if "%TOKEN_UPDATER_USE_EXISTING_CHROME_ONLY%"=="" set "TOKEN_UPDATER_USE_EXISTING_CHROME_ONLY=true"
+if "%TOKEN_UPDATER_AUTO_START_CHROME%"=="" set "TOKEN_UPDATER_AUTO_START_CHROME=false"
+if "%TOKEN_UPDATER_AUTO_LOGIN_WHEN_NEEDED%"=="" set "TOKEN_UPDATER_AUTO_LOGIN_WHEN_NEEDED=false"
+if "%TOKEN_UPDATER_CDP_URL%"=="" set "TOKEN_UPDATER_CDP_URL=http://127.0.0.1:9222"
+if "%TOKEN_UPDATER_REQUIRE_ECRV_TAB%"=="" set "TOKEN_UPDATER_REQUIRE_ECRV_TAB=true"
+if "%TOKEN_UPDATER_SESSION_REFRESH_INTERVAL_MS%"=="" set "TOKEN_UPDATER_SESSION_REFRESH_INTERVAL_MS=300000"
+if "%TOKEN_UPDATER_SESSION_CHECK_INTERVAL_MS%"=="" set "TOKEN_UPDATER_SESSION_CHECK_INTERVAL_MS=30000"
+if "%TOKEN_UPDATER_MAX_SESSION_AGE_MS%"=="" set "TOKEN_UPDATER_MAX_SESSION_AGE_MS=3300000"
 
 REM Garante que o poller nao rode login do e-System (nem no start, nem por template de login separado).
 set "AGENT_LOGIN_BOOTSTRAP_ON_START=false"
@@ -86,6 +101,18 @@ set "AGENT_APP_KILL_AFTER_SCREENSHOT=false"
 
 echo [OK] Overrides aplicados:
 echo [INFO] AGENT_TOKEN_UPDATER_ENABLED=%AGENT_TOKEN_UPDATER_ENABLED%
+echo [INFO] AGENT_TOKEN_UPDATER_COMMAND=%AGENT_TOKEN_UPDATER_COMMAND%
+echo [INFO] AGENT_TOKEN_UPDATER_MODE=%AGENT_TOKEN_UPDATER_MODE%
+echo [INFO] AGENT_TOKEN_UPDATER_START_ON_BOOT=%AGENT_TOKEN_UPDATER_START_ON_BOOT%
+echo [INFO] ECRV_CPF=%ECRV_CPF%
+echo [INFO] TOKEN_UPDATER_USE_EXISTING_CHROME_ONLY=%TOKEN_UPDATER_USE_EXISTING_CHROME_ONLY%
+echo [INFO] TOKEN_UPDATER_AUTO_START_CHROME=%TOKEN_UPDATER_AUTO_START_CHROME%
+echo [INFO] TOKEN_UPDATER_AUTO_LOGIN_WHEN_NEEDED=%TOKEN_UPDATER_AUTO_LOGIN_WHEN_NEEDED%
+echo [INFO] TOKEN_UPDATER_CDP_URL=%TOKEN_UPDATER_CDP_URL%
+echo [INFO] TOKEN_UPDATER_REQUIRE_ECRV_TAB=%TOKEN_UPDATER_REQUIRE_ECRV_TAB%
+echo [INFO] TOKEN_UPDATER_SESSION_REFRESH_INTERVAL_MS=%TOKEN_UPDATER_SESSION_REFRESH_INTERVAL_MS%
+echo [INFO] TOKEN_UPDATER_SESSION_CHECK_INTERVAL_MS=%TOKEN_UPDATER_SESSION_CHECK_INTERVAL_MS%
+echo [INFO] TOKEN_UPDATER_MAX_SESSION_AGE_MS=%TOKEN_UPDATER_MAX_SESSION_AGE_MS%
 echo [INFO] AGENT_LOGIN_BOOTSTRAP_ON_START=%AGENT_LOGIN_BOOTSTRAP_ON_START%
 echo [INFO] AGENT_LOGIN_TEMPLATE_PATH=(vazio)
 echo [INFO] AGENT_DISABLE_LOGIN_TEMPLATE=%AGENT_DISABLE_LOGIN_TEMPLATE%
@@ -102,10 +129,11 @@ echo ======================================================================
 echo [2/2] Iniciando AGENT POLLER...
 echo ======================================================================
 echo.
-echo   [DESATIVADO] Token refresh do E-CRV via script
+echo   [STARTING]  Token updater E-CRV em paralelo
 echo   [STARTING]  Agent Poller: primeiro plano
 echo.
 echo O Agent Poller ira focar o e-System e processar consultas.
+echo O token updater mantera o E-CRV ativo e o JSESSIONID atualizado.
 echo Pressione Ctrl+C para encerrar tudo.
 echo.
 echo ======================================================================

@@ -310,6 +310,11 @@ function resolveTokenUpdaterConfig(env) {
   const cwd = cwdRaw
     ? path.resolve(process.cwd(), cwdRaw)
     : path.resolve(process.cwd());
+  const modeRaw = String(env.AGENT_TOKEN_UPDATER_MODE || 'idle')
+    .trim()
+    .toLowerCase();
+  const mode = modeRaw === 'always' ? 'always' : 'idle';
+  const startOnBoot = toBool(env.AGENT_TOKEN_UPDATER_START_ON_BOOT, mode === 'always');
   const restartInitialBackoffMs = toPositiveInt(
     env.AGENT_TOKEN_UPDATER_RESTART_INITIAL_BACKOFF_MS,
     10000
@@ -327,6 +332,8 @@ function resolveTokenUpdaterConfig(env) {
     idleGraceMs: toNonNegativeInt(env.AGENT_TOKEN_UPDATER_IDLE_GRACE_MS, 2500),
     stopTimeoutMs: toPositiveInt(env.AGENT_TOKEN_UPDATER_STOP_TIMEOUT_MS, 15000),
     minUptimeMs: toNonNegativeInt(env.AGENT_TOKEN_UPDATER_MIN_UPTIME_MS, 8000),
+    mode,
+    startOnBoot,
     restartInitialBackoffMs,
     restartMaxBackoffMs,
   };
@@ -436,6 +443,10 @@ function createTokenUpdaterManager(env, localLogger) {
   };
 
   const onQueueBusy = async (reason = 'queue_busy') => {
+    if (cfg.mode === 'always') {
+      await onQueueEmpty(`${reason}_keepalive`);
+      return;
+    }
     await stopProcess(reason);
     idleSince = null;
     consecutiveFailures = 0;
@@ -444,15 +455,20 @@ function createTokenUpdaterManager(env, localLogger) {
 
   const onQueueEmpty = async (reason = 'queue_empty') => {
     if (!cfg.enabled || disabledByConfigError) return;
+    const alwaysMode = cfg.mode === 'always';
 
     if (!idleSince) {
       idleSince = Date.now();
-      localLogger?.debug?.('token_updater.idle.begin', { reason, idleGraceMs: cfg.idleGraceMs });
+      localLogger?.debug?.('token_updater.idle.begin', {
+        reason,
+        mode: cfg.mode,
+        idleGraceMs: cfg.idleGraceMs,
+      });
     }
 
     if (isRunning()) return;
     if (starting || stoppingPromise) return;
-    if (Date.now() - idleSince < cfg.idleGraceMs) return;
+    if (!alwaysMode && Date.now() - idleSince < cfg.idleGraceMs) return;
     if (nextStartAllowedAt > Date.now()) {
       const now = Date.now();
       if (now - lastBackoffLogAt >= 5000) {
@@ -497,6 +513,7 @@ function createTokenUpdaterManager(env, localLogger) {
       let lifecycleHandled = false;
       localLogger?.info?.('token_updater.start', {
         reason,
+        mode: cfg.mode,
         pid: proc.pid ?? null,
         cwd: cfg.cwd,
         command: cfg.command,
@@ -576,10 +593,17 @@ function createTokenUpdaterManager(env, localLogger) {
     await stopProcess(reason);
   };
 
+  const onBoot = async (reason = 'boot') => {
+    if (!cfg.enabled || disabledByConfigError || !cfg.startOnBoot) return;
+    await onQueueEmpty(reason);
+  };
+
   localLogger?.info?.('token_updater.config', {
     enabled: cfg.enabled,
     cwd: cfg.cwd,
     command: cfg.command,
+    mode: cfg.mode,
+    startOnBoot: cfg.startOnBoot,
     idleGraceMs: cfg.idleGraceMs,
     stopTimeoutMs: cfg.stopTimeoutMs,
     minUptimeMs: cfg.minUptimeMs,
@@ -591,6 +615,7 @@ function createTokenUpdaterManager(env, localLogger) {
     enabled: cfg.enabled,
     onQueueBusy,
     onQueueEmpty,
+    onBoot,
     shutdown,
   };
 }
@@ -1683,6 +1708,14 @@ async function main() {
         error: String(warmupErr?.message || warmupErr),
       });
     }
+  }
+
+  try {
+    await tokenUpdaterManager.onBoot('agent_start');
+  } catch (updaterBootErr) {
+    logger?.warn?.('token_updater.start_on_boot_error', {
+      error: String(updaterBootErr?.message || updaterBootErr),
+    });
   }
 
   // Loop: tenta processar 1 por vez; se não tiver, dorme e tenta de novo.
